@@ -10,8 +10,6 @@ import java.util.List;
 
 @Repository
 public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
-    List<Turno> findByProfesionalId(Long profesionalId);
-
     // Query Method para buscar turnos por el ID del profesional y la fecha y hora
     List<Turno> findByProfesionalIdAndFechaHora(Long profesionalId, LocalDateTime fechaHora); // Corregido
 

@@ -3,9 +3,11 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.UsuarioMapper;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,15 +22,16 @@ public class UsuarioServicio implements IUsuarioServicio {
     @Autowired
     private UsuarioMapper usuarioMapper;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Override
     public UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuarioDto) {
-        if (usuarioDto.getUsername() == null || usuarioDto.getUsername().isEmpty()) {
-            throw new IllegalArgumentException("El email del usuario es obligatorio");
-        }
-        if (usuarioDto.getPassword() == null || usuarioDto.getPassword().isEmpty()) {
-            throw new IllegalArgumentException("La contraseña del usuario es obligatoria");
+        if (usuarioRepositorio.existsByEmail(usuarioDto.getUsername())) {
+            throw new IllegalArgumentException("Ya existe un usuario registrado con el email: " + usuarioDto.getUsername());
         }
         Usuario usuario = usuarioMapper.paraEntidad(usuarioDto);
+        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
         Usuario usuarioGuardado = usuarioRepositorio.save(usuario);
         return usuarioMapper.paraDto(usuarioGuardado);
     }
@@ -51,14 +54,14 @@ public class UsuarioServicio implements IUsuarioServicio {
         if (usuarioRepositorio.existsById(id)) {
             usuarioRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Usuario no encontrado con ID: " + id);
+            throw new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id);
         }
     }
 
     @Override
     public UsuarioDtoResponse findByUsername(String username) {
         Usuario usuario = usuarioRepositorio.findByEmail(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + username));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Usuario no encontrado con email: " + username));
         return usuarioMapper.paraDto(usuario);
     }
 
@@ -72,6 +75,6 @@ public class UsuarioServicio implements IUsuarioServicio {
     @Override
     public Usuario obtenerEntidadUsuarioPorId(Long id) {
         return usuarioRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id));
     }
 }

@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.entidad.Turno;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ public class TurnoServicio implements ITurnoServicio {
     @Override
     public TurnoDtoResponse obtenerTurnoPorId(Long id) {
         Turno turno = turnoRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Turno no encontrado con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
         return turnoMapper.paraDto(turno);
     }
 
@@ -50,7 +51,7 @@ public class TurnoServicio implements ITurnoServicio {
         if (turnoRepositorio.existsById(id)) {
             turnoRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Turno no encontrado con ID: " + id);
+            throw new NoEncontradoExcepcion("Turno no encontrado con ID: " + id);
         }
     }
 

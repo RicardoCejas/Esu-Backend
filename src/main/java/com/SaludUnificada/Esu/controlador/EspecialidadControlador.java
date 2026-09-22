@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.EspecialidadDtoRequest;
 import com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse;
 import com.SaludUnificada.Esu.servicio.IEspecialidadServicio;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,40 +19,28 @@ public class EspecialidadControlador {
     private IEspecialidadServicio especialidadServicio;
 
     @PostMapping("/crear")
-    public ResponseEntity<EspecialidadDtoResponse> crearEspecialidad(@RequestBody EspecialidadDtoRequest especialidadDto) {
-        EspecialidadDtoResponse nuevaEspecialidad = especialidadServicio.crearEspecialidad(especialidadDto);
-        return new ResponseEntity<>(nuevaEspecialidad, HttpStatus.CREATED);
+    public ResponseEntity<EspecialidadDtoResponse> crearEspecialidad(@Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
+        return new ResponseEntity<>(especialidadServicio.crearEspecialidad(especialidadDto), HttpStatus.CREATED);
     }
 
     @GetMapping("/obtener/{id}")
     public ResponseEntity<EspecialidadDtoResponse> obtenerEspecialidadPorId(@PathVariable Long id) {
-        try {
-            EspecialidadDtoResponse especialidad = especialidadServicio.obtenerEspecialidadPorId(id);
-            return new ResponseEntity<>(especialidad, HttpStatus.OK);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        return ResponseEntity.ok(especialidadServicio.obtenerEspecialidadPorId(id));
     }
 
     @GetMapping("/obtener/todos")
     public ResponseEntity<List<EspecialidadDtoResponse>> listarTodas() {
-        List<EspecialidadDtoResponse> especialidades = especialidadServicio.listarTodas();
-        return new ResponseEntity<>(especialidades, HttpStatus.OK);
+        return ResponseEntity.ok(especialidadServicio.listarTodas());
     }
 
     @DeleteMapping("/eliminar/{id}")
     public ResponseEntity<Void> eliminarEspecialidad(@PathVariable Long id) {
-        try {
-            especialidadServicio.eliminarEspecialidad(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        especialidadServicio.eliminarEspecialidad(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/buscar")
     public ResponseEntity<List<EspecialidadDtoResponse>> buscarPorNombre(@RequestParam String nombre) {
-        List<EspecialidadDtoResponse> especialidades = especialidadServicio.buscarPorNombre(nombre);
-        return new ResponseEntity<>(especialidades, HttpStatus.OK);
+        return ResponseEntity.ok(especialidadServicio.buscarPorNombre(nombre));
     }
 }
