@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.ProfesionalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.ProfesionalDtoResponse; // Importación corregida
 import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +23,6 @@ public class ProfesionalServicio implements IProfesionalServicio {
 
     @Override
     public ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesionalDto) { // Tipo de retorno corregido
-        if (profesionalDto.getMatricula() == null || profesionalDto.getMatricula().isBlank()) {
-            throw new IllegalArgumentException("La matrícula del profesional es obligatoria");
-        }
         Profesional profesional = profesionalMapper.paraEntidad(profesionalDto);
         Profesional profesionalGuardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(profesionalGuardado);
@@ -48,7 +46,7 @@ public class ProfesionalServicio implements IProfesionalServicio {
         if (profesionalRepositorio.existsById(id)) {
             profesionalRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Profesional no encontrado con ID: " + id);
+            throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id);
         }
     }
 
@@ -62,6 +60,6 @@ public class ProfesionalServicio implements IProfesionalServicio {
     @Override
     public Profesional obtenerEntidadProfesionalPorId(Long id) {
         return profesionalRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Profesional no encontrado con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
     }
 }

@@ -49,4 +49,59 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         // Devuelve un código HTTP 400 BAD_REQUEST junto al mapa de campos inválidos
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorMessage> handleIllegalArgumentException(IllegalArgumentException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.BAD_REQUEST,
+                LocalDateTime.now(),
+                exception.getMessage(),
+                "Solicitud inválida"
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorMessage> handleIllegalStateException(IllegalStateException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.CONFLICT,
+                LocalDateTime.now(),
+                exception.getMessage(),
+                "Conflicto de estado"
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(message);
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ErrorMessage> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.UNAUTHORIZED,
+                LocalDateTime.now(),
+                "Credenciales inválidas: email o contraseña incorrectos",
+                "Fallo de autenticación"
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(message);
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorMessage> handleAccessDenied(org.springframework.security.access.AccessDeniedException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.FORBIDDEN,
+                LocalDateTime.now(),
+                "Acceso denegado: no posee los permisos o rol requerido para este recurso",
+                "Permisos insuficientes"
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(message);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorMessage> handleGlobalException(Exception exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                LocalDateTime.now(),
+                exception.getMessage(),
+                "Error interno del servidor"
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(message);
+    }
 }

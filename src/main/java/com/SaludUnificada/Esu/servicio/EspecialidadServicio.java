@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.EspecialidadDtoRequest;
 import com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse;
 import com.SaludUnificada.Esu.entidad.Especialidad;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.EspecialidadMapper;
 import com.SaludUnificada.Esu.repositorio.EspecialidadRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,7 @@ public class EspecialidadServicio implements IEspecialidadServicio {
         if (especialidadRepositorio.existsById(id)) {
             especialidadRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Especialidad no encontrada con ID: " + id);
+            throw new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + id);
         }
     }
 
@@ -62,6 +63,6 @@ public class EspecialidadServicio implements IEspecialidadServicio {
     @Override
     public Especialidad obtenerEntidadEspecialidadPorId(Long id) {
         return especialidadRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Especialidad no encontrada con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + id));
     }
 }

@@ -1,4 +1,4 @@
-package com.SaludUnificada.Esu.dto.request;
+package com.SaludUnificada.Esu.dto.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -12,12 +12,15 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UsuarioDtoRequest {
-    @NotBlank(message = "El username/email es obligatorio")
-    @Email(message = "El username debe tener formato de email válido")
-    private String username;
+public class RegistroDtoRequest {
 
-    @NotBlank(message = "La contraseña es obligatoria")
+    @NotBlank(message = "El email no puede estar vacío")
+    @Email(message = "El formato de email no es válido")
+    private String email;
+
+    @NotBlank(message = "La contraseña no puede estar vacía")
     @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
+
+    private String rol; // PACIENTE, PROFESIONAL, ADMIN (por defecto PACIENTE)
 }
