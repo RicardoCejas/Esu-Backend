@@ -31,7 +31,7 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnoPorId(id));
     }
 
-    @GetMapping("/obtener/todos")
+    @GetMapping({"", "/obtener/todos"})
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
     }

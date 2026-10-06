@@ -29,7 +29,7 @@ public class ProfesionalControlador {
         return ResponseEntity.ok(profesionalServicio.obtenerProfesionalPorId(id));
     }
 
-    @GetMapping("/obtener/todos")
+    @GetMapping({"", "/obtener/todos"})
     public ResponseEntity<List<ProfesionalDtoResponse>> listarTodos() {
         return ResponseEntity.ok(profesionalServicio.listarTodos());
     }

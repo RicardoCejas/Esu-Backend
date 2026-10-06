@@ -29,7 +29,7 @@ public class PacienteControlador {
         return ResponseEntity.ok(pacienteServicio.obtenerPacientePorId(id));
     }
 
-    @GetMapping("/obtener/todos")
+    @GetMapping({"", "/obtener/todos"})
     public ResponseEntity<List<PacienteDtoResponse>> listarTodos() {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
     }

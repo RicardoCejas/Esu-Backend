@@ -28,7 +28,7 @@ public class EspecialidadControlador {
         return ResponseEntity.ok(especialidadServicio.obtenerEspecialidadPorId(id));
     }
 
-    @GetMapping("/obtener/todos")
+    @GetMapping({"", "/obtener/todos"})
     public ResponseEntity<List<EspecialidadDtoResponse>> listarTodas() {
         return ResponseEntity.ok(especialidadServicio.listarTodas());
     }

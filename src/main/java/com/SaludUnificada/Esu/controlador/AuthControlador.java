@@ -61,7 +61,7 @@ public class AuthControlador {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/registro")
+    @PostMapping({"/registro", "/register"})
     public ResponseEntity<JwtAuthDtoResponse> registro(@Valid @RequestBody RegistroDtoRequest registroDto) {
         if (usuarioRepositorio.existsByEmail(registroDto.getEmail())) {
             throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
