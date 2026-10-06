@@ -32,14 +32,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = obtenerJwtDeSolicitud(request);
 
         if (StringUtils.hasText(token) && jwtTokenProvider.validarToken(token)) {
-            String username = jwtTokenProvider.obtenerUsernameDelJwt(token);
-            UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+            try {
+                String username = jwtTokenProvider.obtenerUsernameDelJwt(token);
+                UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception ex) {
+                // Si el usuario fue borrado o no existe en la BD, limpiar contexto y continuar sin autenticar
+                SecurityContextHolder.clearContext();
+            }
         }
 
         filterChain.doFilter(request, response);
