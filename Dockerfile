@@ -23,8 +23,9 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:17-jre-jammy AS runner
 WORKDIR /app
 
-# Crear usuario de sistema no-root para seguridad clínica
-RUN groupadd -r esugroup && useradd -r -g esugroup esuuser
+# Instalar curl para el healthcheck y crear usuario no-root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r esugroup && useradd -r -g esugroup esuuser
 
 # Copiar el artefacto ejecutable generado en la etapa 1
 COPY --from=builder /app/target/*.jar app.jar
