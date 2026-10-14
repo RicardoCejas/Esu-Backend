@@ -5,6 +5,7 @@
      ============================================================================= -->
 <configuration scan="true" scanPeriod="30 seconds">
 
+    <include resource="org/springframework/boot/logging/logback/defaults.xml" />
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="Esu-Backend"/>
 
     <!-- Appender de Consola Estructurado (JSON) -->
