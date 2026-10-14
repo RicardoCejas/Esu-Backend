@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- =============================================================================
+     ESU: Ecosistema de Salud Unificado (Cruz del Eje)
+     HU-88: Logging Estructurado con Formato JSON y Rotación de Logs
+     ============================================================================= -->
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="Esu-Backend"/>
+
+    <!-- Appender de Consola Estructurado (JSON) -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","app":"${appName}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%msg){'"','\\'}"%wEx}%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender de Archivo con Rotación Diaria (Rolling File Appender) -->
+    <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/esu-backend.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/archived/esu-backend-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","app":"${appName}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%msg){'"','\\'}"%wEx}%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Nivel de Logging para ESU -->
+    <logger name="com.SaludUnificada.Esu" level="INFO"/>
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE_JSON"/>
+        <appender-ref ref="FILE_JSON"/>
+    </root>
+
+</configuration>
