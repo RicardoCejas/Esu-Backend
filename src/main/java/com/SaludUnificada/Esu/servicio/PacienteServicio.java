@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.PacienteDtoRequest;
 import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,15 +23,6 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
-        if (pacienteDto.getNombre() == null || pacienteDto.getNombre().isEmpty()) {
-            throw new IllegalArgumentException("El nombre del paciente es obligatorio");
-        }
-        if (pacienteDto.getApellido() == null || pacienteDto.getApellido().isEmpty()) {
-            throw new IllegalArgumentException("El apellido del paciente es obligatorio");
-        }
-        if (pacienteDto.getDni() == null || pacienteDto.getDni().isEmpty()) {
-            throw new IllegalArgumentException("El DNI del paciente es obligatorio");
-        }
         Paciente paciente = pacienteMapper.paraEntidad(pacienteDto);
         Paciente pacienteGuardado = pacienteRepositorio.save(paciente);
         return pacienteMapper.paraDto(pacienteGuardado);
@@ -54,7 +46,7 @@ public class PacienteServicio implements IPacienteServicio {
         if (pacienteRepositorio.existsById(id)) {
             pacienteRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Paciente no encontrado con ID: " + id);
+            throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id);
         }
     }
 
@@ -64,7 +56,7 @@ public class PacienteServicio implements IPacienteServicio {
             throw new IllegalArgumentException("El DNI no puede ser nulo o vacío");
         }
         Paciente paciente = pacienteRepositorio.findByDni(dni)
-                .orElseThrow(() -> new RuntimeException("Paciente no encontrado con DNI: " + dni));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con DNI: " + dni));
         return pacienteMapper.paraDto(paciente);
     }
 
@@ -78,6 +70,6 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     public Paciente obtenerEntidadPacientePorId(Long id) {
         return pacienteRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Paciente no encontrado con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id));
     }
 }

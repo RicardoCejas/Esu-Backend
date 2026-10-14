@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
 import com.SaludUnificada.Esu.entidad.HistoriaClinica;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.HistoriaClinicaMapper;
 import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +24,6 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
 
     @Override
     public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest historiaClinicaDto) {
-        if (historiaClinicaDto.getPacienteId() == null) {
-            throw new IllegalArgumentException("La historia clínica debe estar asociada a un paciente.");
-        }
         HistoriaClinica historiaClinica = historiaClinicaMapper.paraEntidad(historiaClinicaDto);
         HistoriaClinica historiaGuardada = historiaClinicaRepositorio.save(historiaClinica);
         return historiaClinicaMapper.paraDto(historiaGuardada);
@@ -34,7 +32,7 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Override
     public HistoriaClinicaDtoResponse obtenerHistoriaClinicaPorId(Long id) {
         HistoriaClinica historiaClinica = historiaClinicaRepositorio.findById(id)
-                .orElseThrow(() -> new RuntimeException("Historia Clínica no encontrada con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Historia Clínica no encontrada con ID: " + id));
         return historiaClinicaMapper.paraDto(historiaClinica);
     }
 
@@ -50,7 +48,7 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         if (historiaClinicaRepositorio.existsById(id)) {
             historiaClinicaRepositorio.deleteById(id);
         } else {
-            throw new RuntimeException("Historia Clínica no encontrada con ID: " + id);
+            throw new NoEncontradoExcepcion("Historia Clínica no encontrada con ID: " + id);
         }
     }
 

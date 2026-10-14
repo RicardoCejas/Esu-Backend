@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface UsuarioRepositorio extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByEmail(String email);
 
+    boolean existsByEmail(String email);
+
     // Query Method para buscar usuarios por su estado activo
     List<Usuario> findByEstadoActivo(Boolean estadoActivo);
 }

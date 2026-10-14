@@ -7,6 +7,11 @@ import org.springframework.http.HttpStatus;
 public class NoEncontradoExcepcion extends RuntimeException {
     private final HttpStatus status;
 
+    public NoEncontradoExcepcion(String mensaje) {
+        super(mensaje);
+        this.status = HttpStatus.NOT_FOUND;
+    }
+
     public NoEncontradoExcepcion(HttpStatus status, String mensaje) {
         super(mensaje);
         this.status = status;

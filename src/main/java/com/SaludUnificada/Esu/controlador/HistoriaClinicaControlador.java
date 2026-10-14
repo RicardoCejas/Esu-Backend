@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
 import com.SaludUnificada.Esu.servicio.IHistoriaClinicaServicio;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -20,52 +21,36 @@ public class HistoriaClinicaControlador {
     private IHistoriaClinicaServicio historiaClinicaServicio;
 
     @PostMapping("/crear")
-    public ResponseEntity<HistoriaClinicaDtoResponse> crearHistoriaClinica(@RequestBody HistoriaClinicaDtoRequest historiaClinicaDto) {
+    public ResponseEntity<HistoriaClinicaDtoResponse> crearHistoriaClinica(@Valid @RequestBody HistoriaClinicaDtoRequest historiaClinicaDto) {
         HistoriaClinicaDtoResponse nuevaHistoria = historiaClinicaServicio.crearHistoriaClinica(historiaClinicaDto);
         return new ResponseEntity<>(nuevaHistoria, HttpStatus.CREATED);
     }
 
     @GetMapping("/obtener/{id}")
     public ResponseEntity<HistoriaClinicaDtoResponse> obtenerHistoriaClinicaPorId(@PathVariable Long id) {
-        try {
-            HistoriaClinicaDtoResponse historia = historiaClinicaServicio.obtenerHistoriaClinicaPorId(id);
-            return new ResponseEntity<>(historia, HttpStatus.OK);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        return ResponseEntity.ok(historiaClinicaServicio.obtenerHistoriaClinicaPorId(id));
     }
 
     @GetMapping("/obtener/todos")
     public ResponseEntity<List<HistoriaClinicaDtoResponse>> listarTodas() {
-        List<HistoriaClinicaDtoResponse> historias = historiaClinicaServicio.listarTodas();
-        return new ResponseEntity<>(historias, HttpStatus.OK);
+        return ResponseEntity.ok(historiaClinicaServicio.listarTodas());
     }
 
     @DeleteMapping("/eliminar/{id}")
     public ResponseEntity<Void> eliminarHistoriaClinica(@PathVariable Long id) {
-        try {
-            historiaClinicaServicio.eliminarHistoriaClinica(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        historiaClinicaServicio.eliminarHistoriaClinica(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/paciente/{pacienteId}")
-    public ResponseEntity<List<HistoriaClinicaDtoResponse>> buscarPorPacienteId(@PathVariable Long pacienteId) { // Tipo de retorno corregido
-        try {
-            List<HistoriaClinicaDtoResponse> historias = historiaClinicaServicio.buscarPorPacienteId(pacienteId); // Tipo de variable corregido
-            return new ResponseEntity<>(historias, HttpStatus.OK);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+    public ResponseEntity<List<HistoriaClinicaDtoResponse>> buscarPorPacienteId(@PathVariable Long pacienteId) {
+        return ResponseEntity.ok(historiaClinicaServicio.buscarPorPacienteId(pacienteId));
     }
 
     @GetMapping("/rango")
     public ResponseEntity<List<HistoriaClinicaDtoResponse>> buscarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
-        List<HistoriaClinicaDtoResponse> historias = historiaClinicaServicio.buscarPorRangoFechas(inicio, fin);
-        return new ResponseEntity<>(historias, HttpStatus.OK);
+        return ResponseEntity.ok(historiaClinicaServicio.buscarPorRangoFechas(inicio, fin));
     }
 }
