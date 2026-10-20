@@ -68,6 +68,11 @@ public class SecurityConfig {
                         // Rutas públicas de autenticación y documentación
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+<<<<<<< HEAD
+=======
+                        .requestMatchers("/api/cie10/**").permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
+>>>>>>> origin/Nahuel
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Especialidades y Profesionales: consultas públicas para catálogo
@@ -86,6 +91,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "ADMIN", "PACIENTE")
+<<<<<<< HEAD
+=======
+                        .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+>>>>>>> origin/Nahuel
 
                         .anyRequest().authenticated()
                 );
@@ -95,3 +104,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+
