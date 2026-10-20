@@ -1,0 +1,59 @@
+# =============================================================================
+# ESU: Ecosistema de Salud Unificado (Cruz del Eje)
+# HU-86: Orquestación de Contenedores con Docker Compose
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # Base de Datos MySQL
+  esu-mysql:
+    image: mysql:8.0
+    container_name: esu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: db_esu
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root}
+      TZ: America/Argentina/Cordoba
+    ports:
+      - "3306:3306"
+    volumes:
+      - esu_mysql_data:/var/lib/mysql
+    networks:
+      - esu-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Backend de Spring Boot (ESU)
+  esu-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: esu-backend
+    restart: unless-stopped
+    depends_on:
+      esu-mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://esu-mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba&useSSL=false&allowPublicKeyRetrieval=true
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-root}
+      SERVER_PORT: 8080
+      TZ: America/Argentina/Cordoba
+    ports:
+      - "8080:8080"
+    networks:
+      - esu-network
+
+volumes:
+  esu_mysql_data:
+    name: esu_mysql_data
+
+networks:
+  esu-network:
+    name: esu-network
+    driver: bridge
