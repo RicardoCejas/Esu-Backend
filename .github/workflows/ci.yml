@@ -1,0 +1,50 @@
+name: ESU Backend CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - AnaLuz
+  pull_request:
+    branches:
+      - main
+      - develop
+      - AnaLuz
+
+jobs:
+  build-and-test:
+    name: Build, Lint & Automated Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Código Fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17 (Eclipse Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Permisos de ejecución para Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Compilar Proyecto
+        run: ./mvnw clean compile -B
+
+      - name: Ejecutar Pruebas Unitarias
+        run: ./mvnw test -B
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Empaquetar Artefacto JAR
+        run: ./mvnw package -DskipTests -B
+
+      - name: Guardar Artefacto Ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: esu-backend-jar
+          path: target/*.jar
+          retention-days: 7
