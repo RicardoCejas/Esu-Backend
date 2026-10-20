@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -136,16 +137,5 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
                 "Permisos insuficientes"
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(message);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorMessage> handleGlobalException(Exception exception) {
-        ErrorMessage message = new ErrorMessage(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                LocalDateTime.now(),
-                exception.getMessage(),
-                "Error interno del servidor"
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(message);
     }
 }

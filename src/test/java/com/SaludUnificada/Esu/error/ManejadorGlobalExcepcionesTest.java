@@ -3,7 +3,10 @@ package com.SaludUnificada.Esu.error;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.ServletWebRequest;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -19,13 +22,13 @@ class ManejadorGlobalExcepcionesTest {
     @Test
     void testNotFoundException() {
         NoEncontradoExcepcion ex = new NoEncontradoExcepcion("Paciente no encontrado con ID: 99");
-        ResponseEntity<ErrorMessage> response = manejador.notFoundException(ex);
+        ServletWebRequest request = new ServletWebRequest(new MockHttpServletRequest("GET", "/api/pacientes/99"));
+        ResponseEntity<ProblemDetail> response = manejador.handleNoEncontrado(ex, request);
 
         assertNotNull(response);
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("Paciente no encontrado con ID: 99", response.getBody().getMessage());
-        assertEquals(HttpStatus.NOT_FOUND, response.getBody().getStatusCode());
+        assertEquals("Paciente no encontrado con ID: 99", response.getBody().getDetail());
     }
 
     @Test

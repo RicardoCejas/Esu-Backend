@@ -68,11 +68,8 @@ public class SecurityConfig {
                         // Rutas públicas de autenticación y documentación
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-<<<<<<< HEAD
-=======
                         .requestMatchers("/api/cie10/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
->>>>>>> origin/Nahuel
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Especialidades y Profesionales: consultas públicas para catálogo
@@ -84,17 +81,29 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/profesionales/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/profesionales/**").hasRole("ADMIN")
 
-                        // Gestión de Usuarios: restringido a Administradores
+                        // Gestión de Usuarios y Auditoría / Métricas: restringido a Administradores
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // Pacientes, Turnos e Historias Clínicas: roles autenticados
+                        // Obras Sociales y Centros de Salud: GET público/autenticado, modificación ADMIN
+                        .requestMatchers(HttpMethod.GET, "/api/obras-sociales/**").permitAll()
+                        .requestMatchers("/api/obras-sociales/**").hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/centros-salud/**").permitAll()
+                        .requestMatchers("/api/centros-salud/**").hasRole("ADMIN")
+
+                        .requestMatchers("/api/medicos/asignar-consultorio").hasAnyRole("PROFESIONAL", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/medicos/**").permitAll()
+
+                        // Pacientes: recepción rápida permitida a ADMIN y personal, resto de operaciones
+                        .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "PACIENTE")
                         .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+
+                        // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "ADMIN", "PACIENTE")
-<<<<<<< HEAD
-=======
                         .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
->>>>>>> origin/Nahuel
+                        .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "ADMIN")
 
                         .anyRequest().authenticated()
                 );
@@ -104,4 +113,3 @@ public class SecurityConfig {
         return http.build();
     }
 }
-
