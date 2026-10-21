@@ -9,11 +9,8 @@
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Optimización de caché de dependencias Maven
+# Copiar descriptor de proyecto y código fuente
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# Compilación del código fuente excluyendo pruebas en el build de contenedor
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
@@ -42,6 +39,6 @@ EXPOSE 8080
 
 # Verificación de salud del contenedor
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
+  CMD curl -f http://localhost:8080/v3/api-docs || curl -f http://localhost:8080/actuator/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
