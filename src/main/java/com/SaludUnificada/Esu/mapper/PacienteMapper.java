@@ -8,10 +8,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.util.Base64;
 
 @Component
 public class PacienteMapper {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -23,13 +27,19 @@ public class PacienteMapper {
         paciente.setDni(dto.getDni());
         paciente.setTelefono(dto.getTelefono());
         paciente.setNroAfiliado(dto.getDni()); // Asumiendo que el nro de afiliado es el DNI
+        paciente.setFechaNacimiento(dto.getFechaNacimiento());
+        paciente.setObraSocial(dto.getObraSocial());
+        paciente.setGrupoSanguineo(dto.getGrupoSanguineo());
+        paciente.setAlergias(dto.getAlergias());
+        paciente.setAntecedentes(dto.getAntecedentes());
 
         Usuario usuario = new Usuario();
         usuario.setEmail(dto.getEmail() != null && !dto.getEmail().isBlank() ? dto.getEmail() : dto.getDni() + "@esu.com");
         
-        String clavePlana = (dto.getPassword() != null && !dto.getPassword().isBlank()) 
-                ? dto.getPassword() 
-                : dto.getDni(); // Si no se provee clave, se inicializa de forma segura con el DNI encriptado
+        // Issue #119: si no se provee clave, se genera una aleatoria (nunca el DNI).
+        String clavePlana = (dto.getPassword() != null && !dto.getPassword().isBlank())
+                ? dto.getPassword()
+                : generarPasswordTemporal();
         usuario.setPassword(passwordEncoder.encode(clavePlana));
         usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
@@ -46,9 +56,21 @@ public class PacienteMapper {
         dto.setApellido(paciente.getApellido());
         dto.setDni(paciente.getDni());
         dto.setTelefono(paciente.getTelefono());
+        dto.setNroAfiliado(paciente.getNroAfiliado());
+        dto.setFechaNacimiento(paciente.getFechaNacimiento());
+        dto.setObraSocial(paciente.getObraSocial());
+        dto.setGrupoSanguineo(paciente.getGrupoSanguineo());
+        dto.setAlergias(paciente.getAlergias());
+        dto.setAntecedentes(paciente.getAntecedentes());
         if (paciente.getUsuario() != null) {
             dto.setEmail(paciente.getUsuario().getEmail());
         }
         return dto;
+    }
+
+    private String generarPasswordTemporal() {
+        byte[] bytes = new byte[18];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

@@ -10,4 +10,7 @@ import java.util.List; // Importación necesaria para List
 public interface ProfesionalRepositorio extends JpaRepository<Profesional, Long> {
     // Query Method para buscar profesionales por el ID de una de sus especialidades
     List<Profesional> findByEspecialidades_Id(Long especialidadId); // Corregido
+
+    // Query Method para buscar profesionales asignados a un centro de salud
+    List<Profesional> findByCentrosSalud_Id(Long centroSaludId);
 }

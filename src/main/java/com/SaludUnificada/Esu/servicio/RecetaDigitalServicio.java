@@ -2,11 +2,13 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.MedicamentoItemDto;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
+import com.SaludUnificada.Esu.entidad.EvolucionMedica;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
@@ -34,6 +36,9 @@ public class RecetaDigitalServicio {
     private ProfesionalRepositorio profesionalRepositorio;
 
     @Autowired
+    private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+
+    @Autowired
     private DocumentoPdfServicio pdfServicio;
 
     @Value("${app.frontend.url:http://localhost:5173}")
@@ -49,9 +54,12 @@ public class RecetaDigitalServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
+        EvolucionMedica evolucion = resolverEvolucion(request, paciente, profesional);
+
         RecetaDigital receta = new RecetaDigital();
         receta.setPaciente(paciente);
         receta.setProfesional(profesional);
+        receta.setEvolucionMedica(evolucion);
         receta.setFechaEmision(LocalDate.now());
         receta.setFechaVencimiento(LocalDate.now().plusDays(30));
         receta.setDiagnostico(request.getDiagnostico());
@@ -93,7 +101,92 @@ public class RecetaDigitalServicio {
         return recetaRepositorio.save(receta);
     }
 
+    /**
+     * Issue #120: validacion real de la prescripcion. Devuelve {@code valido=false}
+     * con un motivo concreto en lugar de aceptar cualquier payload.
+     */
+    public Map<String, Object> validarPrescripcion(RecetaDigitalDtoRequest request) {
+        Map<String, Object> resultado = new HashMap<>();
+
+        if (request == null) {
+            return invalido(resultado, "La prescripcion no puede estar vacia.");
+        }
+
+        try {
+            validarProfesionalHabilitado(request.getProfesionalId());
+        } catch (NoEncontradoExcepcion | IllegalStateException | IllegalArgumentException ex) {
+            return invalido(resultado, ex.getMessage());
+        }
+
+        Paciente paciente = request.getPacienteId() != null
+                ? pacienteRepositorio.findById(request.getPacienteId()).orElse(null)
+                : null;
+        if (paciente == null) {
+            return invalido(resultado, "El paciente indicado no existe.");
+        }
+
+        if (request.getMedicamentos() == null || request.getMedicamentos().isEmpty()) {
+            return invalido(resultado, "Debe incluir al menos un medicamento en la prescripcion.");
+        }
+
+        for (MedicamentoItemDto item : request.getMedicamentos()) {
+            if (item == null || item.getDroga() == null || item.getDroga().isBlank()) {
+                return invalido(resultado, "Cada medicamento debe indicar su droga o principio activo.");
+            }
+        }
+
+        if (request.getEvolucionId() != null) {
+            EvolucionMedica evolucion = evolucionMedicaRepositorio.findById(request.getEvolucionId()).orElse(null);
+            if (evolucion == null) {
+                return invalido(resultado, "La evolucion clinica indicada no existe.");
+            }
+            if (evolucion.getPaciente() != null
+                    && !evolucion.getPaciente().getId().equals(paciente.getId())) {
+                return invalido(resultado, "La evolucion clinica indicada no pertenece al paciente.");
+            }
+        }
+
+        resultado.put("valido", true);
+        resultado.put("mensaje", "Profesional habilitado y prescripcion valida con formato oficial.");
+        return resultado;
+    }
+
+    private Map<String, Object> invalido(Map<String, Object> resultado, String mensaje) {
+        resultado.put("valido", false);
+        resultado.put("mensaje", mensaje != null && !mensaje.isBlank()
+                ? mensaje
+                : "La prescripcion no cumple los requisitos minimos.");
+        return resultado;
+    }
+
+    private EvolucionMedica resolverEvolucion(RecetaDigitalDtoRequest request,
+                                              Paciente paciente,
+                                              Profesional profesional) {
+        if (request.getEvolucionId() == null) {
+            return null;
+        }
+
+        EvolucionMedica evolucion = evolucionMedicaRepositorio.findById(request.getEvolucionId())
+                .orElseThrow(() -> new NoEncontradoExcepcion(
+                        "Evolucion medica no encontrada con ID: " + request.getEvolucionId()));
+
+        if (evolucion.getPaciente() != null
+                && !evolucion.getPaciente().getId().equals(paciente.getId())) {
+            throw new IllegalArgumentException("La evolucion indicada no pertenece al paciente de la receta.");
+        }
+        if (evolucion.getProfesional() != null
+                && !evolucion.getProfesional().getId().equals(profesional.getId())) {
+            throw new IllegalArgumentException("La evolucion indicada no pertenece al profesional de la receta.");
+        }
+
+        return evolucion;
+    }
+
     public void validarProfesionalHabilitado(Long profesionalId) {
+        if (profesionalId == null) {
+            throw new IllegalArgumentException("El ID del profesional es obligatorio.");
+        }
+
         Profesional profesional = profesionalRepositorio.findById(profesionalId)
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId));
 

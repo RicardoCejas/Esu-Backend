@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.mapper;
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.seguridad.Roles;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -14,7 +15,9 @@ public class UsuarioMapper {
         Usuario usuario = new Usuario();
         usuario.setEmail(dto.getUsername());
         usuario.setPassword(dto.getPassword());
-        usuario.setRol("USUARIO"); // Rol por defecto
+        usuario.setRol(dto.getRol() == null || dto.getRol().isBlank()
+                ? Roles.PACIENTE
+                : Roles.requerido(dto.getRol()));
         usuario.setEstadoActivo(true);
         usuario.setFechaDeAlta(LocalDate.now());
         return usuario;

@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS turno (
 
 CREATE TABLE IF NOT EXISTS historia_clinica (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    diagnostico TEXT,
-    motivo_consulta TEXT,
-    tratamiento TEXT,
+    diagnostico VARCHAR(255),
+    motivo_consulta VARCHAR(255),
+    tratamiento VARCHAR(255),
     fecha_atencion DATETIME,
     paciente_id BIGINT,
     profesional_id BIGINT,

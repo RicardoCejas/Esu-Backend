@@ -25,15 +25,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         Usuario usuario = usuarioRepositorio.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
 
-        String rol = usuario.getRol();
-        if (rol == null || rol.isBlank()) {
-            rol = "USUARIO";
+        // Issue #119: un rol ausente o desconocido no se autentica con permisos por defecto.
+        String rol = Roles.normalizar(usuario.getRol());
+        if (rol == null) {
+            throw new UsernameNotFoundException(
+                    "El usuario " + email + " tiene un rol no reconocido.");
         }
 
         List<GrantedAuthority> authorities = new ArrayList<>();
-        // Agregar tanto con prefijo ROLE_ como el nombre directo para máxima compatibilidad
-        String roleWithPrefix = rol.startsWith("ROLE_") ? rol : "ROLE_" + rol.toUpperCase();
-        authorities.add(new SimpleGrantedAuthority(roleWithPrefix));
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
 
         return new User(
                 usuario.getEmail(),

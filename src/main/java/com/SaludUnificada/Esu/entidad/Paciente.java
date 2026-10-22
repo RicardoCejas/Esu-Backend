@@ -46,6 +46,12 @@ public class Paciente {
     @Column(name = "grupo_sanguineo")
     private String grupoSanguineo;
 
+    @Column(columnDefinition = "TEXT")
+    private String alergias;
+
+    @Column(columnDefinition = "TEXT")
+    private String antecedentes;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "fk_usuario", referencedColumnName = "id", nullable = false, unique = true)
     private Usuario usuario;

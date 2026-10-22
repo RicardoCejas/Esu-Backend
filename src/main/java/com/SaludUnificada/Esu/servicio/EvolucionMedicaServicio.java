@@ -57,14 +57,37 @@ public class EvolucionMedicaServicio {
 
         Turno turno = null;
         if (request.getTurnoId() != null) {
-            turno = turnoRepositorio.findById(request.getTurnoId()).orElse(null);
-            if (turno != null) {
-                turno.setEstado("FINALIZADO");
-                turnoRepositorio.save(turno);
+            turno = turnoRepositorio.findById(request.getTurnoId())
+                .orElseThrow(() -> new NoEncontradoExcepcion(
+                    "Turno no encontrado con ID: " + request.getTurnoId()));
+
+            if (evolucionRepositorio.findByTurnoId(request.getTurnoId()).isPresent()) {
+                throw new IllegalStateException(
+                    "Ya existe una evolucion clinica registrada para el turno " + request.getTurnoId() + ".");
             }
+            if (turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
+                throw new IllegalArgumentException("El turno indicado no pertenece al paciente.");
+            }
+            if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesional.getId())) {
+                throw new IllegalArgumentException("El turno indicado no pertenece al profesional.");
+            }
+
+            turno.setEstado("FINALIZADO");
+            turnoRepositorio.save(turno);
         }
 
+        // Issue #120: la evolucion queda ligada a una historia clinica real del paciente.
+        HistoriaClinica historiaClinica = new HistoriaClinica();
+        historiaClinica.setPaciente(paciente);
+        historiaClinica.setProfesional(profesional);
+        historiaClinica.setMotivoConsulta(recortar(request.getMotivoConsulta()));
+        historiaClinica.setDiagnostico(recortar(request.getDiagnostico()));
+        historiaClinica.setTratamiento(recortar(request.getTratamiento()));
+        historiaClinica.setFechaAtencion(LocalDateTime.now());
+        historiaClinica = historiaClinicaRepositorio.save(historiaClinica);
+
         EvolucionMedica evolucion = new EvolucionMedica();
+        evolucion.setHistoriaClinica(historiaClinica);
         evolucion.setPaciente(paciente);
         evolucion.setProfesional(profesional);
         evolucion.setTurno(turno);
@@ -110,7 +133,8 @@ public class EvolucionMedicaServicio {
             rRequest.setCodigoCie10(request.getCodigoCie10());
             rRequest.setIndicacionesGenerales(request.getTratamiento());
             rRequest.setMedicamentos(request.getMedicamentos());
-            recetaServicio.emitirReceta(rRequest);
+            RecetaDigital receta = recetaServicio.emitirReceta(rRequest);
+            guardada.getRecetas().add(receta);
         }
 
         return guardada;
@@ -185,60 +209,63 @@ public class EvolucionMedicaServicio {
         dto.setNombreCompleto(paciente.getNombre() + " " + paciente.getApellido());
         dto.setDni(paciente.getDni());
         dto.setNroAfiliado(paciente.getNroAfiliado());
-        dto.setObraSocial(paciente.getObraSocial() != null ? paciente.getObraSocial() : "Particular");
-        dto.setGrupoSanguineo(paciente.getGrupoSanguineo() != null ? paciente.getGrupoSanguineo() : "0+");
+        dto.setObraSocial(paciente.getObraSocial());
+        dto.setGrupoSanguineo(paciente.getGrupoSanguineo());
         dto.setTelefono(paciente.getTelefono());
 
         if (paciente.getFechaNacimiento() != null) {
             dto.setFechaNacimiento(paciente.getFechaNacimiento().toString());
             dto.setEdad(Period.between(paciente.getFechaNacimiento(), LocalDate.now()).getYears());
-        } else {
-            dto.setEdad(34); // fallback representativo
-            dto.setFechaNacimiento("1992-05-14");
         }
 
-        // Alertas médicas críticas fijas (Alergias severas en rojo)
-        dto.setAlertasCriticas(List.of(
-            "ALERGIA GRAVE: Penicilina y derivados beta-lactámicos (Riesgo Anafiláctico)",
-            "ALERGIA: AINEs (Ibuprofeno / Aspirina) - Broncoespasmo reactivo",
-            "PRECAUCIÓN: Paciente asmático moderado en tratamiento de base"
-        ));
+        dto.setAlertasCriticas(dividirTexto(paciente.getAlergias()));
+        dto.setAntecedentes(dividirTexto(paciente.getAntecedentes()));
 
-        // Antecedentes
-        dto.setAntecedentes(List.of(
-            "Asma bronquial diagnosticada en 2018",
-            "Apendicectomía laparoscópica (2021)",
-            "Vacunación antigripal anual al día"
-        ));
-
-        // Buscar última evolución médica para signos vitales
+        // Ultima evolucion real del paciente: sin valores de relleno.
         List<EvolucionMedica> evoluciones = evolucionRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
         if (!evoluciones.isEmpty()) {
             EvolucionMedica ult = evoluciones.get(0);
-            Map<String, String> vitales = new HashMap<>();
-            vitales.put("presionArterial", ult.getPresionArterial() != null ? ult.getPresionArterial() : "120/80");
-            vitales.put("frecuenciaCardiaca", ult.getFrecuenciaCardiaca() != null ? ult.getFrecuenciaCardiaca() : "72");
-            vitales.put("temperatura", ult.getTemperatura() != null ? ult.getTemperatura() : "36.5");
-            vitales.put("peso", ult.getPeso() != null ? ult.getPeso() : "74");
-            vitales.put("talla", ult.getTalla() != null ? ult.getTalla() : "175");
-            vitales.put("imc", ult.getImc() != null ? ult.getImc() : "24.2");
+            Map<String, String> vitales = new LinkedHashMap<>();
+            agregarSiHay(vitales, "presionArterial", ult.getPresionArterial());
+            agregarSiHay(vitales, "frecuenciaCardiaca", ult.getFrecuenciaCardiaca());
+            agregarSiHay(vitales, "temperatura", ult.getTemperatura());
+            agregarSiHay(vitales, "peso", ult.getPeso());
+            agregarSiHay(vitales, "talla", ult.getTalla());
+            agregarSiHay(vitales, "imc", ult.getImc());
             dto.setUltimosSignosVitales(vitales);
-            dto.setUltimaConsultaFecha(ult.getFechaCreacion() != null ? ult.getFechaCreacion().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-");
+
+            LocalDateTime fechaConsulta = ult.getFechaFirma() != null ? ult.getFechaFirma() : ult.getFechaCreacion();
+            dto.setUltimaConsultaFecha(fechaConsulta != null
+                ? fechaConsulta.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : null);
             dto.setUltimoDiagnostico(ult.getDiagnostico());
         } else {
-            Map<String, String> vitales = new HashMap<>();
-            vitales.put("presionArterial", "120/80");
-            vitales.put("frecuenciaCardiaca", "72");
-            vitales.put("temperatura", "36.5");
-            vitales.put("peso", "74");
-            vitales.put("talla", "175");
-            vitales.put("imc", "24.2");
-            dto.setUltimosSignosVitales(vitales);
-            dto.setUltimaConsultaFecha("Consulta previa reciente");
-            dto.setUltimoDiagnostico("Control clínico de rutina");
+            dto.setUltimosSignosVitales(Collections.emptyMap());
         }
 
         return dto;
+    }
+
+    private List<String> dividirTexto(String texto) {
+        if (texto == null || texto.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(texto.split("[;\\n]+"))
+            .map(String::trim)
+            .filter(valor -> !valor.isEmpty())
+            .toList();
+    }
+
+    private void agregarSiHay(Map<String, String> destino, String clave, String valor) {
+        if (valor != null && !valor.isBlank()) {
+            destino.put(clave, valor);
+        }
+    }
+
+    private String recortar(String texto) {
+        if (texto == null) {
+            return null;
+        }
+        return texto.length() <= 255 ? texto : texto.substring(0, 255);
     }
 
     public List<TimelineItemDto> obtenerTimelinePaciente(Long pacienteId) {

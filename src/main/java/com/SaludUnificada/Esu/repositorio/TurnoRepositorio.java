@@ -15,4 +15,10 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
 
     // Query Method para buscar turnos por el ID del paciente y ordenarlos por fecha y hora descendente
     List<Turno> findByPacienteIdOrderByFechaHoraDesc(Long pacienteId);
+
+    List<Turno> findByProfesionalIdOrderByFechaHoraAsc(Long profesionalId);
+
+    List<Turno> findByProfesionalIdAndFechaHoraBetween(Long profesionalId, LocalDateTime inicio, LocalDateTime fin);
+
+    boolean existsByProfesionalIdAndFechaHoraAndEstadoNot(Long profesionalId, LocalDateTime fechaHora, String estado);
 }
