@@ -1,7 +1,9 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
+import com.SaludUnificada.Esu.dto.response.RecetaDigitalDtoResponse;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.mapper.ClinicaMapper;
 import com.SaludUnificada.Esu.seguridad.AutorizacionServicio;
 import com.SaludUnificada.Esu.servicio.RecetaDigitalServicio;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,11 +30,16 @@ public class RecetaControlador {
     @Autowired
     private AutorizacionServicio autorizacionServicio;
 
+    @Autowired
+    private ClinicaMapper clinicaMapper;
+
     @PostMapping("/recetas")
     @Operation(summary = "Emitir nueva receta médica digital")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<RecetaDigital> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
-        return new ResponseEntity<>(recetaServicio.emitirReceta(request), HttpStatus.CREATED);
+    public ResponseEntity<RecetaDigitalDtoResponse> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
+        return new ResponseEntity<>(
+                clinicaMapper.paraDto(recetaServicio.emitirReceta(request)),
+                HttpStatus.CREATED);
     }
 
     @PostMapping("/recetas/validar")
@@ -48,12 +55,12 @@ public class RecetaControlador {
 
     @GetMapping("/recetas/{id}")
     @Operation(summary = "Obtener datos de una receta médica")
-    public ResponseEntity<RecetaDigital> obtenerReceta(@PathVariable Long id) {
+    public ResponseEntity<RecetaDigitalDtoResponse> obtenerReceta(@PathVariable Long id) {
         RecetaDigital receta = recetaServicio.obtenerPorId(id);
         if (receta.getPaciente() != null && receta.getPaciente().getId() != null) {
             autorizacionServicio.verificarAccesoAPaciente(receta.getPaciente().getId());
         }
-        return ResponseEntity.ok(receta);
+        return ResponseEntity.ok(clinicaMapper.paraDto(receta));
     }
 
     @GetMapping("/recetas/{id}/pdf")

@@ -98,7 +98,9 @@ public class EvolucionMedica {
     @OneToMany(mappedBy = "evolucionMedica", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<EvolucionAdenda> adendas = new ArrayList<>();
 
-    @OneToMany(mappedBy = "evolucionMedica", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    // Issue #118: sin cascade REMOVE, la FK de receta_digital es ON DELETE SET NULL
+    // (al eliminar una evolución se conserva la receta emitida).
+    @OneToMany(mappedBy = "evolucionMedica", cascade = { CascadeType.PERSIST, CascadeType.MERGE }, fetch = FetchType.LAZY)
     @JsonIgnoreProperties("evolucionMedica")
     private List<RecetaDigital> recetas = new ArrayList<>();
 

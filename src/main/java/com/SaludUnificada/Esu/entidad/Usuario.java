@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.entidad;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,6 +25,7 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -37,10 +39,12 @@ public class Usuario {
     private LocalDate fechaDeAlta;
 
     // Lado inverso de la relación con Paciente
+    @JsonIgnore
     @OneToOne(mappedBy = "usuario")
     private Paciente paciente;
 
     // Lado inverso de la relación con Profesional
+    @JsonIgnore
     @OneToOne(mappedBy = "usuario")
     private Profesional profesional;
 }

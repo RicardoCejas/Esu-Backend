@@ -3,10 +3,11 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.EvolucionAdendaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.EvolucionMedicaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.FinalizarAtencionDtoRequest;
+import com.SaludUnificada.Esu.dto.response.EvolucionAdendaDtoResponse;
+import com.SaludUnificada.Esu.dto.response.EvolucionMedicaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.ResumenClinicoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TimelineItemDto;
-import com.SaludUnificada.Esu.entidad.EvolucionAdenda;
-import com.SaludUnificada.Esu.entidad.EvolucionMedica;
+import com.SaludUnificada.Esu.mapper.ClinicaMapper;
 import com.SaludUnificada.Esu.seguridad.AutorizacionServicio;
 import com.SaludUnificada.Esu.servicio.EvolucionMedicaServicio;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,31 +35,38 @@ public class EvolucionControlador {
     @Autowired
     private AutorizacionServicio autorizacionServicio;
 
+    @Autowired
+    private ClinicaMapper clinicaMapper;
+
     @PostMapping("/historias-clinicas/evoluciones")
     @Operation(summary = "Registrar y firmar electrónicamente una evolución médica clínica")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<EvolucionMedica> registrarEvolucion(@Valid @RequestBody EvolucionMedicaDtoRequest request) {
-        return new ResponseEntity<>(evolucionServicio.registrarEvolucion(request), HttpStatus.CREATED);
+    public ResponseEntity<EvolucionMedicaDtoResponse> registrarEvolucion(@Valid @RequestBody EvolucionMedicaDtoRequest request) {
+        return new ResponseEntity<>(
+                clinicaMapper.paraDto(evolucionServicio.registrarEvolucion(request)),
+                HttpStatus.CREATED);
     }
 
     @PostMapping("/historias-clinicas/evoluciones/{id}/adenda")
     @Operation(summary = "Emitir Adenda médica / Fe de erratas formal sobre una evolución firmada")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<EvolucionAdenda> emitirAdenda(
+    public ResponseEntity<EvolucionAdendaDtoResponse> emitirAdenda(
         @PathVariable Long id,
         @Valid @RequestBody EvolucionAdendaDtoRequest request
     ) {
-        return new ResponseEntity<>(evolucionServicio.registrarAdenda(id, request), HttpStatus.CREATED);
+        return new ResponseEntity<>(
+                clinicaMapper.paraDto(evolucionServicio.registrarAdenda(id, request)),
+                HttpStatus.CREATED);
     }
 
     @PutMapping("/turnos/{id}/finalizar-atencion")
     @Operation(summary = "Finalizar atención médica, asociar evolución y cerrar turno a FINALIZADO")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<EvolucionMedica> finalizarAtencion(
+    public ResponseEntity<EvolucionMedicaDtoResponse> finalizarAtencion(
         @PathVariable Long id,
         @Valid @RequestBody FinalizarAtencionDtoRequest request
     ) {
-        return ResponseEntity.ok(evolucionServicio.finalizarAtencion(id, request));
+        return ResponseEntity.ok(clinicaMapper.paraDto(evolucionServicio.finalizarAtencion(id, request)));
     }
 
     @GetMapping("/pacientes/{id}/resumen-clinico")

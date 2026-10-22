@@ -1,6 +1,6 @@
 package com.SaludUnificada.Esu.controlador;
 
-import com.SaludUnificada.Esu.entidad.Cie10;
+import com.SaludUnificada.Esu.dto.response.Cie10DtoResponse;
 import com.SaludUnificada.Esu.servicio.Cie10Servicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,13 +20,17 @@ public class Cie10Controlador {
 
     @GetMapping
     @Operation(summary = "Consultar catálogo CIE-10")
-    public ResponseEntity<List<Cie10>> listarCie10(@RequestParam(value = "q", required = false) String q) {
-        return ResponseEntity.ok(cie10Servicio.buscar(q));
+    public ResponseEntity<List<Cie10DtoResponse>> listarCie10(@RequestParam(value = "q", required = false) String q) {
+        return ResponseEntity.ok(mapear(cie10Servicio.buscar(q)));
     }
 
     @GetMapping("/buscar")
     @Operation(summary = "Búsqueda reactiva de diagnósticos CIE-10")
-    public ResponseEntity<List<Cie10>> buscarCie10(@RequestParam(value = "q", required = false) String q) {
-        return ResponseEntity.ok(cie10Servicio.buscar(q));
+    public ResponseEntity<List<Cie10DtoResponse>> buscarCie10(@RequestParam(value = "q", required = false) String q) {
+        return ResponseEntity.ok(mapear(cie10Servicio.buscar(q)));
+    }
+
+    private List<Cie10DtoResponse> mapear(List<com.SaludUnificada.Esu.entidad.Cie10> resultados) {
+        return resultados.stream().map(Cie10DtoResponse::desdeEntidad).toList();
     }
 }

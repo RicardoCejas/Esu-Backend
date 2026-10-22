@@ -76,6 +76,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                         // Rutas públicas de autenticación y documentación
                         auth.requestMatchers("/api/auth/**").permitAll();
+                        auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
                         if (swaggerPublico) {
                             auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                         }
