@@ -18,4 +18,8 @@ public class JwtAuthDtoResponse {
     private Long usuarioId;
     private String email;
     private String rol;
+    private Boolean twoFactorEnabled;
+    private Boolean emailVerified;
+    private Boolean requires2FA;
+    private String tempToken;
 }

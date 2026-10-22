@@ -27,6 +27,12 @@ public class JwtTokenProvider {
     @Value("${app.jwt.expiration-ms:86400000}") // 24 horas por defecto
     private long jwtExpirationMs;
 
+    @Value("${app.jwt.refresh-expiration-ms:604800000}") // 7 dias
+    private long refreshExpirationMs;
+
+    @Value("${app.jwt.two-factor-expiration-ms:300000}") // 5 minutos
+    private long twoFactorExpirationMs;
+
     @PostConstruct
     void validarConfiguracion() {
         if (jwtSecret == null || jwtSecret.isBlank()) {
@@ -46,35 +52,43 @@ public class JwtTokenProvider {
 
     public String generarToken(Authentication authentication) {
         UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
-        Date ahora = new Date();
-        Date fechaExpiracion = new Date(ahora.getTime() + jwtExpirationMs);
-
         String roles = userPrincipal.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
-        return Jwts.builder()
-                .subject(userPrincipal.getUsername())
-                .id(UUID.randomUUID().toString())
-                .claim("roles", roles)
-                .issuedAt(ahora)
-                .expiration(fechaExpiracion)
-                .signWith(getSigningKey(), Jwts.SIG.HS256)
-                .compact();
+        return construirToken(userPrincipal.getUsername(), roles, "access", jwtExpirationMs);
     }
 
     public String generarTokenParaUsuario(String email, String rol) {
-        Date ahora = new Date();
-        Date fechaExpiracion = new Date(ahora.getTime() + jwtExpirationMs);
+        String authority = rol.startsWith("ROLE_") ? rol : "ROLE_" + rol;
+        return construirToken(email, authority, "access", jwtExpirationMs);
+    }
 
-        return Jwts.builder()
-                .subject(email)
+    public String generarRefreshToken(String email) {
+        return construirToken(email, null, "refresh", refreshExpirationMs);
+    }
+
+    public String generarTokenTemporal2FA(String email) {
+        return construirToken(email, null, "2fa", twoFactorExpirationMs);
+    }
+
+    private String construirToken(String subject, String roles, String tipo, long expiracionMs) {
+        Date ahora = new Date();
+        Date fechaExpiracion = new Date(ahora.getTime() + expiracionMs);
+
+        JwtBuilder builder = Jwts.builder()
+                .subject(subject)
                 .id(UUID.randomUUID().toString())
-                .claim("roles", rol.startsWith("ROLE_") ? rol : "ROLE_" + rol)
+                .claim("tipo", tipo)
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
-                .signWith(getSigningKey(), Jwts.SIG.HS256)
-                .compact();
+                .signWith(getSigningKey(), Jwts.SIG.HS256);
+
+        if (roles != null && !roles.isBlank()) {
+            builder.claim("roles", roles);
+        }
+
+        return builder.compact();
     }
 
     private Claims parsearClaims(String token) {
@@ -97,6 +111,23 @@ public class JwtTokenProvider {
     /** Issue #117: fecha de expiración del token, usada para acotar la revocación. */
     public Date obtenerExpiracion(String token) {
         return parsearClaims(token).getExpiration();
+    }
+
+    public String obtenerTipo(String token) {
+        return parsearClaims(token).get("tipo", String.class);
+    }
+
+    public boolean esTokenDeAcceso(String token) {
+        String tipo = obtenerTipo(token);
+        return tipo == null || "access".equals(tipo);
+    }
+
+    public boolean esTokenRefresh(String token) {
+        return "refresh".equals(obtenerTipo(token));
+    }
+
+    public boolean esToken2FA(String token) {
+        return "2fa".equals(obtenerTipo(token));
     }
 
     public boolean validarToken(String token) {

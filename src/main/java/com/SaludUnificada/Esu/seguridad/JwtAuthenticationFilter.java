@@ -36,6 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (StringUtils.hasText(token)
                 && jwtTokenProvider.validarToken(token)
+                && jwtTokenProvider.esTokenDeAcceso(token)
                 && !revokedTokenService.estaRevocado(jwtTokenProvider.obtenerJti(token))) {
             try {
                 String username = jwtTokenProvider.obtenerUsernameDelJwt(token);

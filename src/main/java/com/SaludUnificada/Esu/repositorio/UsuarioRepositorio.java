@@ -13,6 +13,10 @@ public interface UsuarioRepositorio extends JpaRepository<Usuario, Long> {
 
     boolean existsByEmail(String email);
 
+    Optional<Usuario> findByResetPasswordToken(String resetPasswordToken);
+
+    Optional<Usuario> findByEmailVerificationToken(String emailVerificationToken);
+
     // Query Method para buscar usuarios por su estado activo
     List<Usuario> findByEstadoActivo(Boolean estadoActivo);
 }
