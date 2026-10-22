@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,8 +25,14 @@ public class PacienteDtoRequest {
 
     private String telefono;
 
-    @Email(message = "El formato del email no es válido")
+    @Email(message = "El formato del email no es valido")
     private String email;
 
     private String password;
+
+    private LocalDate fechaNacimiento;
+    private String obraSocial;
+    private String grupoSanguineo;
+    private String alergias;
+    private String antecedentes;
 }

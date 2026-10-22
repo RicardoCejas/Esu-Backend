@@ -45,12 +45,8 @@ public class RecetaControlador {
     @PostMapping("/recetas/validar")
     @Operation(summary = "Validar requisitos previos para prescripción médica")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<Map<String, Object>> validarPrescripcion(@Valid @RequestBody RecetaDigitalDtoRequest request) {
-        recetaServicio.validarProfesionalHabilitado(request.getProfesionalId());
-        return ResponseEntity.ok(Map.of(
-            "valido", true,
-            "mensaje", "Profesional habilitado y prescripción válida con formato oficial."
-        ));
+    public ResponseEntity<Map<String, Object>> validarPrescripcion(@RequestBody RecetaDigitalDtoRequest request) {
+        return ResponseEntity.ok(recetaServicio.validarPrescripcion(request));
     }
 
     @GetMapping("/recetas/{id}")

@@ -27,6 +27,11 @@ public class PacienteMapper {
         paciente.setDni(dto.getDni());
         paciente.setTelefono(dto.getTelefono());
         paciente.setNroAfiliado(dto.getDni()); // Asumiendo que el nro de afiliado es el DNI
+        paciente.setFechaNacimiento(dto.getFechaNacimiento());
+        paciente.setObraSocial(dto.getObraSocial());
+        paciente.setGrupoSanguineo(dto.getGrupoSanguineo());
+        paciente.setAlergias(dto.getAlergias());
+        paciente.setAntecedentes(dto.getAntecedentes());
 
         Usuario usuario = new Usuario();
         usuario.setEmail(dto.getEmail() != null && !dto.getEmail().isBlank() ? dto.getEmail() : dto.getDni() + "@esu.com");
@@ -51,6 +56,12 @@ public class PacienteMapper {
         dto.setApellido(paciente.getApellido());
         dto.setDni(paciente.getDni());
         dto.setTelefono(paciente.getTelefono());
+        dto.setNroAfiliado(paciente.getNroAfiliado());
+        dto.setFechaNacimiento(paciente.getFechaNacimiento());
+        dto.setObraSocial(paciente.getObraSocial());
+        dto.setGrupoSanguineo(paciente.getGrupoSanguineo());
+        dto.setAlergias(paciente.getAlergias());
+        dto.setAntecedentes(paciente.getAntecedentes());
         if (paciente.getUsuario() != null) {
             dto.setEmail(paciente.getUsuario().getEmail());
         }

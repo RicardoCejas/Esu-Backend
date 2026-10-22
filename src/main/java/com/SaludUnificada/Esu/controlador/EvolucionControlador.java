@@ -1,14 +1,17 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.request.ConsultaBorradorDtoRequest;
 import com.SaludUnificada.Esu.dto.request.EvolucionAdendaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.EvolucionMedicaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.FinalizarAtencionDtoRequest;
+import com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse;
 import com.SaludUnificada.Esu.dto.response.EvolucionAdendaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.EvolucionMedicaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.ResumenClinicoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TimelineItemDto;
 import com.SaludUnificada.Esu.mapper.ClinicaMapper;
 import com.SaludUnificada.Esu.seguridad.AutorizacionServicio;
+import com.SaludUnificada.Esu.servicio.ConsultaBorradorServicio;
 import com.SaludUnificada.Esu.servicio.EvolucionMedicaServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,7 +25,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -31,6 +33,9 @@ public class EvolucionControlador {
 
     @Autowired
     private EvolucionMedicaServicio evolucionServicio;
+
+    @Autowired
+    private ConsultaBorradorServicio consultaBorradorServicio;
 
     @Autowired
     private AutorizacionServicio autorizacionServicio;
@@ -84,14 +89,22 @@ public class EvolucionControlador {
     }
 
     @PostMapping("/historias-clinicas/consultas/borrador")
-    @Operation(summary = "Guardar borrador de consulta médica")
+    @Operation(summary = "Guardar borrador de consulta medica")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
-    public ResponseEntity<Map<String, Object>> guardarBorrador(@RequestBody Map<String, Object> borrador) {
-        return ResponseEntity.ok(Map.of(
-            "guardado", true,
-            "timestamp", System.currentTimeMillis(),
-            "mensaje", "Borrador de consulta resguardado exitosamente."
-        ));
+    public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(
+            @Valid @RequestBody ConsultaBorradorDtoRequest request) {
+        autorizacionServicio.verificarAccesoAPaciente(request.getPacienteId());
+        return ResponseEntity.ok(consultaBorradorServicio.guardar(request));
+    }
+
+    @GetMapping("/historias-clinicas/consultas/borrador")
+    @Operation(summary = "Recuperar el ultimo borrador de consulta del paciente")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','PACIENTE')")
+    public ResponseEntity<ConsultaBorradorDtoResponse> obtenerBorrador(
+            @RequestParam Long pacienteId,
+            @RequestParam Long profesionalId) {
+        autorizacionServicio.verificarAccesoAPaciente(pacienteId);
+        return ResponseEntity.ok(consultaBorradorServicio.obtener(pacienteId, profesionalId));
     }
 
     @GetMapping("/historias-clinicas/evoluciones/{id}/pdf")
