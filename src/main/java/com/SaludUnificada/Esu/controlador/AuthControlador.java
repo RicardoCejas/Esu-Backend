@@ -6,8 +6,10 @@ import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
+import com.SaludUnificada.Esu.seguridad.RevokedTokenService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,10 +20,18 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthControlador {
+
+    /**
+     * Issue #117: roles que un visitante anónimo puede solicitar en el autorregistro.
+     * Los roles privilegiados (ADMIN, PROFESIONAL, RECEPCIONISTA) sólo se asignan desde
+     * un endpoint protegido por ADMIN.
+     */
+    private static final Set<String> ROLES_AUTORREGISTRO = Set.of("PACIENTE");
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -34,6 +44,9 @@ public class AuthControlador {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private RevokedTokenService revokedTokenService;
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
@@ -67,9 +80,15 @@ public class AuthControlador {
             throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
         }
 
-        String rol = (registroDto.getRol() != null && !registroDto.getRol().isBlank())
-                ? registroDto.getRol().toUpperCase()
-                : "PACIENTE";
+        String rol = "PACIENTE";
+        if (registroDto.getRol() != null && !registroDto.getRol().isBlank()) {
+            String solicitado = registroDto.getRol().trim().toUpperCase();
+            if (!ROLES_AUTORREGISTRO.contains(solicitado)) {
+                throw new IllegalArgumentException(
+                        "El rol '" + solicitado + "' no está permitido para autorregistro.");
+            }
+            rol = solicitado;
+        }
 
         Usuario usuario = new Usuario();
         usuario.setEmail(registroDto.getEmail());
@@ -91,5 +110,28 @@ public class AuthControlador {
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    /**
+     * Issue #117: cierre de sesión. Invalida el token presentado hasta su expiración natural
+     * agregando su {@code jti} a la lista de revocados.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            String token = authorization.substring(7);
+            try {
+                if (jwtTokenProvider.validarToken(token)) {
+                    revokedTokenService.revocar(
+                            jwtTokenProvider.obtenerJti(token),
+                            jwtTokenProvider.obtenerExpiracion(token));
+                }
+            } catch (Exception ignored) {
+                // Token inválido o malformado: el logout es idempotente.
+            }
+        }
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.noContent().build();
     }
 }

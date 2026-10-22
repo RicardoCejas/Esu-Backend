@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.seguridad.AutorizacionServicio;
 import com.SaludUnificada.Esu.servicio.RecetaDigitalServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -23,14 +25,19 @@ public class RecetaControlador {
     @Autowired
     private RecetaDigitalServicio recetaServicio;
 
+    @Autowired
+    private AutorizacionServicio autorizacionServicio;
+
     @PostMapping("/recetas")
     @Operation(summary = "Emitir nueva receta médica digital")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
     public ResponseEntity<RecetaDigital> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         return new ResponseEntity<>(recetaServicio.emitirReceta(request), HttpStatus.CREATED);
     }
 
     @PostMapping("/recetas/validar")
     @Operation(summary = "Validar requisitos previos para prescripción médica")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
     public ResponseEntity<Map<String, Object>> validarPrescripcion(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         recetaServicio.validarProfesionalHabilitado(request.getProfesionalId());
         return ResponseEntity.ok(Map.of(
@@ -42,12 +49,20 @@ public class RecetaControlador {
     @GetMapping("/recetas/{id}")
     @Operation(summary = "Obtener datos de una receta médica")
     public ResponseEntity<RecetaDigital> obtenerReceta(@PathVariable Long id) {
-        return ResponseEntity.ok(recetaServicio.obtenerPorId(id));
+        RecetaDigital receta = recetaServicio.obtenerPorId(id);
+        if (receta.getPaciente() != null && receta.getPaciente().getId() != null) {
+            autorizacionServicio.verificarAccesoAPaciente(receta.getPaciente().getId());
+        }
+        return ResponseEntity.ok(receta);
     }
 
     @GetMapping("/recetas/{id}/pdf")
     @Operation(summary = "Descargar receta médica oficial en PDF con código QR y Hash SHA-256")
     public ResponseEntity<byte[]> descargarRecetaPdf(@PathVariable Long id) {
+        RecetaDigital receta = recetaServicio.obtenerPorId(id);
+        if (receta.getPaciente() != null && receta.getPaciente().getId() != null) {
+            autorizacionServicio.verificarAccesoAPaciente(receta.getPaciente().getId());
+        }
         byte[] pdfBytes = recetaServicio.generarPdf(id);
 
         HttpHeaders headers = new HttpHeaders();

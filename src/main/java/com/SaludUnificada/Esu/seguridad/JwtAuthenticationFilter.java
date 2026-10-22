@@ -24,6 +24,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private CustomUserDetailsService customUserDetailsService;
 
+    @Autowired
+    private RevokedTokenService revokedTokenService;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -31,16 +34,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = obtenerJwtDeSolicitud(request);
 
-        if (StringUtils.hasText(token) && jwtTokenProvider.validarToken(token)) {
+        if (StringUtils.hasText(token)
+                && jwtTokenProvider.validarToken(token)
+                && !revokedTokenService.estaRevocado(jwtTokenProvider.obtenerJti(token))) {
             try {
                 String username = jwtTokenProvider.obtenerUsernameDelJwt(token);
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Issue #117: no autenticar usuarios deshabilitados o bloqueados, aunque el token sea válido.
+                if (esCuentaUtilizable(userDetails)) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    SecurityContextHolder.clearContext();
+                }
             } catch (Exception ex) {
                 // Si el usuario fue borrado o no existe en la BD, limpiar contexto y continuar sin autenticar
                 SecurityContextHolder.clearContext();
@@ -48,6 +58,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean esCuentaUtilizable(UserDetails userDetails) {
+        return userDetails.isEnabled()
+                && userDetails.isAccountNonLocked()
+                && userDetails.isAccountNonExpired()
+                && userDetails.isCredentialsNonExpired();
     }
 
     private String obtenerJwtDeSolicitud(HttpServletRequest request) {
