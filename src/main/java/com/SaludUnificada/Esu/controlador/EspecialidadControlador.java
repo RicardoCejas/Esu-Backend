@@ -18,12 +18,12 @@ public class EspecialidadControlador {
     @Autowired
     private IEspecialidadServicio especialidadServicio;
 
-    @PostMapping("/crear")
+    @PostMapping({"", "/crear"})
     public ResponseEntity<EspecialidadDtoResponse> crearEspecialidad(@Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
         return new ResponseEntity<>(especialidadServicio.crearEspecialidad(especialidadDto), HttpStatus.CREATED);
     }
 
-    @GetMapping("/obtener/{id}")
+    @GetMapping({"/obtener/{id}", "/{id}"})
     public ResponseEntity<EspecialidadDtoResponse> obtenerEspecialidadPorId(@PathVariable Long id) {
         return ResponseEntity.ok(especialidadServicio.obtenerEspecialidadPorId(id));
     }
@@ -33,7 +33,7 @@ public class EspecialidadControlador {
         return ResponseEntity.ok(especialidadServicio.listarTodas());
     }
 
-    @DeleteMapping("/eliminar/{id}")
+    @DeleteMapping({"/eliminar/{id}", "/{id}"})
     public ResponseEntity<Void> eliminarEspecialidad(@PathVariable Long id) {
         especialidadServicio.eliminarEspecialidad(id);
         return ResponseEntity.noContent().build();

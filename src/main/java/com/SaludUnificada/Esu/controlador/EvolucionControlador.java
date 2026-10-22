@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.ConsultaBorradorDtoRequest;
+import com.SaludUnificada.Esu.dto.request.ConsultaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.EvolucionAdendaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.EvolucionMedicaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.FinalizarAtencionDtoRequest;
@@ -97,6 +98,34 @@ public class EvolucionControlador {
         return ResponseEntity.ok(consultaBorradorServicio.guardar(request));
     }
 
+    @PostMapping("/historias-clinicas/consultas")
+    @Operation(summary = "Registrar una consulta medica desde la atencion asistencial")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
+    public ResponseEntity<EvolucionMedicaDtoResponse> registrarConsulta(
+            @RequestBody ConsultaClinicaDtoRequest request) {
+        EvolucionMedicaDtoRequest evolucion = new EvolucionMedicaDtoRequest();
+        evolucion.setPacienteId(parsearId(request.getPacienteId(), "paciente"));
+        evolucion.setProfesionalId(parsearId(request.getProfesionalId(), "profesional"));
+        evolucion.setTurnoId(parsearId(request.getTurnoId(), "turno"));
+        evolucion.setMotivoConsulta(textoONulo(request.getMotivo(), "Consulta medica"));
+        evolucion.setDiagnostico(textoONulo(request.getDiagnostico(), "Consulta medica de rutina"));
+        evolucion.setTratamiento(request.getTratamiento());
+        evolucion.setFirmar(true);
+
+        if (request.getSignosVitales() != null) {
+            evolucion.setPresionArterial(request.getSignosVitales().get("presionArterial"));
+            evolucion.setFrecuenciaCardiaca(request.getSignosVitales().get("frecuenciaCardiaca"));
+            evolucion.setTemperatura(request.getSignosVitales().get("temperatura"));
+            evolucion.setPeso(request.getSignosVitales().get("peso"));
+            evolucion.setTalla(request.getSignosVitales().get("talla"));
+            evolucion.setImc(request.getSignosVitales().get("imc"));
+        }
+
+        return new ResponseEntity<>(
+                clinicaMapper.paraDto(evolucionServicio.registrarEvolucion(evolucion)),
+                HttpStatus.CREATED);
+    }
+
     @GetMapping("/historias-clinicas/consultas/borrador")
     @Operation(summary = "Recuperar el ultimo borrador de consulta del paciente")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','PACIENTE')")
@@ -119,5 +148,20 @@ public class EvolucionControlador {
         headers.setContentLength(pdfBytes.length);
 
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+    }
+
+    private Long parsearId(String valor, String campo) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(valor.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("El ID de " + campo + " no es valido: " + valor);
+        }
+    }
+
+    private String textoONulo(String valor, String porDefecto) {
+        return valor == null || valor.isBlank() ? porDefecto : valor.trim();
     }
 }

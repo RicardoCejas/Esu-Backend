@@ -66,6 +66,13 @@ public class ProfesionalServicio implements IProfesionalServicio {
     }
 
     @Override
+    public List<ProfesionalDtoResponse> filtrarPorCentro(Long centroSaludId) {
+        return profesionalRepositorio.findByCentrosSalud_Id(centroSaludId).stream()
+                .map(profesionalMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Profesional obtenerEntidadProfesionalPorId(Long id) {
         return profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));

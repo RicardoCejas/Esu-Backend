@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -33,4 +35,10 @@ public class ProfesionalDtoRequest {
 
     @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String password;
+
+    private List<Long> centrosSaludIds;
+
+    private List<String> diasAtencion;
+
+    private Integer duracionTurnoMin;
 }

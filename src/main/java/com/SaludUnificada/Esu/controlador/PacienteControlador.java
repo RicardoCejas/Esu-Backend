@@ -23,14 +23,14 @@ public class PacienteControlador {
     @Autowired
     private AutorizacionServicio autorizacionServicio;
 
-    @PostMapping("/crear")
+    @PostMapping({"", "/crear"})
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> crearPaciente(@Valid @RequestBody PacienteDtoRequest pacienteDto) {
         PacienteDtoResponse nuevoPaciente = pacienteServicio.crearPaciente(pacienteDto);
         return new ResponseEntity<>(nuevoPaciente, HttpStatus.CREATED);
     }
 
-    @GetMapping("/obtener/{id}")
+    @GetMapping({"/obtener/{id}", "/{id}"})
     public ResponseEntity<PacienteDtoResponse> obtenerPacientePorId(@PathVariable Long id) {
         autorizacionServicio.verificarAccesoAPaciente(id);
         return ResponseEntity.ok(pacienteServicio.obtenerPacientePorId(id));
@@ -42,7 +42,7 @@ public class PacienteControlador {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
     }
 
-    @DeleteMapping("/eliminar/{id}")
+    @DeleteMapping({"/eliminar/{id}", "/{id}"})
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminarPaciente(@PathVariable Long id) {
         pacienteServicio.eliminarPaciente(id);
@@ -52,6 +52,12 @@ public class PacienteControlador {
     @GetMapping("/buscar/dni")
     @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> buscarPorDni(@RequestParam String dni) {
+        return ResponseEntity.ok(pacienteServicio.buscarPorDni(dni));
+    }
+
+    @GetMapping("/dni/{dni}")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
+    public ResponseEntity<PacienteDtoResponse> buscarPorDniEnRuta(@PathVariable String dni) {
         return ResponseEntity.ok(pacienteServicio.buscarPorDni(dni));
     }
 

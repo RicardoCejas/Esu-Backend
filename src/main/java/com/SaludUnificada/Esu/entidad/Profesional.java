@@ -38,6 +38,20 @@ public class Profesional {
     @Column(name = "estado_activo")
     private Boolean estadoActivo;
 
+    @Column(name = "dias_atencion")
+    private String diasAtencion;
+
+    @Column(name = "duracion_turno_min")
+    private Integer duracionTurnoMin;
+
+    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @JoinTable(
+        name = "profesional_centro_salud",
+        joinColumns = { @JoinColumn(name = "profesional_id") },
+        inverseJoinColumns = { @JoinColumn(name = "centro_salud_id") }
+    )
+    private Set<CentroSalud> centrosSalud = new HashSet<>();
+
     // Issue #118: sin cascade REMOVE, la FK en base es ON DELETE SET NULL
     // (borrar un profesional no debe eliminar su usuario).
     @OneToOne(cascade = { CascadeType.PERSIST, CascadeType.MERGE })

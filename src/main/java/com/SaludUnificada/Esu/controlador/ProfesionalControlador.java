@@ -18,13 +18,13 @@ public class ProfesionalControlador {
     @Autowired
     private IProfesionalServicio profesionalServicio;
 
-    @PostMapping("/crear")
+    @PostMapping({"", "/crear"})
     public ResponseEntity<ProfesionalDtoResponse> crearProfesional(@Valid @RequestBody ProfesionalDtoRequest profesionalDto) {
         ProfesionalDtoResponse nuevoProfesional = profesionalServicio.crearProfesional(profesionalDto);
         return new ResponseEntity<>(nuevoProfesional, HttpStatus.CREATED);
     }
 
-    @GetMapping("/obtener/{id}")
+    @GetMapping({"/obtener/{id}", "/{id}"})
     public ResponseEntity<ProfesionalDtoResponse> obtenerProfesionalPorId(@PathVariable Long id) {
         return ResponseEntity.ok(profesionalServicio.obtenerProfesionalPorId(id));
     }
@@ -34,14 +34,19 @@ public class ProfesionalControlador {
         return ResponseEntity.ok(profesionalServicio.listarTodos());
     }
 
-    @DeleteMapping("/eliminar/{id}")
+    @DeleteMapping({"/eliminar/{id}", "/{id}"})
     public ResponseEntity<Void> eliminarProfesional(@PathVariable Long id) {
         profesionalServicio.eliminarProfesional(id);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/filtrar/especialidad/{especialidadId}")
+    @GetMapping({"/filtrar/especialidad/{especialidadId}", "/especialidad/{especialidadId}"})
     public ResponseEntity<List<ProfesionalDtoResponse>> filtrarPorEspecialidad(@PathVariable Long especialidadId) {
         return ResponseEntity.ok(profesionalServicio.filtrarPorEspecialidad(especialidadId));
+    }
+
+    @GetMapping("/centro/{centroSaludId}")
+    public ResponseEntity<List<ProfesionalDtoResponse>> filtrarPorCentro(@PathVariable Long centroSaludId) {
+        return ResponseEntity.ok(profesionalServicio.filtrarPorCentro(centroSaludId));
     }
 }

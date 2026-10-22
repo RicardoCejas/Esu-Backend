@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -23,4 +24,14 @@ public class TurnoDtoRequest {
     private Long profesionalId;
 
     private String motivoTurno;
+    private String motivoConsulta;
+    private String estado;
+    private String obraSocial;
+    private String numeroAfiliado;
+    private BigDecimal copagoMonto;
+    private String numeroBono;
+    private Boolean esPrimeraVez;
+    private String consultorioNumero;
+    private String planta;
+    private Long centroSaludId;
 }
