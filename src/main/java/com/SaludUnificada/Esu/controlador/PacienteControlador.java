@@ -24,7 +24,7 @@ public class PacienteControlador {
     private AutorizacionServicio autorizacionServicio;
 
     @PostMapping("/crear")
-    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> crearPaciente(@Valid @RequestBody PacienteDtoRequest pacienteDto) {
         PacienteDtoResponse nuevoPaciente = pacienteServicio.crearPaciente(pacienteDto);
         return new ResponseEntity<>(nuevoPaciente, HttpStatus.CREATED);
@@ -37,7 +37,7 @@ public class PacienteControlador {
     }
 
     @GetMapping({"", "/obtener/todos"})
-    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<List<PacienteDtoResponse>> listarTodos() {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
     }
@@ -50,13 +50,13 @@ public class PacienteControlador {
     }
 
     @GetMapping("/buscar/dni")
-    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> buscarPorDni(@RequestParam String dni) {
         return ResponseEntity.ok(pacienteServicio.buscarPorDni(dni));
     }
 
     @GetMapping("/buscar/apellido")
-    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
+    @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','RECEPCIONISTA')")
     public ResponseEntity<List<PacienteDtoResponse>> buscarPorApellidoParcial(@RequestParam String apellido) {
         return ResponseEntity.ok(pacienteServicio.buscarPorApellidoParcial(apellido));
     }

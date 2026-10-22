@@ -6,6 +6,7 @@ import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +22,16 @@ public class ProfesionalServicio implements IProfesionalServicio {
     @Autowired
     private ProfesionalMapper profesionalMapper;
 
+    @Autowired
+    private UsuarioRepositorio usuarioRepositorio;
+
     @Override
     public ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesionalDto) { // Tipo de retorno corregido
         Profesional profesional = profesionalMapper.paraEntidad(profesionalDto);
+        String email = profesional.getUsuario().getEmail();
+        if (usuarioRepositorio.existsByEmail(email)) {
+            throw new IllegalArgumentException("Ya existe un usuario con el email: " + email);
+        }
         Profesional profesionalGuardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(profesionalGuardado);
     }

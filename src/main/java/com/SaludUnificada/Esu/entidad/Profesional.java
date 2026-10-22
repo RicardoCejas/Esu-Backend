@@ -40,7 +40,7 @@ public class Profesional {
 
     // Issue #118: sin cascade REMOVE, la FK en base es ON DELETE SET NULL
     // (borrar un profesional no debe eliminar su usuario).
-    @OneToOne
+    @OneToOne(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinColumn(name = "usuario_id", referencedColumnName = "id", unique = true)
     private Usuario usuario;
 

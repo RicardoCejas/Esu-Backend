@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
 import com.SaludUnificada.Esu.seguridad.RevokedTokenService;
+import com.SaludUnificada.Esu.seguridad.Roles;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -68,7 +69,7 @@ public class AuthControlador {
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
-                .rol(usuario.getRol())
+                .rol(Roles.requerido(usuario.getRol()))
                 .build();
 
         return ResponseEntity.ok(response);

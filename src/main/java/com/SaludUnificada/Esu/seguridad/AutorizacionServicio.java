@@ -36,14 +36,27 @@ public class AutorizacionServicio {
 
     /** {@code true} si el usuario posee rol clínico (PROFESIONAL) o es ADMIN. */
     public boolean esPersonalClinico() {
+        return tieneAlgunRol("ROLE_PROFESIONAL", "ROLE_ADMIN");
+    }
+
+    public boolean esRecepcionista() {
+        return tieneAlgunRol("ROLE_RECEPCIONISTA");
+    }
+
+    public boolean puedeAccederAPaciente() {
+        return esPersonalClinico() || esRecepcionista();
+    }
+
+    private boolean tieneAlgunRol(String... roles) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
             return false;
         }
         for (GrantedAuthority authority : authentication.getAuthorities()) {
-            String rol = authority.getAuthority();
-            if ("ROLE_PROFESIONAL".equals(rol) || "ROLE_ADMIN".equals(rol)) {
-                return true;
+            for (String rol : roles) {
+                if (rol.equals(authority.getAuthority())) {
+                    return true;
+                }
             }
         }
         return false;
@@ -58,7 +71,7 @@ public class AutorizacionServicio {
         if (pacienteId == null) {
             throw new AccessDeniedException("Identificador de paciente inválido.");
         }
-        if (esPersonalClinico()) {
+        if (puedeAccederAPaciente()) {
             return;
         }
         Usuario usuario = usuarioActual();

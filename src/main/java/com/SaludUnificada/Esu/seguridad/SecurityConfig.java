@@ -108,11 +108,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/medicos/**").permitAll()
 
                         // Pacientes: recepción rápida permitida a ADMIN y personal, resto de operaciones
-                        .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "PACIENTE")
-                        .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "PACIENTE", "RECEPCIONISTA")
+                        .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN", "RECEPCIONISTA")
 
                         // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
-                        .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+                        .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN", "RECEPCIONISTA")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "ADMIN", "PACIENTE")
                         .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "ADMIN")
