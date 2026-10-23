@@ -3,9 +3,13 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.auth.JwtAuthDtoResponse;
 import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
+import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
+import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,8 +20,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -35,8 +41,20 @@ public class AuthControlador {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private RecuperacionPasswordServicio recuperacionPasswordServicio;
+
+    @Autowired
+    private AuditoriaSeguridadServicio auditoriaSeguridadServicio;
+
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
+        // HU-100: Chequeo de bloqueo temporal por intentos fallidos consecutivos
+        if (auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(loginDto.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.LOCKED,
+                    "La cuenta se encuentra temporalmente bloqueada por superar 5 intentos fallidos consecutivos en menos de 10 minutos. Por favor aguarde o recupere su clave.");
+        }
+
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginDto.getEmail(),
@@ -91,5 +109,22 @@ public class AuthControlador {
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    // HU-99: Flujo Criptográfico de Recuperación de Contraseña
+    @PostMapping({"/solicitar-recuperacion", "/forgot-password"})
+    public ResponseEntity<Map<String, String>> solicitarRecuperacion(@Valid @RequestBody SolicitarRecuperacionDtoRequest request) {
+        recuperacionPasswordServicio.solicitarRecuperacion(request);
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Si el correo electrónico se encuentra registrado, recibirá un enlace temporal para restablecer su contraseña en los próximos minutos."
+        ));
+    }
+
+    @PostMapping({"/resetear-password", "/reset-password"})
+    public ResponseEntity<Map<String, String>> resetearPassword(@Valid @RequestBody ResetearPasswordDtoRequest request) {
+        recuperacionPasswordServicio.resetearPassword(request);
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "La contraseña ha sido actualizada exitosamente. Ya puede iniciar sesión con sus nuevas credenciales."
+        ));
     }
 }

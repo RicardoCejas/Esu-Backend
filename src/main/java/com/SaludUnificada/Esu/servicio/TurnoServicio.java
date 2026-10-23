@@ -9,7 +9,7 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime; // Usar LocalDateTime para la fecha y hora
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,6 +22,9 @@ public class TurnoServicio implements ITurnoServicio {
     @Autowired
     private TurnoMapper turnoMapper;
 
+    @Autowired
+    private EmailNotificacionServicio emailNotificacionServicio;
+
     @Override
     public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto) {
         Turno turno = turnoMapper.paraEntidad(turnoDto);
@@ -29,6 +32,14 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalArgumentException("No se pueden crear turnos con fechas u horarios anteriores al momento actual.");
         }
         Turno turnoGuardado = turnoRepositorio.save(turno);
+
+        // HU-97: Envío asíncrono de confirmación de turno con link de cancelación
+        try {
+            emailNotificacionServicio.enviarConfirmacionTurno(turnoGuardado);
+        } catch (Exception ignored) {
+            // Manejo preventivo de fallo sin abortar la transacción principal
+        }
+
         return turnoMapper.paraDto(turnoGuardado);
     }
 
@@ -56,8 +67,8 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
-    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) { // Corregido: Nombre y tipo de parámetro
-        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream() // Corregido: Llamada al método del repositorio
+    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) {
+        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
