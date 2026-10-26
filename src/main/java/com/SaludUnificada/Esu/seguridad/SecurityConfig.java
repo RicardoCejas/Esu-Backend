@@ -108,6 +108,8 @@ public class SecurityConfig {
 
                         // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN")
+                        .requestMatchers("/api/historias-clinicas/obtener/todos").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").hasRole("ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE")
                         // Recetas: dispensación para farmacias habilitada
                         .requestMatchers("/api/recetas/dispensar").permitAll()
@@ -118,8 +120,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
                         .requestMatchers("/api/consentimientos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
 
-                        // Documentos y Expedientes Foliados
-                        .requestMatchers("/api/documentos/**").permitAll()
+                        // Documentos y Expedientes Foliados: verificacion publica, descarga y streaming autenticado
+                        .requestMatchers("/api/documentos/verificar/**").permitAll()
+                        .requestMatchers("/api/documentos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
 
                         // Plantillas clínicas para evoluciones rápidas
                         .requestMatchers(HttpMethod.GET, "/api/plantillas-evolucion/**").permitAll()

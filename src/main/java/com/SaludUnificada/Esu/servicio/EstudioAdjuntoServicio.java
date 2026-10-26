@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.response.EstudioAdjuntoDtoResponse;
 import com.SaludUnificada.Esu.entidad.EstudioAdjunto;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.EstudioAdjuntoRepositorio;
@@ -10,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -115,7 +118,14 @@ public class EstudioAdjuntoServicio {
                 .orElseThrow(() -> new NoEncontradoExcepcion("Estudio médico adjunto no encontrado con ID: " + estudioId));
 
         try {
-            Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).normalize();
+            Path baseDir = Paths.get(directorioCargas).toAbsolutePath().normalize();
+            Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
+
+            // Prevención de Path Traversal
+            if (!ruta.startsWith(baseDir)) {
+                throw new SecurityException("Acceso no autorizado: la ruta del archivo se encuentra fuera del directorio permitido.");
+            }
+
             Resource resource = new UrlResource(ruta.toUri());
             if (resource.exists() && resource.isReadable()) {
                 return resource;
@@ -124,6 +134,24 @@ public class EstudioAdjuntoServicio {
             }
         } catch (MalformedURLException e) {
             throw new RuntimeException("Ruta de archivo inválida: " + e.getMessage(), e);
+        }
+    }
+
+    public void validarAccesoEstudio(EstudioAdjunto estudio, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Debe autenticarse para acceder a los estudios.");
+        }
+        boolean isStaff = authentication.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") ||
+                a.getAuthority().equals("ROLE_MEDICO") ||
+                a.getAuthority().equals("ROLE_PROFESIONAL"));
+
+        if (!isStaff) {
+            Paciente paciente = pacienteRepositorio.findByUsuarioEmail(authentication.getName())
+                    .orElseThrow(() -> new AccessDeniedException("El usuario autenticado no está vinculado a un perfil de paciente."));
+            if (!paciente.getId().equals(estudio.getPacienteId())) {
+                throw new AccessDeniedException("No posee autorización para descargar estudios médicos pertenecientes a otro paciente.");
+            }
         }
     }
 

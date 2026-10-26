@@ -20,4 +20,13 @@ public class TurnoDtoRequest {
     private Long profesionalId;
 
     private String motivoTurno;
+
+    // Permite a personal administrativo y de recepción agendar turnos para un paciente específico
+    private Long pacienteId;
+
+    public TurnoDtoRequest(LocalDateTime fechaHora, Long profesionalId, String motivoTurno) {
+        this.fechaHora = fechaHora;
+        this.profesionalId = profesionalId;
+        this.motivoTurno = motivoTurno;
+    }
 }

@@ -85,9 +85,8 @@ public class AuthControlador {
             throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
         }
 
-        String rol = (registroDto.getRol() != null && !registroDto.getRol().isBlank())
-                ? registroDto.getRol().toUpperCase()
-                : "PACIENTE";
+        // Seguridad: el autoregistro publico asigna siempre rol PACIENTE para evitar escalada de privilegios
+        String rol = "PACIENTE";
 
         Usuario usuario = new Usuario();
         usuario.setEmail(registroDto.getEmail());

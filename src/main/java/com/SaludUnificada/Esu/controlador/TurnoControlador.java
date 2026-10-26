@@ -56,9 +56,9 @@ public class TurnoControlador {
     }
 
     @PostMapping("/crear")
-    @PreAuthorize("hasRole('PACIENTE')")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<TurnoDtoResponse> crearTurno(@Valid @RequestBody TurnoDtoRequest turnoDto, Principal principal) {
-        TurnoDtoResponse nuevoTurno = turnoServicio.crearTurno(turnoDto, principal.getName());
+        TurnoDtoResponse nuevoTurno = turnoServicio.crearTurno(turnoDto, principal != null ? principal.getName() : null);
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
     }
 

@@ -47,8 +47,9 @@ public class EstudioAdjuntoControlador {
     @GetMapping("/{id}/descargar")
     @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Descarga segura del archivo físico binario del estudio médico")
-    public ResponseEntity<Resource> descargarEstudio(@PathVariable Long id) {
+    public ResponseEntity<Resource> descargarEstudio(@PathVariable Long id, org.springframework.security.core.Authentication authentication) {
         EstudioAdjunto estudio = estudioServicio.obtenerPorId(id);
+        estudioServicio.validarAccesoEstudio(estudio, authentication);
         Resource resource = estudioServicio.descargarArchivo(id);
 
         String contentType = estudio.getMimeType();

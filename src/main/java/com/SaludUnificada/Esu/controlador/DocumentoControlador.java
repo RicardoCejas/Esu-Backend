@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -55,10 +57,13 @@ public class DocumentoControlador {
      * HU-107: Generación y descarga streaming del expediente clínico completo en PDF foliado
      */
     @GetMapping("/historia-clinica/{pacienteId}/pdf-completo")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Descarga streaming del expediente clínico integral foliado (Página X de Y, QR y Hash SHA-256)")
     public ResponseEntity<StreamingResponseBody> descargarExpedienteCompletoPdf(
             @PathVariable Long pacienteId,
             HttpServletRequest httpRequest) {
+
+        validarAccesoPaciente(pacienteId);
 
         Paciente paciente = pacienteRepositorio.findById(pacienteId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId));
@@ -105,6 +110,7 @@ public class DocumentoControlador {
      * Previsualización rápida de documentos PDF antes de firma (HU-79 Frontend)
      */
     @PostMapping("/previsualizar-pdf")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Previsualizar PDF en vivo antes de la firma digital inalterable")
     public ResponseEntity<byte[]> previsualizarPdf(@RequestBody Map<String, Object> payload) {
         Long pacienteId = payload.get("pacienteId") != null ? Long.valueOf(payload.get("pacienteId").toString()) : 1L;
@@ -130,21 +136,35 @@ public class DocumentoControlador {
         return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 
-    private void registrarAuditoriaDescarga(Long pacienteId, HttpServletRequest request) {
-        Long usuarioId = 1L;
-        String rolUsuario = "PROFESIONAL_MEDICO";
+    private void validarAccesoPaciente(Long pacienteId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Debe autenticarse para acceder al expediente clínico.");
+        }
 
-        try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
-                var optUser = usuarioRepositorio.findByEmail(auth.getName());
-                if (optUser.isPresent()) {
-                    Usuario u = optUser.get();
-                    usuarioId = u.getId();
-                    rolUsuario = u.getRol() != null ? u.getRol() : "USUARIO";
-                }
+        boolean isStaff = auth.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") ||
+                a.getAuthority().equals("ROLE_MEDICO") ||
+                a.getAuthority().equals("ROLE_PROFESIONAL"));
+
+        if (!isStaff) {
+            Usuario u = usuarioRepositorio.findByEmail(auth.getName())
+                    .orElseThrow(() -> new AccessDeniedException("Usuario no autenticado"));
+            if (u.getPaciente() == null || !u.getPaciente().getId().equals(pacienteId)) {
+                throw new AccessDeniedException("No posee autorización para consultar el expediente de otro paciente.");
             }
-        } catch (Exception ignored) {
+        }
+    }
+
+    private void registrarAuditoriaDescarga(Long pacienteId, HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+            return;
+        }
+
+        Usuario u = usuarioRepositorio.findByEmail(auth.getName()).orElse(null);
+        if (u == null) {
+            return;
         }
 
         String ip = request.getHeader("X-Forwarded-For");
@@ -153,11 +173,11 @@ public class DocumentoControlador {
         }
 
         LogAccesoHc log = new LogAccesoHc(
-                usuarioId,
+                u.getId(),
                 pacienteId,
                 "DESCARGA_EXPEDIENTE_PDF_COMPLETO",
                 ip != null ? ip : "127.0.0.1",
-                rolUsuario
+                u.getRol() != null ? u.getRol() : "USUARIO"
         );
         logAccesoHcRepositorio.save(log);
     }
