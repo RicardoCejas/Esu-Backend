@@ -78,8 +78,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/especialidades/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/api/profesionales/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/profesionales/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/profesionales/**").hasAnyRole("ADMIN", "PROFESIONAL", "MEDICO")
                         .requestMatchers(HttpMethod.DELETE, "/api/profesionales/**").hasRole("ADMIN")
+
+                        // Grillas Horarias y Disponibilidad (HU-BE-89)
+                        .requestMatchers(HttpMethod.GET, "/api/disponibilidades/**").permitAll()
+                        .requestMatchers("/api/disponibilidades/**").hasAnyRole("MEDICO", "PROFESIONAL", "ADMIN")
 
                         // Gestión de Usuarios y Auditoría / Métricas: restringido a Administradores
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
@@ -100,10 +104,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
 
                         // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
-                        .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
-                        .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "ADMIN", "PACIENTE")
-                        .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
-                        .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "ADMIN")
+                        .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN")
+                        .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE")
+                        .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
+                        .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
 
                         .anyRequest().authenticated()
                 );

@@ -1,47 +1,57 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.ProfesionalDtoRequest;
-import com.SaludUnificada.Esu.dto.response.ProfesionalDtoResponse; // Importación corregida
+import com.SaludUnificada.Esu.dto.response.ProfesionalDtoResponse;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class ProfesionalServicio implements IProfesionalServicio {
 
-    @Autowired
-    private ProfesionalRepositorio profesionalRepositorio;
-
-    @Autowired
-    private ProfesionalMapper profesionalMapper;
+    private final ProfesionalRepositorio profesionalRepositorio;
+    private final ProfesionalMapper profesionalMapper;
+    private final TurnoRepositorio turnoRepositorio;
 
     @Override
-    public ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesionalDto) { // Tipo de retorno corregido
+    @Transactional
+    public ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesionalDto) {
+        if (profesionalDto.getMatricula() == null || profesionalDto.getMatricula().isBlank()) {
+            throw new IllegalArgumentException("La matrícula del profesional es obligatoria");
+        }
         Profesional profesional = profesionalMapper.paraEntidad(profesionalDto);
         Profesional profesionalGuardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(profesionalGuardado);
     }
 
     @Override
-    public ProfesionalDtoResponse obtenerProfesionalPorId(Long id) { // Tipo de retorno corregido
+    @Transactional(readOnly = true)
+    public ProfesionalDtoResponse obtenerProfesionalPorId(Long id) {
         Profesional profesional = obtenerEntidadProfesionalPorId(id);
         return profesionalMapper.paraDto(profesional);
     }
 
     @Override
-    public List<ProfesionalDtoResponse> listarTodos() { // Tipo de retorno corregido
+    @Transactional(readOnly = true)
+    public List<ProfesionalDtoResponse> listarTodos() {
         return profesionalRepositorio.findAll().stream()
                 .map(profesionalMapper::paraDto)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional
     public void eliminarProfesional(Long id) {
         if (profesionalRepositorio.existsById(id)) {
             profesionalRepositorio.deleteById(id);
@@ -51,13 +61,36 @@ public class ProfesionalServicio implements IProfesionalServicio {
     }
 
     @Override
-    public List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId) { // Tipo de retorno corregido
-        return profesionalRepositorio.findByEspecialidades_Id(especialidadId).stream() // Corregido: Usar findByEspecialidades_Id
+    @Transactional(readOnly = true)
+    public List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId) {
+        return profesionalRepositorio.findByEspecialidades_Id(especialidadId).stream()
                 .map(profesionalMapper::paraDto)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad) {
+        List<Profesional> profesionales = profesionalRepositorio.buscarPrestadoresOptimizado(especialidadId, centroSaludId);
+        LocalDateTime ahora = LocalDateTime.now();
+
+        List<ProfesionalDtoResponse> resultado = new ArrayList<>();
+
+        for (Profesional p : profesionales) {
+            LocalDateTime proximoTurno = turnoRepositorio.findPrimerTurnoDisponible(p.getId(), ahora);
+
+            if (Boolean.TRUE.equals(soloConDisponibilidad) && proximoTurno == null) {
+                continue;
+            }
+
+            resultado.add(profesionalMapper.paraDto(p, proximoTurno));
+        }
+
+        return resultado;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Profesional obtenerEntidadProfesionalPorId(Long id) {
         return profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
