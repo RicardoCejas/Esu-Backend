@@ -2,20 +2,24 @@ package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
+import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
+import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
@@ -38,6 +42,12 @@ class AuthControladorTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
 
+    @Mock
+    private AuditoriaSeguridadServicio auditoriaSeguridadServicio;
+
+    @Mock
+    private RecuperacionPasswordServicio recuperacionPasswordServicio;
+
     @InjectMocks
     private AuthControlador authControlador;
 
@@ -50,6 +60,7 @@ class AuthControladorTest {
         usuario.setEmail("medico@esu.com");
         usuario.setRol("PROFESIONAL");
 
+        when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("medico@esu.com")).thenReturn(false);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
         when(jwtTokenProvider.generarToken(auth)).thenReturn("mocked.jwt.token");
         when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
@@ -63,6 +74,15 @@ class AuthControladorTest {
         assertEquals("Bearer", response.getBody().getTokenType());
         assertEquals("PROFESIONAL", response.getBody().getRol());
         assertEquals(10L, response.getBody().getUsuarioId());
+    }
+
+    @Test
+    void testLoginBloqueadoPorIntentosFallidos() {
+        LoginDtoRequest request = new LoginDtoRequest("bloqueado@esu.com", "password123");
+        when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("bloqueado@esu.com")).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authControlador.login(request));
+        assertEquals(HttpStatus.LOCKED, ex.getStatusCode());
     }
 
     @Test
@@ -93,5 +113,25 @@ class AuthControladorTest {
         when(usuarioRepositorio.existsByEmail("existente@esu.com")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> authControlador.registro(request));
+    }
+
+    @Test
+    void testSolicitarRecuperacion() {
+        SolicitarRecuperacionDtoRequest req = new SolicitarRecuperacionDtoRequest("user@esu.com");
+        var res = authControlador.solicitarRecuperacion(req);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertNotNull(res.getBody());
+        verify(recuperacionPasswordServicio, times(1)).solicitarRecuperacion(req);
+    }
+
+    @Test
+    void testResetearPassword() {
+        ResetearPasswordDtoRequest req = new ResetearPasswordDtoRequest("tok-123", "NuevaClave!");
+        var res = authControlador.resetearPassword(req);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertNotNull(res.getBody());
+        verify(recuperacionPasswordServicio, times(1)).resetearPassword(req);
     }
 }

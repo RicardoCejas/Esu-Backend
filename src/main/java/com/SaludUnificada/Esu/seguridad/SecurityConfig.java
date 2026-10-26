@@ -88,6 +88,8 @@ public class SecurityConfig {
                         // Gestión de Usuarios y Auditoría / Métricas: restringido a Administradores
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/metricas/**").hasRole("ADMIN")
+                        .requestMatchers("/api/seguridad/**").hasRole("ADMIN")
 
                         // Obras Sociales y Centros de Salud: GET público/autenticado, modificación ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/obras-sociales/**").permitAll()

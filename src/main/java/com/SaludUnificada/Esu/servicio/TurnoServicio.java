@@ -30,6 +30,7 @@ public class TurnoServicio implements ITurnoServicio {
     private final TurnoMapper turnoMapper;
     private final ProfesionalRepositorio profesionalRepositorio;
     private final PacienteRepositorio pacienteRepositorio;
+    private final EmailNotificacionServicio emailNotificacionServicio;
 
     @Override
     @Transactional
@@ -39,6 +40,14 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalArgumentException("No se pueden crear turnos con fechas u horarios anteriores al momento actual.");
         }
         Turno turnoGuardado = turnoRepositorio.save(turno);
+
+        // HU-97: Envío asíncrono de confirmación de turno con link de cancelación
+        try {
+            emailNotificacionServicio.enviarConfirmacionTurno(turnoGuardado);
+        } catch (Exception ignored) {
+            // Manejo preventivo de fallo sin abortar la transacción principal
+        }
+
         return turnoMapper.paraDto(turnoGuardado);
     }
 

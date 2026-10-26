@@ -36,6 +36,9 @@ public class RecetaDigitalServicio {
     @Autowired
     private DocumentoPdfServicio pdfServicio;
 
+    @Autowired
+    private EmailNotificacionServicio emailServicio;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -90,7 +93,17 @@ public class RecetaDigitalServicio {
         String qrUrl = frontendUrl + "/verificar-receta?hash=" + hash;
         receta.setCodigoQrUrl(qrUrl);
 
-        return recetaRepositorio.save(receta);
+        RecetaDigital guardada = recetaRepositorio.save(receta);
+
+        // HU-97: Envío asíncrono de notificación formal con receta digital en PDF adjunta
+        try {
+            byte[] pdfBytes = pdfServicio.generarRecetaPdf(guardada, qrUrl);
+            emailServicio.enviarRecetaDigital(guardada, pdfBytes);
+        } catch (Exception ignored) {
+            // Manejo preventivo sin interrumpir la emisión de la receta
+        }
+
+        return guardada;
     }
 
     public void validarProfesionalHabilitado(Long profesionalId) {
