@@ -49,4 +49,16 @@ public class UsuarioControlador {
     public ResponseEntity<List<UsuarioDtoResponse>> filtrarPorEstado(@RequestParam boolean estado) {
         return ResponseEntity.ok(usuarioServicio.findByActivo(estado));
     }
+
+    @Autowired
+    private com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio carnetYFamiliarServicio;
+
+    // HU-BE-108: Persistencia de Preferencias de Usuario y Accesibilidad
+    @PatchMapping("/preferencias")
+    public ResponseEntity<Void> actualizarPreferencias(
+            @RequestParam String email,
+            @RequestBody com.SaludUnificada.Esu.dto.request.PreferenciasUsuarioDtoRequest request) {
+        carnetYFamiliarServicio.actualizarPreferencias(email, request);
+        return ResponseEntity.noContent().build();
+    }
 }

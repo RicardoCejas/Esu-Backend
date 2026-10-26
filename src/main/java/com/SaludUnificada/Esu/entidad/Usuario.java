@@ -36,6 +36,16 @@ public class Usuario {
     @Column(name = "fecha_alta")
     private LocalDate fechaDeAlta;
 
+    // HU-BE-108: Preferencias de Usuario y Accesibilidad
+    @Column(name = "alto_contraste")
+    private Boolean altoContraste = false;
+
+    @Column(name = "tamano_fuente")
+    private String tamanoFuente = "normal";
+
+    @Column(name = "avisos_email")
+    private Boolean avisosEmail = true;
+
     // Lado inverso de la relación con Paciente
     @OneToOne(mappedBy = "usuario")
     private Paciente paciente;

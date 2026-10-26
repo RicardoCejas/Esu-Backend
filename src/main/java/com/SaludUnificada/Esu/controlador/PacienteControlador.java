@@ -45,8 +45,37 @@ public class PacienteControlador {
         return ResponseEntity.ok(pacienteServicio.buscarPorDni(dni));
     }
 
+    @Autowired
+    private com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio carnetYFamiliarServicio;
+
     @GetMapping("/buscar/apellido")
     public ResponseEntity<List<PacienteDtoResponse>> buscarPorApellidoParcial(@RequestParam String apellido) {
         return ResponseEntity.ok(pacienteServicio.buscarPorApellidoParcial(apellido));
+    }
+
+    // HU-BE-93: Emisión de Carnet Digital con QR y Hash SHA-256
+    @GetMapping("/{id}/carnet-digital")
+    public ResponseEntity<com.SaludUnificada.Esu.dto.response.CarnetDigitalDtoResponse> emitirCarnetDigital(@PathVariable Long id) {
+        return ResponseEntity.ok(carnetYFamiliarServicio.emitirCarnetDigital(id));
+    }
+
+    // HU-BE-93: Verificación de QR escaneado
+    @PostMapping("/verificar-carnet")
+    public ResponseEntity<Boolean> verificarCarnet(@RequestParam String qrPayload) {
+        return ResponseEntity.ok(carnetYFamiliarServicio.verificarCarnet(qrPayload));
+    }
+
+    // HU-BE-94: Vincular familiar dependiente
+    @PostMapping("/{id}/familiares")
+    public ResponseEntity<com.SaludUnificada.Esu.dto.response.FamiliarDtoResponse> vincularFamiliar(
+            @PathVariable Long id,
+            @Valid @RequestBody com.SaludUnificada.Esu.dto.request.FamiliarDtoRequest request) {
+        return new ResponseEntity<>(carnetYFamiliarServicio.vincularFamiliar(id, request), HttpStatus.CREATED);
+    }
+
+    // HU-BE-94: Listar familiares a cargo
+    @GetMapping("/{id}/familiares")
+    public ResponseEntity<List<com.SaludUnificada.Esu.dto.response.FamiliarDtoResponse>> listarFamiliares(@PathVariable Long id) {
+        return ResponseEntity.ok(carnetYFamiliarServicio.listarFamiliares(id));
     }
 }
