@@ -12,5 +12,6 @@ public interface IProfesionalServicio {
     List<ProfesionalDtoResponse> listarTodos();
     void eliminarProfesional(Long id);
     List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId);
+    List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad);
     Profesional obtenerEntidadProfesionalPorId(Long id);
 }

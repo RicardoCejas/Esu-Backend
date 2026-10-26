@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
@@ -7,6 +8,7 @@ import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 @Service
 public class TurnoServicio implements ITurnoServicio {
     private static final String CANCELADO = "CANCELADO";
+    public static final int LIMITE_SOBRETURNOS_DIARIOS = 3;
 
     private final TurnoRepositorio turnoRepositorio;
     private final TurnoMapper turnoMapper;
@@ -67,8 +70,6 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fechaHora = turnoDto.getFechaHora();
         validarHorario(fechaHora);
 
-        // Serialize bookings per professional without adding a unique index that could
-        // make existing databases with duplicate rows fail to start.
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
@@ -86,6 +87,37 @@ public class TurnoServicio implements ITurnoServicio {
         turno.setProfesional(profesional);
         Turno guardado = turnoRepositorio.save(turno);
         recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
+        Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+
+        Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
+
+        LocalDateTime inicioDia = request.getFechaHora().toLocalDate().atStartOfDay();
+        LocalDateTime finDia = inicioDia.plusDays(1).minusNanos(1);
+
+        long sobreturnosHoy = turnoRepositorio.contarSobreturnosEnDia(request.getProfesionalId(), inicioDia, finDia);
+        if (sobreturnosHoy >= LIMITE_SOBRETURNOS_DIARIOS) {
+            throw new ReglaNegocioException("Se ha superado el cupo máximo de sobreturnos (" +
+                    LIMITE_SOBRETURNOS_DIARIOS + " por día) para el profesional en la jornada indicada.");
+        }
+
+        Turno sobreturno = new Turno();
+        sobreturno.setFechaHora(request.getFechaHora());
+        sobreturno.setEstado("PENDIENTE");
+        sobreturno.setMotivoTurno(request.getMotivoSobreturno());
+        sobreturno.setEsSobreturno(true);
+        sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
+        sobreturno.setProfesional(profesional);
+        sobreturno.setPaciente(paciente);
+
+        Turno guardado = turnoRepositorio.save(sobreturno);
         return turnoMapper.paraDto(guardado);
     }
 
@@ -158,7 +190,8 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional(readOnly = true)
     public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) {
         return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
-                .map(turnoMapper::paraDto).collect(Collectors.toList());
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
     }
 
     @Override

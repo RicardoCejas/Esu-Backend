@@ -18,8 +18,8 @@ class TurnoControladorTest {
     @Test
     void disponibilidadExponeElArrayDeSlotsDelServicio() {
         ITurnoServicio service = mock(ITurnoServicio.class);
-        TurnoControlador controller = new TurnoControlador();
-        ReflectionTestUtils.setField(controller, "turnoServicio", service);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
         LocalDate date = LocalDate.of(2026, 10, 15);
         List<LocalDateTime> slots = List.of(date.atTime(8, 0));
         when(service.obtenerHorariosDisponibles(3L, date)).thenReturn(slots);
@@ -33,8 +33,8 @@ class TurnoControladorTest {
     @Test
     void crearTurnoPasaLaIdentidadAutenticadaAlServicio() {
         ITurnoServicio service = mock(ITurnoServicio.class);
-        TurnoControlador controller = new TurnoControlador();
-        ReflectionTestUtils.setField(controller, "turnoServicio", service);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
         Principal principal = () -> "patient@example.test";
 
         controller.crearTurno(null, principal);
@@ -46,9 +46,7 @@ class TurnoControladorTest {
     void recordatoriosSeListanParaElUsuarioAutenticado() {
         ITurnoServicio turnos = mock(ITurnoServicio.class);
         RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
-        TurnoControlador controller = new TurnoControlador();
-        ReflectionTestUtils.setField(controller, "turnoServicio", turnos);
-        ReflectionTestUtils.setField(controller, "recordatorioTurnoServicio", reminders);
+        TurnoControlador controller = new TurnoControlador(turnos, reminders);
         Principal principal = () -> "patient@example.test";
         var result = List.of(new RecordatorioTurnoDtoResponse(1L, 2L, LocalDateTime.of(2026, 10, 15, 8, 0),
                 "Profesional", LocalDateTime.of(2026, 10, 14, 8, 0), false));
