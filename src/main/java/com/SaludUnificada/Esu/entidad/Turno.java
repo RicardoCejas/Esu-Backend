@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
     @Index(name = "idx_turno_fecha_hora", columnList = "fecha_hora"),
     @Index(name = "idx_turno_estado", columnList = "estado"),
     @Index(name = "idx_turno_paciente_id", columnList = "paciente_id"),
-    @Index(name = "idx_turno_profesional_id", columnList = "profesional_id")
+    @Index(name = "idx_turno_profesional_id", columnList = "profesional_id"),
+    @Index(name = "idx_turno_sobreturno", columnList = "profesional_id, fecha_hora, es_sobreturno")
 })
 @Getter
 @Setter
@@ -33,6 +34,12 @@ public class Turno {
     @Column(name = "motivo_turno")
     private String motivoTurno;
 
+    @Column(name = "es_sobreturno")
+    private Boolean esSobreturno = false;
+
+    @Column(name = "motivo_sobreturno")
+    private String motivoSobreturno;
+
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 
@@ -46,6 +53,11 @@ public class Turno {
 
     @PrePersist
     protected void onCreate() {
-        fechaCreacion = LocalDateTime.now();
+        if (fechaCreacion == null) {
+            fechaCreacion = LocalDateTime.now();
+        }
+        if (esSobreturno == null) {
+            esSobreturno = false;
+        }
     }
 }

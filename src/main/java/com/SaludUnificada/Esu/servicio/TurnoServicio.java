@@ -1,28 +1,38 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime; // Usar LocalDateTime para la fecha y hora
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class TurnoServicio implements ITurnoServicio {
 
-    @Autowired
-    private TurnoRepositorio turnoRepositorio;
+    public static final int LIMITE_SOBRETURNOS_DIARIOS = 3;
 
-    @Autowired
-    private TurnoMapper turnoMapper;
+    private final TurnoRepositorio turnoRepositorio;
+    private final TurnoMapper turnoMapper;
+    private final ProfesionalRepositorio profesionalRepositorio;
+    private final PacienteRepositorio pacienteRepositorio;
 
     @Override
+    @Transactional
     public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto) {
         Turno turno = turnoMapper.paraEntidad(turnoDto);
         if (turno.getFechaHora().isBefore(LocalDateTime.now())) {
@@ -33,6 +43,38 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
+    @Transactional
+    public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
+        Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+
+        Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
+
+        LocalDateTime inicioDia = request.getFechaHora().toLocalDate().atStartOfDay();
+        LocalDateTime finDia = inicioDia.plusDays(1).minusNanos(1);
+
+        long sobreturnosHoy = turnoRepositorio.contarSobreturnosEnDia(request.getProfesionalId(), inicioDia, finDia);
+        if (sobreturnosHoy >= LIMITE_SOBRETURNOS_DIARIOS) {
+            throw new ReglaNegocioException("Se ha superado el cupo máximo de sobreturnos (" +
+                    LIMITE_SOBRETURNOS_DIARIOS + " por día) para el profesional en la jornada indicada.");
+        }
+
+        Turno sobreturno = new Turno();
+        sobreturno.setFechaHora(request.getFechaHora());
+        sobreturno.setEstado("PENDIENTE");
+        sobreturno.setMotivoTurno(request.getMotivoSobreturno());
+        sobreturno.setEsSobreturno(true);
+        sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
+        sobreturno.setProfesional(profesional);
+        sobreturno.setPaciente(paciente);
+
+        Turno guardado = turnoRepositorio.save(sobreturno);
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public TurnoDtoResponse obtenerTurnoPorId(Long id) {
         Turno turno = turnoRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
@@ -40,6 +82,7 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TurnoDtoResponse> listarTodos() {
         return turnoRepositorio.findAll().stream()
                 .map(turnoMapper::paraDto)
@@ -47,6 +90,7 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
+    @Transactional
     public void eliminarTurno(Long id) {
         if (turnoRepositorio.existsById(id)) {
             turnoRepositorio.deleteById(id);
@@ -56,13 +100,15 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
-    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) { // Corregido: Nombre y tipo de parámetro
-        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream() // Corregido: Llamada al método del repositorio
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) {
+        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId) {
         return turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId).stream()
                 .map(turnoMapper::paraDto)

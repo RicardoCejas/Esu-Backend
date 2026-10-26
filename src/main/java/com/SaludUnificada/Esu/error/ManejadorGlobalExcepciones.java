@@ -46,6 +46,22 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(problem);
     }
 
+    @ExceptionHandler(ReglaNegocioException.class)
+    public ResponseEntity<ProblemDetail> handleReglaNegocio(ReglaNegocioException ex, WebRequest request) {
+        log.warn("Violación de regla de negocio clínica: {}", ex.getMessage());
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        problem.setType(URI.create(BASE_PROBLEM_TYPE + "regla-negocio-violada"));
+        problem.setTitle("Regla de Negocio No Cumplida");
+        problem.setProperty("timestamp", Instant.now());
+
+        if (request instanceof ServletWebRequest servletRequest) {
+            problem.setInstance(URI.create(servletRequest.getRequest().getRequestURI()));
+        }
+
+        return ResponseEntity.status(ex.getStatus()).body(problem);
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
