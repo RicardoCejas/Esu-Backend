@@ -2,9 +2,12 @@ package com.SaludUnificada.Esu.repositorio;
 
 import com.SaludUnificada.Esu.entidad.Profesional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 
 import java.util.List;
 
@@ -14,6 +17,10 @@ public interface ProfesionalRepositorio extends JpaRepository<Profesional, Long>
     List<Profesional> findByEspecialidadesId(Long especialidadId);
 
     List<Profesional> findByEspecialidades_Id(Long especialidadId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Profesional p where p.id = :id")
+    Optional<Profesional> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT DISTINCT p FROM Profesional p " +
            "LEFT JOIN FETCH p.especialidades esp " +

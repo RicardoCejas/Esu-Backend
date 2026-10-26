@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.response.TopDiagnosticoDtoResponse;
 import com.SaludUnificada.Esu.entidad.EvolucionMedica;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -11,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface EvolucionMedicaRepositorio extends JpaRepository<EvolucionMedica, Long> {
+public interface EvolucionMedicaRepositorio extends JpaRepository<EvolucionMedica, Long>, JpaSpecificationExecutor<EvolucionMedica> {
     List<EvolucionMedica> findByPacienteIdOrderByFechaCreacionDesc(Long pacienteId);
     Optional<EvolucionMedica> findByTurnoId(Long turnoId);
     Optional<EvolucionMedica> findByHashIntegridad(String hashIntegridad);

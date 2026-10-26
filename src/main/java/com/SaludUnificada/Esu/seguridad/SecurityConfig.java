@@ -104,13 +104,17 @@ public class SecurityConfig {
 
                         // Pacientes: recepción rápida permitida a ADMIN y personal, resto de operaciones
                         .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "PACIENTE")
-                        .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+                        .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
 
                         // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE")
                         .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
                         .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
+
+                        // Estudios Médicos Adjuntos y Consentimientos Informados (HU-101 y HU-103)
+                        .requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
+                        .requestMatchers("/api/consentimientos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
 
                         .anyRequest().authenticated()
                 );

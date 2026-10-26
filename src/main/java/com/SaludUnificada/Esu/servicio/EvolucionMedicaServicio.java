@@ -6,16 +6,23 @@ import com.SaludUnificada.Esu.dto.response.TimelineItemDto;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.repositorio.*;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class EvolucionMedicaServicio {
@@ -31,6 +38,9 @@ public class EvolucionMedicaServicio {
 
     @Autowired
     private ProfesionalRepositorio profesionalRepositorio;
+
+    @Autowired
+    private AlergiaPacienteRepositorio alergiaRepositorio;
 
     @Autowired
     private TurnoRepositorio turnoRepositorio;
@@ -197,12 +207,21 @@ public class EvolucionMedicaServicio {
             dto.setFechaNacimiento("1992-05-14");
         }
 
-        // Alertas médicas críticas fijas (Alergias severas en rojo)
-        dto.setAlertasCriticas(List.of(
-            "ALERGIA GRAVE: Penicilina y derivados beta-lactámicos (Riesgo Anafiláctico)",
-            "ALERGIA: AINEs (Ibuprofeno / Aspirina) - Broncoespasmo reactivo",
-            "PRECAUCIÓN: Paciente asmático moderado en tratamiento de base"
-        ));
+        // Alertas médicas críticas obtenidas de la base de datos (HU-104 / HU-76)
+        List<AlergiaPaciente> alergias = alergiaRepositorio.findByPacienteIdAndActivoTrueOrderByFechaRegistroDesc(pacienteId);
+        if (!alergias.isEmpty()) {
+            List<String> alertas = alergias.stream()
+                .map(a -> String.format("ALERGIA %s: %s%s",
+                    a.getSeveridad(),
+                    a.getSustanciaAlergeno(),
+                    a.getObservaciones() != null && !a.getObservaciones().isBlank() ? " - " + a.getObservaciones() : ""))
+                .collect(Collectors.toList());
+            dto.setAlertasCriticas(alertas);
+        } else {
+            dto.setAlertasCriticas(List.of(
+                "Sin alergias críticas registradas actualmente"
+            ));
+        }
 
         // Antecedentes
         dto.setAntecedentes(List.of(
@@ -242,51 +261,91 @@ public class EvolucionMedicaServicio {
     }
 
     public List<TimelineItemDto> obtenerTimelinePaciente(Long pacienteId) {
-        List<TimelineItemDto> timeline = new ArrayList<>();
         List<EvolucionMedica> evoluciones = evolucionRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
+        return evoluciones.stream().map(this::convertirATimelineItem).collect(Collectors.toList());
+    }
 
-        for (EvolucionMedica e : evoluciones) {
-            TimelineItemDto item = new TimelineItemDto();
-            item.setId(e.getId());
-            item.setFecha(e.getFechaCreacion() != null ? e.getFechaCreacion().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "");
-            item.setTipo("EVOLUCION");
-            item.setProfesionalNombre("Dr./Dra. " + e.getProfesional().getNombre() + " " + e.getProfesional().getApellido());
-            item.setProfesionalMatricula(e.getProfesional().getMatricula());
-            item.setEspecialidad(e.getProfesional().getEspecialidades() != null && !e.getProfesional().getEspecialidades().isEmpty()
-                ? e.getProfesional().getEspecialidades().iterator().next().getNombre()
-                : "Medicina General");
-            item.setMotivo(e.getMotivoConsulta());
-            item.setDiagnostico(e.getDiagnostico());
-            item.setCodigoCie10(e.getCodigoCie10());
-            item.setDescripcionCie10(e.getDescripcionCie10());
-            item.setTratamiento(e.getTratamiento());
+    /**
+     * Búsqueda Parametrizada y Paginación Optimizada del Timeline Clínico (HU-102)
+     */
+    public Page<TimelineItemDto> obtenerTimelineParametrizado(
+            Long pacienteId,
+            String q,
+            String cie10,
+            LocalDate desde,
+            LocalDate hasta,
+            Pageable pageable
+    ) {
+        Specification<EvolucionMedica> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("paciente").get("id"), pacienteId));
 
-            Map<String, String> vitales = new HashMap<>();
-            vitales.put("presionArterial", e.getPresionArterial() != null ? e.getPresionArterial() : "-");
-            vitales.put("frecuenciaCardiaca", e.getFrecuenciaCardiaca() != null ? e.getFrecuenciaCardiaca() : "-");
-            vitales.put("temperatura", e.getTemperatura() != null ? e.getTemperatura() : "-");
-            vitales.put("peso", e.getPeso() != null ? e.getPeso() : "-");
-            vitales.put("imc", e.getImc() != null ? e.getImc() : "-");
-            item.setSignosVitales(vitales);
-
-            List<EvolucionAdenda> adendas = adendaRepositorio.findByEvolucionMedicaIdOrderByFechaFirmaDesc(e.getId());
-            item.setTieneAdendas(!adendas.isEmpty());
-            List<String> adendaStrings = new ArrayList<>();
-            for (EvolucionAdenda ad : adendas) {
-                adendaStrings.add(String.format("[%s] Justificación: %s | Contenido: %s",
-                    ad.getFechaFirma().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-                    ad.getJustificacionClinica(),
-                    ad.getContenidoAdicional()
-                ));
+            if (StringUtils.hasText(q)) {
+                String pattern = "%" + q.toLowerCase().trim() + "%";
+                Predicate porMotivo = cb.like(cb.lower(root.get("motivoConsulta")), pattern);
+                Predicate porDiag = cb.like(cb.lower(root.get("diagnostico")), pattern);
+                Predicate porTrat = cb.like(cb.lower(root.get("tratamiento")), pattern);
+                Predicate porCie = cb.like(cb.lower(root.get("descripcionCie10")), pattern);
+                predicates.add(cb.or(porMotivo, porDiag, porTrat, porCie));
             }
-            item.setAdendas(adendaStrings);
-            item.setHashIntegridad(e.getHashIntegridad());
-            item.setPdfUrl("/api/historias-clinicas/evoluciones/" + e.getId() + "/pdf");
 
-            timeline.add(item);
+            if (StringUtils.hasText(cie10)) {
+                predicates.add(cb.like(cb.lower(root.get("codigoCie10")), "%" + cie10.toLowerCase().trim() + "%"));
+            }
+
+            if (desde != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("fechaCreacion"), desde.atStartOfDay()));
+            }
+
+            if (hasta != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("fechaCreacion"), hasta.atTime(LocalTime.MAX)));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        return evolucionRepositorio.findAll(spec, pageable).map(this::convertirATimelineItem);
+    }
+
+    private TimelineItemDto convertirATimelineItem(EvolucionMedica e) {
+        TimelineItemDto item = new TimelineItemDto();
+        item.setId(e.getId());
+        item.setFecha(e.getFechaCreacion() != null ? e.getFechaCreacion().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "");
+        item.setTipo("EVOLUCION");
+        item.setProfesionalNombre("Dr./Dra. " + e.getProfesional().getNombre() + " " + e.getProfesional().getApellido());
+        item.setProfesionalMatricula(e.getProfesional().getMatricula());
+        item.setEspecialidad(e.getProfesional().getEspecialidades() != null && !e.getProfesional().getEspecialidades().isEmpty()
+            ? e.getProfesional().getEspecialidades().iterator().next().getNombre()
+            : "Medicina General");
+        item.setMotivo(e.getMotivoConsulta());
+        item.setDiagnostico(e.getDiagnostico());
+        item.setCodigoCie10(e.getCodigoCie10());
+        item.setDescripcionCie10(e.getDescripcionCie10());
+        item.setTratamiento(e.getTratamiento());
+
+        Map<String, String> vitales = new HashMap<>();
+        vitales.put("presionArterial", e.getPresionArterial() != null ? e.getPresionArterial() : "-");
+        vitales.put("frecuenciaCardiaca", e.getFrecuenciaCardiaca() != null ? e.getFrecuenciaCardiaca() : "-");
+        vitales.put("temperatura", e.getTemperatura() != null ? e.getTemperatura() : "-");
+        vitales.put("peso", e.getPeso() != null ? e.getPeso() : "-");
+        vitales.put("talla", e.getTalla() != null ? e.getTalla() : "-");
+        vitales.put("imc", e.getImc() != null ? e.getImc() : "-");
+        item.setSignosVitales(vitales);
+
+        List<EvolucionAdenda> adendas = adendaRepositorio.findByEvolucionMedicaIdOrderByFechaFirmaDesc(e.getId());
+        item.setTieneAdendas(!adendas.isEmpty());
+        List<String> adendaStrings = new ArrayList<>();
+        for (EvolucionAdenda ad : adendas) {
+            adendaStrings.add(String.format("[%s] Justificación: %s | Contenido: %s",
+                ad.getFechaFirma().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                ad.getJustificacionClinica(),
+                ad.getContenidoAdicional()
+            ));
         }
-
-        return timeline;
+        item.setAdendas(adendaStrings);
+        item.setHashIntegridad(e.getHashIntegridad());
+        item.setPdfUrl("/api/historias-clinicas/evoluciones/" + e.getId() + "/pdf");
+        return item;
     }
 
     public byte[] generarPdfEvolucion(Long evolucionId) {

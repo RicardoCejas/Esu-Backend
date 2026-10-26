@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
@@ -19,6 +20,13 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
     List<Turno> findByProfesionalIdAndFechaHoraBetween(Long profesionalId, LocalDateTime inicio, LocalDateTime fin);
 
     List<Turno> findByPacienteIdOrderByFechaHoraDesc(Long pacienteId);
+
+    boolean existsByProfesionalIdAndFechaHoraAndEstadoNot(Long profesionalId, LocalDateTime fechaHora, String estado);
+
+    List<Turno> findByProfesionalIdAndFechaHoraGreaterThanEqualAndFechaHoraLessThanAndEstadoNot(
+            Long profesionalId, LocalDateTime inicio, LocalDateTime fin, String estado);
+
+    List<Turno> findByFechaHoraBetween(LocalDateTime inicio, LocalDateTime fin);
 
     @Query("SELECT COUNT(t) FROM Turno t WHERE t.profesional.id = :profesionalId " +
            "AND t.esSobreturno = true " +

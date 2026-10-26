@@ -16,9 +16,6 @@ public class TurnoDtoRequest {
     @NotNull(message = "La fecha y hora del turno son obligatorias")
     private LocalDateTime fechaHora;
 
-    @NotNull(message = "El ID del paciente es obligatorio")
-    private Long pacienteId;
-
     @NotNull(message = "El ID del profesional es obligatorio")
     private Long profesionalId;
 

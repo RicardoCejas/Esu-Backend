@@ -39,12 +39,18 @@ public class RecetaDigitalServicio {
     @Autowired
     private EmailNotificacionServicio emailServicio;
 
+    @Autowired
+    private AlergiaServicio alergiaServicio;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
     @Transactional
     public RecetaDigital emitirReceta(RecetaDigitalDtoRequest request) {
         validarProfesionalHabilitado(request.getProfesionalId());
+
+        // HU-104: Interceptor Clínico de Contraindicaciones y Alergias Preexistentes
+        alergiaServicio.validarContraindicaciones(request.getPacienteId(), request.getMedicamentos());
 
         Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
