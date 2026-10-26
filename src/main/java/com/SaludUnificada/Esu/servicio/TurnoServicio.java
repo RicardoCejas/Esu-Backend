@@ -80,16 +80,8 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("El horario solicitado ya no está disponible.");
         }
 
-        Paciente paciente;
-        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
-            paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
-                    .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
-        } else if (turnoDto.getPacienteId() != null) {
-            paciente = pacienteRepositorio.findById(turnoDto.getPacienteId())
-                    .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + turnoDto.getPacienteId()));
-        } else {
-            throw new IllegalArgumentException("Debe indicarse el paciente para el turno.");
-        }
+        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
+                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
 
         Turno turno = new Turno();
         turno.setFechaHora(fechaHora);
