@@ -30,6 +30,7 @@ public class TurnoMapper {
         turno.setFechaHora(dto.getFechaHora());
         turno.setMotivoTurno(dto.getMotivoTurno());
         turno.setEstado("PENDIENTE"); // Estado por defecto
+        turno.setEsSobreturno(false);
 
         if (dto.getPacienteId() != null) {
             Paciente paciente = pacienteServicio.obtenerEntidadPacientePorId(dto.getPacienteId());
@@ -45,11 +46,16 @@ public class TurnoMapper {
     }
 
     public TurnoDtoResponse paraDto(Turno turno) {
+        if (turno == null) {
+            return null;
+        }
         TurnoDtoResponse dto = new TurnoDtoResponse();
         dto.setId(turno.getId());
         dto.setFechaHora(turno.getFechaHora());
         dto.setEstado(turno.getEstado());
         dto.setMotivoTurno(turno.getMotivoTurno());
+        dto.setEsSobreturno(Boolean.TRUE.equals(turno.getEsSobreturno()));
+        dto.setMotivoSobreturno(turno.getMotivoSobreturno());
 
         if (turno.getPaciente() != null) {
             dto.setPaciente(pacienteMapper.paraDto(turno.getPaciente()));

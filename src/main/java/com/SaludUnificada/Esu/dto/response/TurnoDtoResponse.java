@@ -1,9 +1,7 @@
 package com.SaludUnificada.Esu.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -11,11 +9,15 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@Schema(description = "Detalle de respuesta de un turno médico")
 public class TurnoDtoResponse {
     private Long id;
     private LocalDateTime fechaHora;
     private String estado;
     private String motivoTurno;
-    private PacienteDtoResponse paciente; // Corregido: Usar PacienteDtoResponse
-    private ProfesionalDtoResponse profesional; // Corregido: Usar ProfesionalDtoResponse
+    private Boolean esSobreturno;
+    private String motivoSobreturno;
+    private PacienteDtoResponse paciente;
+    private ProfesionalDtoResponse profesional;
 }
