@@ -28,4 +28,10 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
             @Param("profesionalId") Long profesionalId,
             @Param("inicioDia") LocalDateTime inicioDia,
             @Param("finDia") LocalDateTime finDia);
+
+    @Query("SELECT MIN(t.fechaHora) FROM Turno t WHERE t.profesional.id = :profesionalId " +
+           "AND t.estado = 'DISPONIBLE' AND t.fechaHora >= :desde")
+    LocalDateTime findPrimerTurnoDisponible(
+            @Param("profesionalId") Long profesionalId,
+            @Param("desde") LocalDateTime desde);
 }
