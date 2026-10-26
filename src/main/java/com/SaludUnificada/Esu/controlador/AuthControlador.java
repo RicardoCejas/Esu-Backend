@@ -7,6 +7,8 @@ import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
@@ -34,6 +36,9 @@ public class AuthControlador {
 
     @Autowired
     private UsuarioRepositorio usuarioRepositorio;
+
+    @Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -96,6 +101,21 @@ public class AuthControlador {
         usuario.setFechaDeAlta(LocalDate.now());
 
         Usuario guardado = usuarioRepositorio.save(usuario);
+
+        if ("PACIENTE".equalsIgnoreCase(rol) && pacienteRepositorio != null) {
+            try {
+                if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
+                    Paciente nuevoPaciente = new Paciente();
+                    nuevoPaciente.setNombre("Paciente");
+                    nuevoPaciente.setApellido("Registrado");
+                    nuevoPaciente.setDni("DNI-" + guardado.getId());
+                    nuevoPaciente.setNroAfiliado("AF-" + guardado.getId());
+                    nuevoPaciente.setUsuario(guardado);
+                    pacienteRepositorio.save(nuevoPaciente);
+                }
+            } catch (Exception ignored) {
+            }
+        }
 
         String token = jwtTokenProvider.generarTokenParaUsuario(guardado.getEmail(), guardado.getRol());
 

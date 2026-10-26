@@ -81,11 +81,13 @@ public class TurnoControlador {
     }
 
     @GetMapping({"", "/obtener/todos"})
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
     }
 
     @DeleteMapping("/eliminar/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<Void> eliminarTurno(@PathVariable Long id) {
         turnoServicio.eliminarTurno(id);
         return ResponseEntity.noContent().build();

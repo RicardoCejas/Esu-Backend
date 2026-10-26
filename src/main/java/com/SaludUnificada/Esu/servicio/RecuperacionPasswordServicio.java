@@ -89,6 +89,7 @@ public class RecuperacionPasswordServicio {
         }
 
         usuario.setPassword(passwordEncoder.encode(request.getNuevaPassword()));
+        usuario.setFechaActualizacionPassword(LocalDateTime.now());
         usuarioRepositorio.save(usuario);
 
         // Invalidación inmediata del token

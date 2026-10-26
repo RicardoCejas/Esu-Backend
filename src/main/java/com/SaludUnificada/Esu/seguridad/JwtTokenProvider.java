@@ -80,4 +80,13 @@ public class JwtTokenProvider {
             return false;
         }
     }
+
+    public Date obtenerFechaEmisionDelJwt(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getIssuedAt();
+    }
 }
