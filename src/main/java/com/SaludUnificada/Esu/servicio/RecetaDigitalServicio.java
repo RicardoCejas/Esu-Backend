@@ -55,7 +55,9 @@ public class RecetaDigitalServicio {
         validarProfesionalHabilitado(request.getProfesionalId());
 
         // HU-104: Interceptor Clínico de Contraindicaciones y Alergias Preexistentes
-        alergiaServicio.validarContraindicaciones(request.getPacienteId(), request.getMedicamentos());
+        if (alergiaServicio != null) {
+            alergiaServicio.validarContraindicaciones(request.getPacienteId(), request.getMedicamentos());
+        }
 
         Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));

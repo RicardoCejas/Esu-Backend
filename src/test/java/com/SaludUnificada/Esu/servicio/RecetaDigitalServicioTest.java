@@ -46,6 +46,12 @@ class RecetaDigitalServicioTest {
     @Mock
     private DocumentoPdfServicio pdfServicio;
 
+    @Mock
+    private AlergiaServicio alergiaServicio;
+
+    @Mock
+    private EmailNotificacionServicio emailServicio;
+
     @Spy
     private CatalogoFarmacologicoServicio catalogoFarmacologicoServicio = new CatalogoFarmacologicoServicio();
 
