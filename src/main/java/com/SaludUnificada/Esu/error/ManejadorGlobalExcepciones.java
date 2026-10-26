@@ -176,15 +176,4 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         );
         return ResponseEntity.status(HttpStatus.GONE).body(message);
     }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorMessage> handleGlobalException(Exception exception) {
-        ErrorMessage message = new ErrorMessage(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                LocalDateTime.now(),
-                exception.getMessage(),
-                "Error interno del servidor"
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(message);
-    }
 }
