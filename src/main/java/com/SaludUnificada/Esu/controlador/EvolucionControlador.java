@@ -12,12 +12,18 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -60,9 +66,22 @@ public class EvolucionControlador {
     }
 
     @GetMapping("/historias-clinicas/paciente/{id}/timeline")
-    @Operation(summary = "Obtener línea de tiempo cronológica de atenciones del paciente")
+    @Operation(summary = "Obtener línea de tiempo cronológica completa de atenciones del paciente")
     public ResponseEntity<List<TimelineItemDto>> obtenerTimeline(@PathVariable Long id) {
         return ResponseEntity.ok(evolucionServicio.obtenerTimelinePaciente(id));
+    }
+
+    @GetMapping("/historias-clinicas/{pacienteId}/timeline")
+    @Operation(summary = "Búsqueda parametrizada y paginación optimizada del timeline clínico (HU-102)")
+    public ResponseEntity<Page<TimelineItemDto>> obtenerTimelineParametrizado(
+            @PathVariable Long pacienteId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String cie10,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @PageableDefault(size = 10, sort = "fechaCreacion", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return ResponseEntity.ok(evolucionServicio.obtenerTimelineParametrizado(pacienteId, q, cie10, desde, hasta, pageable));
     }
 
     @PostMapping("/historias-clinicas/consultas/borrador")

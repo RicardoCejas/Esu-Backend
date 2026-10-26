@@ -42,7 +42,9 @@ class SobreturnoServicioTest {
     @Mock
     private TurnoMapper turnoMapper;
 
-    @InjectMocks
+    @Mock
+    private com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio recordatorioRepositorio;
+
     private TurnoServicio turnoServicio;
 
     private Profesional profesional;
@@ -51,6 +53,11 @@ class SobreturnoServicioTest {
 
     @BeforeEach
     void setUp() {
+        turnoServicio = new TurnoServicio(
+                turnoRepositorio, turnoMapper, pacienteRepositorio, profesionalRepositorio,
+                recordatorioRepositorio, java.time.Clock.systemDefaultZone(), java.time.ZoneId.of("America/Argentina/Cordoba"),
+                java.time.LocalTime.of(8, 0), java.time.LocalTime.of(17, 0), 30
+        );
         profesional = new Profesional();
         profesional.setId(1L);
         profesional.setNombre("Carlos");
