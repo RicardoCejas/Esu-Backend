@@ -88,7 +88,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "ADMIN", "PACIENTE")
+                        // Recetas: dispensación para farmacias habilitada
+                        .requestMatchers("/api/recetas/dispensar").permitAll()
                         .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "ADMIN")
+
+                        // Documentos y Expedientes Foliados
+                        .requestMatchers("/api/documentos/**").permitAll()
+
+                        // Plantillas clínicas para evoluciones rápidas
+                        .requestMatchers(HttpMethod.GET, "/api/plantillas-evolucion/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/plantillas-evolucion/**").hasAnyRole("PROFESIONAL", "ADMIN")
 
                         .anyRequest().authenticated()
                 );

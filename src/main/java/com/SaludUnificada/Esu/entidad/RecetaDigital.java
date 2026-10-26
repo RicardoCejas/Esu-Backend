@@ -52,6 +52,15 @@ public class RecetaDigital {
     @Column(name = "indicaciones_generales", columnDefinition = "TEXT")
     private String indicacionesGenerales;
 
+    @Column(name = "estado_receta", length = 20)
+    private String estadoReceta = "PENDIENTE";
+
+    @Column(name = "fecha_dispensacion")
+    private LocalDateTime fechaDispensacion;
+
+    @Column(name = "matricula_farmacia_dispensadora", length = 50)
+    private String matriculaFarmaciaDispensadora;
+
     @Column(name = "hash_integridad", length = 64)
     private String hashIntegridad;
 
@@ -74,6 +83,9 @@ public class RecetaDigital {
         }
         if (fechaVencimiento == null) {
             fechaVencimiento = fechaEmision.plusDays(30);
+        }
+        if (estadoReceta == null) {
+            estadoReceta = "PENDIENTE";
         }
     }
 }

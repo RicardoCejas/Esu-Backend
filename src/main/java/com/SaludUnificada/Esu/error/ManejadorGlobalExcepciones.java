@@ -94,6 +94,28 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(message);
     }
 
+    @ExceptionHandler(RecetaYaDispensadaException.class)
+    public ResponseEntity<ErrorMessage> handleRecetaYaDispensada(RecetaYaDispensadaException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.CONFLICT,
+                LocalDateTime.now(),
+                exception.getMessage(),
+                "Receta ya dispensada previamente"
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(message);
+    }
+
+    @ExceptionHandler(RecetaVencidaException.class)
+    public ResponseEntity<ErrorMessage> handleRecetaVencida(RecetaVencidaException exception) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.GONE,
+                LocalDateTime.now(),
+                exception.getMessage(),
+                "Receta digital vencida (>30 días corridos de vigencia)"
+        );
+        return ResponseEntity.status(HttpStatus.GONE).body(message);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorMessage> handleGlobalException(Exception exception) {
         ErrorMessage message = new ErrorMessage(

@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -26,5 +27,5 @@ public class RecetaDigitalDtoRequest {
     private String indicacionesGenerales;
 
     @NotEmpty(message = "Debe incluir al menos un medicamento en la prescripción")
-    private List<MedicamentoItemDto> medicamentos;
+    private List<@Valid MedicamentoItemDto> medicamentos;
 }

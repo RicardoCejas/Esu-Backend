@@ -1,6 +1,8 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.request.DispensarRecetaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
+import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.servicio.RecetaDigitalServicio;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,6 +39,12 @@ public class RecetaControlador {
             "valido", true,
             "mensaje", "Profesional habilitado y prescripción válida con formato oficial."
         ));
+    }
+
+    @PostMapping("/recetas/dispensar")
+    @Operation(summary = "HU-105: Endpoint transaccional de dispensación farmacéutica de recetas médicas")
+    public ResponseEntity<DispensarRecetaDtoResponse> dispensarReceta(@Valid @RequestBody DispensarRecetaDtoRequest request) {
+        return ResponseEntity.ok(recetaServicio.dispensarReceta(request));
     }
 
     @GetMapping("/recetas/{id}")
