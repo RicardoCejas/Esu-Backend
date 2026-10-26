@@ -2,37 +2,136 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
+import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime; // Usar LocalDateTime para la fecha y hora
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class TurnoServicio implements ITurnoServicio {
+    private static final String CANCELADO = "CANCELADO";
 
-    @Autowired
-    private TurnoRepositorio turnoRepositorio;
+    private final TurnoRepositorio turnoRepositorio;
+    private final TurnoMapper turnoMapper;
+    private final PacienteRepositorio pacienteRepositorio;
+    private final ProfesionalRepositorio profesionalRepositorio;
+    private final Clock clock;
+    private final ZoneId zoneId;
+    private final RecordatorioTurnoRepositorio recordatorioRepositorio;
+    private final LocalTime apertura;
+    private final LocalTime cierre;
+    private final int duracionSlotMinutos;
 
-    @Autowired
-    private TurnoMapper turnoMapper;
-
-    @Override
-    public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto) {
-        Turno turno = turnoMapper.paraEntidad(turnoDto);
-        if (turno.getFechaHora().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("No se pueden crear turnos con fechas u horarios anteriores al momento actual.");
+    public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
+                         PacienteRepositorio pacienteRepositorio, ProfesionalRepositorio profesionalRepositorio,
+                         RecordatorioTurnoRepositorio recordatorioRepositorio, Clock clock, ZoneId turnosZoneId,
+                         @Value("${esu.turnos.open:08:00}") LocalTime apertura,
+                         @Value("${esu.turnos.close:17:00}") LocalTime cierre,
+                         @Value("${esu.turnos.slot-minutes:30}") int duracionSlotMinutos) {
+        if (duracionSlotMinutos <= 0 || !cierre.isAfter(apertura)) {
+            throw new IllegalArgumentException("Turno configuration requires a positive slot duration and close time after open time.");
         }
-        Turno turnoGuardado = turnoRepositorio.save(turno);
-        return turnoMapper.paraDto(turnoGuardado);
+        this.turnoRepositorio = turnoRepositorio;
+        this.turnoMapper = turnoMapper;
+        this.pacienteRepositorio = pacienteRepositorio;
+        this.profesionalRepositorio = profesionalRepositorio;
+        this.recordatorioRepositorio = recordatorioRepositorio;
+        this.clock = clock;
+        this.zoneId = turnosZoneId;
+        this.apertura = apertura;
+        this.cierre = cierre;
+        this.duracionSlotMinutos = duracionSlotMinutos;
     }
 
     @Override
+    @Transactional
+    public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto, String emailAutenticado) {
+        LocalDateTime fechaHora = turnoDto.getFechaHora();
+        validarHorario(fechaHora);
+
+        // Serialize bookings per professional without adding a unique index that could
+        // make existing databases with duplicate rows fail to start.
+        Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
+        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+            throw new IllegalStateException("El horario solicitado ya no está disponible.");
+        }
+
+        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
+                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+
+        Turno turno = new Turno();
+        turno.setFechaHora(fechaHora);
+        turno.setMotivoTurno(turnoDto.getMotivoTurno());
+        turno.setEstado("PENDIENTE");
+        turno.setPaciente(paciente);
+        turno.setProfesional(profesional);
+        Turno guardado = turnoRepositorio.save(turno);
+        recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha) {
+        if (!profesionalRepositorio.existsById(profesionalId)) {
+            throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId);
+        }
+        if (fecha.isBefore(LocalDate.now(clock.withZone(zoneId))) || fecha.getDayOfWeek().getValue() > 5) {
+            return List.of();
+        }
+
+        LocalDateTime inicio = fecha.atTime(apertura);
+        LocalDateTime fin = fecha.atTime(cierre);
+        List<LocalDateTime> ocupados = turnoRepositorio
+                .findByProfesionalIdAndFechaHoraGreaterThanEqualAndFechaHoraLessThanAndEstadoNot(
+                        profesionalId, inicio, fin, CANCELADO)
+                .stream().map(Turno::getFechaHora).collect(Collectors.toList());
+
+        LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+        List<LocalDateTime> disponibles = new ArrayList<>();
+        for (LocalDateTime slot = inicio; slot.plusMinutes(duracionSlotMinutos).compareTo(fin) <= 0;
+             slot = slot.plusMinutes(duracionSlotMinutos)) {
+            if (slot.isAfter(ahora) && !ocupados.contains(slot)) {
+                disponibles.add(slot);
+            }
+        }
+        return disponibles;
+    }
+
+    private void validarHorario(LocalDateTime fechaHora) {
+        LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+        boolean diaHabil = fechaHora.getDayOfWeek().getValue() <= 5;
+        long minutosDesdeApertura = java.time.Duration.between(apertura, fechaHora.toLocalTime()).toMinutes();
+        boolean dentroDeJornada = !fechaHora.toLocalTime().isBefore(apertura)
+                && !fechaHora.toLocalTime().plusMinutes(duracionSlotMinutos).isAfter(cierre)
+                && minutosDesdeApertura % duracionSlotMinutos == 0
+                && fechaHora.getSecond() == 0 && fechaHora.getNano() == 0;
+        if (!fechaHora.isAfter(ahora) || !diaHabil || !dentroDeJornada) {
+            throw new IllegalArgumentException("El turno debe ser futuro, en día hábil y respetar la jornada y duración de slots configuradas.");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public TurnoDtoResponse obtenerTurnoPorId(Long id) {
         Turno turno = turnoRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
@@ -40,13 +139,13 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TurnoDtoResponse> listarTodos() {
-        return turnoRepositorio.findAll().stream()
-                .map(turnoMapper::paraDto)
-                .collect(Collectors.toList());
+        return turnoRepositorio.findAll().stream().map(turnoMapper::paraDto).collect(Collectors.toList());
     }
 
     @Override
+    @Transactional
     public void eliminarTurno(Long id) {
         if (turnoRepositorio.existsById(id)) {
             turnoRepositorio.deleteById(id);
@@ -56,16 +155,16 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
-    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) { // Corregido: Nombre y tipo de parámetro
-        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream() // Corregido: Llamada al método del repositorio
-                .map(turnoMapper::paraDto)
-                .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) {
+        return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
+                .map(turnoMapper::paraDto).collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId) {
         return turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId).stream()
-                .map(turnoMapper::paraDto)
-                .collect(Collectors.toList());
+                .map(turnoMapper::paraDto).collect(Collectors.toList());
     }
 }

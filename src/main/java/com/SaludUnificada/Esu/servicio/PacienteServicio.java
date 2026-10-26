@@ -72,4 +72,11 @@ public class PacienteServicio implements IPacienteServicio {
         return pacienteRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id));
     }
+
+    @Override
+    public PacienteDtoResponse obtenerPerfilAutenticado(String email) {
+        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(email)
+                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+        return pacienteMapper.paraDto(paciente);
+    }
 }

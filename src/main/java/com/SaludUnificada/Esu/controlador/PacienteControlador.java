@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/pacientes")
@@ -17,6 +18,11 @@ public class PacienteControlador {
 
     @Autowired
     private IPacienteServicio pacienteServicio;
+
+    @GetMapping("/me")
+    public ResponseEntity<PacienteDtoResponse> obtenerMiPerfil(Principal principal) {
+        return ResponseEntity.ok(pacienteServicio.obtenerPerfilAutenticado(principal.getName()));
+    }
 
     @PostMapping("/crear")
     public ResponseEntity<PacienteDtoResponse> crearPaciente(@Valid @RequestBody PacienteDtoRequest pacienteDto) {

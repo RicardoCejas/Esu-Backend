@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface PacienteRepositorio extends JpaRepository<Paciente, Long> {
     Optional<Paciente> findByDni(String dni);
 
+    Optional<Paciente> findByUsuarioEmail(String email);
+
     // Query Method para buscar pacientes por apellido ignorando mayúsculas/minúsculas
     List<Paciente> findByApellidoContainingIgnoreCase(String apellido);
 }

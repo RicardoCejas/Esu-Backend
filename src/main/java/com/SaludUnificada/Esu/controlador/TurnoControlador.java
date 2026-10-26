@@ -3,15 +3,20 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.servicio.ITurnoServicio;
+import com.SaludUnificada.Esu.servicio.RecordatorioTurnoServicio;
+import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.time.LocalDate;
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/turnos")
@@ -20,10 +25,27 @@ public class TurnoControlador {
     @Autowired
     private ITurnoServicio turnoServicio;
 
+    @Autowired
+    private RecordatorioTurnoServicio recordatorioTurnoServicio;
+
     @PostMapping("/crear")
-    public ResponseEntity<TurnoDtoResponse> crearTurno(@Valid @RequestBody TurnoDtoRequest turnoDto) {
-        TurnoDtoResponse nuevoTurno = turnoServicio.crearTurno(turnoDto);
+    @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<TurnoDtoResponse> crearTurno(@Valid @RequestBody TurnoDtoRequest turnoDto, Principal principal) {
+        TurnoDtoResponse nuevoTurno = turnoServicio.crearTurno(turnoDto, principal.getName());
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/disponibles")
+    public ResponseEntity<List<LocalDateTime>> obtenerDisponibilidad(
+            @RequestParam Long profesionalId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerHorariosDisponibles(profesionalId, fecha));
+    }
+
+    @GetMapping("/recordatorios")
+    @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<List<RecordatorioTurnoDtoResponse>> listarRecordatorios(Principal principal) {
+        return ResponseEntity.ok(recordatorioTurnoServicio.listarParaPaciente(principal.getName()));
     }
 
     @GetMapping("/obtener/{id}")
