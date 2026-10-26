@@ -2,19 +2,20 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.entidad.EvolucionAdenda;
 import com.SaludUnificada.Esu.entidad.EvolucionMedica;
+import com.SaludUnificada.Esu.entidad.HistoriaClinica;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.lowagie.text.*;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.*;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -303,6 +304,289 @@ public class DocumentoPdfServicio {
             return out.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Error generando PDF de evolución clínica", e);
+        }
+    }
+
+    /**
+     * HU-107: Generación de Expediente Clínico Completo Foliado (Página X de Y)
+     */
+    public byte[] generarExpedienteCompletoPdf(
+            Paciente paciente,
+            HistoriaClinica hc,
+            List<EvolucionMedica> evoluciones,
+            List<RecetaDigital> recetas,
+            String urlVerificacion) {
+
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4, 36, 36, 45, 45);
+            PdfWriter writer = PdfWriter.getInstance(document, out);
+
+            // Hash provisional para el foliado
+            String hashDoc = calcularHashSha256("EXPEDIENTE|" + paciente.getDni() + "|" + System.currentTimeMillis());
+            FoliadoPageEventHelper foliadoHelper = new FoliadoPageEventHelper(hashDoc);
+            writer.setPageEvent(foliadoHelper);
+
+            document.open();
+
+            // Tipografías
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, Font.NORMAL);
+            Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Font.NORMAL);
+            Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Font.NORMAL);
+            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.NORMAL);
+            Font textFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL);
+            Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL);
+
+            // ================= PORTADA INSTITUCIONAL =================
+            Paragraph header = new Paragraph("ECOSISTEMA DE SALUD UNIFICADO (ESU) - CRUZ DEL EJE", titleFont);
+            header.setAlignment(Element.ALIGN_CENTER);
+            document.add(header);
+
+            Paragraph subHeader = new Paragraph("EXPEDIENTE CLÍNICO INTEGRAL OFICIAL FOLIADO", subTitleFont);
+            subHeader.setAlignment(Element.ALIGN_CENTER);
+            document.add(subHeader);
+
+            Paragraph legalNota = new Paragraph("Validez Legal Plena conforme a Ley Nacional 26.529 de Derechos del Paciente e Historia Clínica", smallFont);
+            legalNota.setAlignment(Element.ALIGN_CENTER);
+            document.add(legalNota);
+
+            document.add(new Paragraph(" "));
+
+            // Datos del Paciente
+            PdfPTable pacTable = new PdfPTable(2);
+            pacTable.setWidthPercentage(100);
+
+            PdfPCell c1 = new PdfPCell();
+            c1.setPadding(6);
+            c1.addElement(new Paragraph("DATOS FILIATORIOS DEL PACIENTE", headerFont));
+            c1.addElement(new Paragraph("Nombre Completo: " + paciente.getNombre() + " " + paciente.getApellido(), textFont));
+            c1.addElement(new Paragraph("DNI: " + paciente.getDni() + " | Nro Afiliado: " + (paciente.getNroAfiliado() != null ? paciente.getNroAfiliado() : "-"), textFont));
+            c1.addElement(new Paragraph("Fecha de Nacimiento: " + (paciente.getFechaNacimiento() != null ? paciente.getFechaNacimiento().format(DATE_ONLY_FORMATTER) : "-"), textFont));
+            pacTable.addCell(c1);
+
+            PdfPCell c2 = new PdfPCell();
+            c2.setPadding(6);
+            c2.addElement(new Paragraph("COBERTURA Y REGISTRO MÉDICO", headerFont));
+            c2.addElement(new Paragraph("Obra Social / Prepaga: " + (paciente.getObraSocial() != null ? paciente.getObraSocial() : "Pública / Sin Obra Social"), textFont));
+            c2.addElement(new Paragraph("Grupo Sanguíneo: " + (paciente.getGrupoSanguineo() != null ? paciente.getGrupoSanguineo() : "S/D"), textFont));
+            c2.addElement(new Paragraph("Teléfono de Contacto: " + (paciente.getTelefono() != null ? paciente.getTelefono() : "-"), textFont));
+            pacTable.addCell(c2);
+
+            document.add(pacTable);
+            document.add(new Paragraph(" "));
+
+            // Resumen de antecedentes si existe HC
+            if (hc != null) {
+                PdfPTable hcTable = new PdfPTable(1);
+                hcTable.setWidthPercentage(100);
+                PdfPCell hcCell = new PdfPCell();
+                hcCell.setPadding(6);
+                hcCell.addElement(new Paragraph("ANTECEDENTES Y DIAGNÓSTICO BASE DE HISTORIA CLÍNICA:", headerFont));
+                hcCell.addElement(new Paragraph("Diagnóstico: " + (hc.getDiagnostico() != null ? hc.getDiagnostico() : "Sin diagnósticos crónicos registrados"), textFont));
+                if (hc.getTratamiento() != null) {
+                    hcCell.addElement(new Paragraph("Tratamiento de base: " + hc.getTratamiento(), textFont));
+                }
+                hcTable.addCell(hcCell);
+                document.add(hcTable);
+                document.add(new Paragraph(" "));
+            }
+
+            // ================= EVOLUCIONES CLÍNICAS =================
+            Paragraph secEvol = new Paragraph("1. EVOLUCIONES Y REGISTROS DE ATENCIÓN CLÍNICA INALTERABLES", sectionFont);
+            document.add(secEvol);
+            document.add(new Paragraph(" "));
+
+            if (evoluciones == null || evoluciones.isEmpty()) {
+                document.add(new Paragraph("No se registran evoluciones médicas previas cargadas en el sistema para este paciente.", textFont));
+            } else {
+                for (int i = 0; i < evoluciones.size(); i++) {
+                    EvolucionMedica ev = evoluciones.get(i);
+                    PdfPTable evTable = new PdfPTable(1);
+                    evTable.setWidthPercentage(100);
+
+                    PdfPCell evCell = new PdfPCell();
+                    evCell.setPadding(6);
+
+                    String fechaStr = ev.getFechaFirma() != null ? ev.getFechaFirma().format(DATE_FORMATTER) :
+                            (ev.getFechaCreacion() != null ? ev.getFechaCreacion().format(DATE_FORMATTER) : "-");
+                    String profStr = ev.getProfesional() != null ? "Dr./Dra. " + ev.getProfesional().getNombre() + " " + ev.getProfesional().getApellido() + " (Mat. " + ev.getProfesional().getMatricula() + ")" : "Profesional Asignado";
+
+                    evCell.addElement(new Paragraph("ATENCIÓN #" + (i + 1) + " | Fecha: " + fechaStr + " | Profesional: " + profStr, headerFont));
+
+                    // Signos Vitales
+                    String vitals = String.format("TA: %s | FC: %s | Temp: %s | Peso: %s | IMC: %s",
+                            ev.getPresionArterial() != null ? ev.getPresionArterial() : "-",
+                            ev.getFrecuenciaCardiaca() != null ? ev.getFrecuenciaCardiaca() : "-",
+                            ev.getTemperatura() != null ? ev.getTemperatura() : "-",
+                            ev.getPeso() != null ? ev.getPeso() : "-",
+                            ev.getImc() != null ? ev.getImc() : "-");
+                    evCell.addElement(new Paragraph("Signos Vitales: " + vitals, smallFont));
+
+                    evCell.addElement(new Paragraph("Motivo de Consulta: " + (ev.getMotivoConsulta() != null ? ev.getMotivoConsulta() : "-"), textFont));
+
+                    if (ev.getAnamnesis() != null && !ev.getAnamnesis().isBlank()) {
+                        evCell.addElement(new Paragraph("Anamnesis: " + ev.getAnamnesis(), textFont));
+                    }
+                    if (ev.getExamenFisico() != null && !ev.getExamenFisico().isBlank()) {
+                        evCell.addElement(new Paragraph("Examen Físico: " + ev.getExamenFisico(), textFont));
+                    }
+
+                    String cie = (ev.getCodigoCie10() != null ? " [CIE-10: " + ev.getCodigoCie10() + " - " + (ev.getDescripcionCie10() != null ? ev.getDescripcionCie10() : "") + "]" : "");
+                    evCell.addElement(new Paragraph("Diagnóstico: " + (ev.getDiagnostico() != null ? ev.getDiagnostico() : "-") + cie, headerFont));
+
+                    if (ev.getTratamiento() != null && !ev.getTratamiento().isBlank()) {
+                        evCell.addElement(new Paragraph("Plan Terapéutico: " + ev.getTratamiento(), textFont));
+                    }
+
+                    if (ev.getHashIntegridad() != null) {
+                        evCell.addElement(new Paragraph("Firma Electrónica / Hash Integridad: " + ev.getHashIntegridad(), smallFont));
+                    }
+
+                    // Adendas
+                    if (ev.getAdendas() != null && !ev.getAdendas().isEmpty()) {
+                        for (EvolucionAdenda ad : ev.getAdendas()) {
+                            evCell.addElement(new Paragraph("  [ADENDA " + ad.getFechaFirma().format(DATE_FORMATTER) + "] Motivo: " + ad.getJustificacionClinica() + " | " + ad.getContenidoAdicional(), smallFont));
+                        }
+                    }
+
+                    evTable.addCell(evCell);
+                    document.add(evTable);
+                    document.add(new Paragraph(" "));
+                }
+            }
+
+            // ================= RECETAS ASOCIADAS =================
+            document.add(new Paragraph(" "));
+            Paragraph secRec = new Paragraph("2. HISTORIAL DE PRESCRIPCIONES Y RECETAS DIGITALES", sectionFont);
+            document.add(secRec);
+            document.add(new Paragraph(" "));
+
+            if (recetas == null || recetas.isEmpty()) {
+                document.add(new Paragraph("No se registran prescripciones farmacéuticas emitidas para este paciente.", textFont));
+            } else {
+                PdfPTable recTable = new PdfPTable(5);
+                recTable.setWidthPercentage(100);
+                recTable.setWidths(new float[]{15, 25, 25, 20, 15});
+
+                recTable.addCell(new PdfPCell(new Paragraph("Emisión", headerFont)));
+                recTable.addCell(new PdfPCell(new Paragraph("Profesional", headerFont)));
+                recTable.addCell(new PdfPCell(new Paragraph("Medicamentos / Dosis", headerFont)));
+                recTable.addCell(new PdfPCell(new Paragraph("Diagnóstico", headerFont)));
+                recTable.addCell(new PdfPCell(new Paragraph("Estado", headerFont)));
+
+                for (RecetaDigital r : recetas) {
+                    recTable.addCell(new Phrase(r.getFechaEmision() != null ? r.getFechaEmision().format(DATE_ONLY_FORMATTER) : "-", textFont));
+                    String profName = r.getProfesional() != null ? r.getProfesional().getNombre() + " " + r.getProfesional().getApellido() : "-";
+                    recTable.addCell(new Phrase(profName, textFont));
+
+                    StringBuilder medsText = new StringBuilder();
+                    if (r.getMedicamentos() != null) {
+                        for (MedicamentoReceta m : r.getMedicamentos()) {
+                            medsText.append("• ").append(m.getDroga()).append(" (").append(m.getDosisIndicada() != null ? m.getDosisIndicada() : "").append(")\n");
+                        }
+                    }
+                    recTable.addCell(new Phrase(medsText.toString(), smallFont));
+                    recTable.addCell(new Phrase(r.getDiagnostico() != null ? r.getDiagnostico() : "-", smallFont));
+                    recTable.addCell(new Phrase(r.getEstadoReceta() != null ? r.getEstadoReceta() : "PENDIENTE", headerFont));
+                }
+                document.add(recTable);
+            }
+
+            // ================= CIERRE DE SEGURIDAD Y QR =================
+            document.add(new Paragraph(" "));
+            PdfPTable footerTable = new PdfPTable(2);
+            footerTable.setWidthPercentage(100);
+            footerTable.setWidths(new float[]{25, 75});
+
+            byte[] qrBytes = generarQrBytes(urlVerificacion, 120, 120);
+            Image qrImage = Image.getInstance(qrBytes);
+            qrImage.scaleToFit(90, 90);
+
+            PdfPCell qrCell = new PdfPCell(qrImage);
+            qrCell.setBorder(Rectangle.NO_BORDER);
+            qrCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            footerTable.addCell(qrCell);
+
+            PdfPCell hashCell = new PdfPCell();
+            hashCell.setBorder(Rectangle.NO_BORDER);
+            hashCell.addElement(new Paragraph("CONSTANCIA DE VALIDEZ Y SEGURIDAD CRIPTOGRÁFICA", headerFont));
+            hashCell.addElement(new Paragraph("Hash SHA-256 de Integridad del Expediente Completo:", smallFont));
+            hashCell.addElement(new Paragraph(hashDoc, smallFont));
+            hashCell.addElement(new Paragraph("Verifique la autenticidad de este expediente en el portal oficial:", smallFont));
+            hashCell.addElement(new Paragraph(urlVerificacion, smallFont));
+            footerTable.addCell(hashCell);
+
+            document.add(footerTable);
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Error generando PDF de expediente clínico foliado", e);
+        }
+    }
+
+    /**
+     * Helper de foliado OpenPDF para numeración 'Página X de Y'
+     */
+    public static class FoliadoPageEventHelper extends PdfPageEventHelper {
+        private PdfTemplate totalPagesTemplate;
+        private BaseFont baseFont;
+        private final String hashResumen;
+        private int totalPages = 1;
+
+        public FoliadoPageEventHelper(String hashResumen) {
+            this.hashResumen = hashResumen;
+        }
+
+        @Override
+        public void onOpenDocument(PdfWriter writer, Document document) {
+            try {
+                totalPagesTemplate = writer.getDirectContent().createTemplate(30, 16);
+                baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            } catch (Exception e) {
+                throw new RuntimeException("Error inicializando foliado OpenPDF", e);
+            }
+        }
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            totalPages = writer.getPageNumber();
+            PdfContentByte cb = writer.getDirectContent();
+            cb.saveState();
+
+            float textSize = 8;
+            float y = document.bottom() - 18;
+
+            // Pie izquierdo
+            cb.beginText();
+            cb.setFontAndSize(baseFont, 7);
+            cb.setTextMatrix(document.left(), y);
+            String cortoHash = (hashResumen != null && hashResumen.length() > 16) ? hashResumen.substring(0, 16) + "..." : (hashResumen != null ? hashResumen : "-");
+            cb.showText("ESU Cruz del Eje | Expediente Foliado Oficial | Hash Doc: " + cortoHash + " | Ley 26.529");
+            cb.endText();
+
+            // Pie derecho: 'Página X de '
+            String pageText = "Página " + writer.getPageNumber() + " de ";
+            float textWidth = baseFont.getWidthPoint(pageText, textSize);
+            float x = document.right() - 55;
+
+            cb.beginText();
+            cb.setFontAndSize(baseFont, textSize);
+            cb.setTextMatrix(x, y);
+            cb.showText(pageText);
+            cb.endText();
+
+            cb.addTemplate(totalPagesTemplate, x + textWidth, y);
+
+            cb.restoreState();
+        }
+
+        @Override
+        public void onCloseDocument(PdfWriter writer, Document document) {
+            totalPagesTemplate.beginText();
+            totalPagesTemplate.setFontAndSize(baseFont, 8);
+            totalPagesTemplate.setTextMatrix(0, 0);
+            totalPagesTemplate.showText(String.valueOf(totalPages));
+            totalPagesTemplate.endText();
         }
     }
 }

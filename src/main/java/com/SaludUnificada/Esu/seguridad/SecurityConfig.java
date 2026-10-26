@@ -67,7 +67,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Rutas públicas de autenticación y documentación
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/cie10/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -109,12 +109,21 @@ public class SecurityConfig {
                         // Turnos, Historias Clínicas, Recetas y Evoluciones: roles autenticados
                         .requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE")
+                        // Recetas: dispensación para farmacias habilitada
+                        .requestMatchers("/api/recetas/dispensar").permitAll()
                         .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
                         .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
 
                         // Estudios Médicos Adjuntos y Consentimientos Informados (HU-101 y HU-103)
                         .requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
                         .requestMatchers("/api/consentimientos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
+
+                        // Documentos y Expedientes Foliados
+                        .requestMatchers("/api/documentos/**").permitAll()
+
+                        // Plantillas clínicas para evoluciones rápidas
+                        .requestMatchers(HttpMethod.GET, "/api/plantillas-evolucion/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/plantillas-evolucion/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
 
                         .anyRequest().authenticated()
                 );
