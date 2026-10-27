@@ -1,6 +1,9 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -24,6 +28,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 class TurnoServicioTest {
@@ -122,5 +127,105 @@ class TurnoServicioTest {
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 17, 9, 30), 12L, null);
         assertThrows(IllegalArgumentException.class, () -> servicio.crearTurno(request, "patient@example.test"));
         verify(profesionales, never()).findByIdForUpdate(any());
+    }
+
+    @Test
+    void realizarCheckInCambiaEstadoAEnSalaDeEsperaYGuardaRecepcionista() {
+        Turno turno = new Turno();
+        turno.setId(10L);
+        turno.setEstado("PENDIENTE");
+
+        when(turnos.findById(10L)).thenReturn(Optional.of(turno));
+        when(turnos.save(any(Turno.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.paraDto(any(Turno.class))).thenAnswer(inv -> {
+            Turno t = inv.getArgument(0);
+            return TurnoDtoResponse.builder()
+                    .id(t.getId())
+                    .estado(t.getEstado())
+                    .fechaCheckIn(t.getFechaCheckIn())
+                    .recepcionistaCheckIn(t.getRecepcionistaCheckIn())
+                    .build();
+        });
+
+        TurnoDtoResponse response = servicio.realizarCheckIn(10L, "recepcion@clinica.com");
+
+        assertNotNull(response);
+        assertEquals("EN_SALA_DE_ESPERA", response.getEstado());
+        assertEquals("recepcion@clinica.com", response.getRecepcionistaCheckIn());
+        assertNotNull(response.getFechaCheckIn());
+    }
+
+    @Test
+    void realizarCheckInRechazaTurnoCancelado() {
+        Turno turno = new Turno();
+        turno.setId(11L);
+        turno.setEstado("CANCELADO");
+
+        when(turnos.findById(11L)).thenReturn(Optional.of(turno));
+
+        assertThrows(IllegalStateException.class, () -> servicio.realizarCheckIn(11L, "recepcion@clinica.com"));
+        verify(turnos, never()).save(any());
+    }
+
+    @Test
+    void registrarCopagoGuardaDatosFinancieros() {
+        Turno turno = new Turno();
+        turno.setId(20L);
+        turno.setEstado("CONFIRMADO");
+
+        CopagoDtoRequest copago = CopagoDtoRequest.builder()
+                .monto(new BigDecimal("2500.50"))
+                .numeroBono("BONO-7788")
+                .metodoPago("EFECTIVO")
+                .build();
+
+        when(turnos.findById(20L)).thenReturn(Optional.of(turno));
+        when(turnos.save(any(Turno.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.paraDto(any(Turno.class))).thenAnswer(inv -> {
+            Turno t = inv.getArgument(0);
+            return TurnoDtoResponse.builder()
+                    .id(t.getId())
+                    .montoCopago(t.getMontoCopago())
+                    .numeroBono(t.getNumeroBono())
+                    .metodoPago(t.getMetodoPago())
+                    .build();
+        });
+
+        TurnoDtoResponse response = servicio.registrarCopago(20L, copago);
+
+        assertNotNull(response);
+        assertEquals(new BigDecimal("2500.50"), response.getMontoCopago());
+        assertEquals("BONO-7788", response.getNumeroBono());
+        assertEquals("EFECTIVO", response.getMetodoPago());
+    }
+
+    @Test
+    void atenderTurnoTransicionaAAtendidoYRegistraObservaciones() {
+        Turno turno = new Turno();
+        turno.setId(30L);
+        turno.setEstado("EN_SALA_DE_ESPERA");
+
+        AtencionTurnoDtoRequest atencion = AtencionTurnoDtoRequest.builder()
+                .observaciones("Paciente presenta mejoría sintomática. Tratamiento completado con éxito.")
+                .build();
+
+        when(turnos.findById(30L)).thenReturn(Optional.of(turno));
+        when(turnos.save(any(Turno.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.paraDto(any(Turno.class))).thenAnswer(inv -> {
+            Turno t = inv.getArgument(0);
+            return TurnoDtoResponse.builder()
+                    .id(t.getId())
+                    .estado(t.getEstado())
+                    .observacionesAtencion(t.getObservacionesAtencion())
+                    .fechaAtencion(t.getFechaAtencion())
+                    .build();
+        });
+
+        TurnoDtoResponse response = servicio.atenderTurno(30L, atencion, "medico@clinica.com");
+
+        assertNotNull(response);
+        assertEquals("ATENDIDO", response.getEstado());
+        assertEquals("Paciente presenta mejoría sintomática. Tratamiento completado con éxito.", response.getObservacionesAtencion());
+        assertNotNull(response.getFechaAtencion());
     }
 }

@@ -26,6 +26,15 @@ public class TurnoMapper {
         dto.setEsSobreturno(Boolean.TRUE.equals(turno.getEsSobreturno()));
         dto.setMotivoSobreturno(turno.getMotivoSobreturno());
 
+        dto.setFechaCheckIn(turno.getFechaCheckIn());
+        dto.setRecepcionistaCheckIn(turno.getRecepcionistaCheckIn());
+        dto.setMontoCopago(turno.getMontoCopago());
+        dto.setNumeroBono(turno.getNumeroBono());
+        dto.setMetodoPago(turno.getMetodoPago());
+        dto.setFechaCopago(turno.getFechaCopago());
+        dto.setObservacionesAtencion(turno.getObservacionesAtencion());
+        dto.setFechaAtencion(turno.getFechaAtencion());
+
         if (turno.getPaciente() != null) {
             dto.setPaciente(pacienteMapper.paraDto(turno.getPaciente()));
         }
