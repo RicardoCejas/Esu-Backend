@@ -34,3 +34,8 @@ build/
 
 logs/
 *.log
+
+# Local configurations
+*local.properties
+.env
+.env.*
