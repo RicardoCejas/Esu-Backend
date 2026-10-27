@@ -1,5 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
+
 import com.SaludUnificada.Esu.dto.auth.JwtAuthDtoResponse;
 import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
@@ -51,10 +53,12 @@ public class AuthControlador {
 
     @Autowired
     private AuditoriaSeguridadServicio auditoriaSeguridadServicio;
+    @Autowired(required = false)
+    private EmailNotificacionServicio emailNotificacionServicio;
+
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
-        // HU-100: Chequeo de bloqueo temporal por intentos fallidos consecutivos
         if (auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(loginDto.getEmail())) {
             throw new ResponseStatusException(HttpStatus.LOCKED,
                     "La cuenta se encuentra temporalmente bloqueada por superar 5 intentos fallidos consecutivos en menos de 10 minutos. Por favor aguarde o recupere su clave.");
@@ -90,7 +94,6 @@ public class AuthControlador {
             throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
         }
 
-        // Seguridad: el autoregistro publico asigna siempre rol PACIENTE para evitar escalada de privilegios
         String rol = "PACIENTE";
 
         Usuario usuario = new Usuario();
@@ -117,6 +120,14 @@ public class AuthControlador {
             }
         }
 
+        
+        if (emailNotificacionServicio != null) {
+            try {
+                emailNotificacionServicio.enviarBienvenida(guardado.getEmail(), guardado.getEmail().split("@")[0]);
+            } catch (Exception ignored) {
+            }
+        }
+
         String token = jwtTokenProvider.generarTokenParaUsuario(guardado.getEmail(), guardado.getRol());
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
@@ -130,7 +141,6 @@ public class AuthControlador {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // HU-99: Flujo Criptográfico de Recuperación de Contraseña
     @PostMapping({"/solicitar-recuperacion", "/forgot-password"})
     public ResponseEntity<Map<String, String>> solicitarRecuperacion(@Valid @RequestBody SolicitarRecuperacionDtoRequest request) {
         recuperacionPasswordServicio.solicitarRecuperacion(request);
@@ -146,4 +156,20 @@ public class AuthControlador {
                 "mensaje", "La contraseña ha sido actualizada exitosamente. Ya puede iniciar sesión con sus nuevas credenciales."
         ));
     }
+
+    @GetMapping("/test-email")
+    public ResponseEntity<Map<String, String>> testEmail(@RequestParam("destinatario") String destinatario) {
+        if (emailNotificacionServicio != null) {
+            emailNotificacionServicio.enviarBienvenida(destinatario, "Usuario de Prueba");
+            return ResponseEntity.ok(Map.of(
+                    "estado", "OK",
+                    "mensaje", "Correo de prueba enviado a " + destinatario
+            ));
+        }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                "estado", "ERROR",
+                "mensaje", "Servicio de email no disponible"
+        ));
+    }
+
 }

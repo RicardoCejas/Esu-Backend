@@ -31,9 +31,6 @@ public class EmailNotificacionServicio {
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
-    /**
-     * Envío asíncrono de correo de confirmación de turno con link formal de cancelación.
-     */
     @Async
     public void enviarConfirmacionTurno(Turno turno) {
         if (turno == null || turno.getPaciente() == null) {
@@ -81,9 +78,6 @@ public class EmailNotificacionServicio {
         enviarCorreoHtml(destinatario, "Confirmación de Turno Médico - " + codigoCita, htmlBody, null, null);
     }
 
-    /**
-     * Envío asíncrono de receta médica digital con el comprobante PDF oficial adjunto.
-     */
     @Async
     public void enviarRecetaDigital(RecetaDigital receta, byte[] pdfAdjunto) {
         if (receta == null || receta.getPaciente() == null) {
@@ -114,9 +108,6 @@ public class EmailNotificacionServicio {
         enviarCorreoHtml(destinatario, "Receta Médica Digital Oficial - " + codigoReceta, htmlBody, pdfAdjunto, "Receta_" + codigoReceta + ".pdf");
     }
 
-    /**
-     * Envío de token de recuperación de contraseña con enlace seguro.
-     */
     @Async
     public void enviarTokenRecuperacion(String email, String nombreUsuario, String token) {
         if (email == null || email.isBlank()) {
@@ -250,4 +241,46 @@ public class EmailNotificacionServicio {
                 + "<p style='font-size: 11px; color: #94a3b8; text-align: center;'>Seguridad Informática - Municipalidad de Cruz del Eje.</p>"
                 + "</div></body></html>";
     }
+
+    @Async
+    public void enviarBienvenida(String email, String nombre) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        String nombreFinal = (nombre != null && !nombre.isBlank()) ? nombre : email.split("@")[0];
+        String htmlBody = construirHtmlBienvenida(nombreFinal);
+        enviarCorreoHtml(email, "Bienvenido/a al Ecosistema de Salud Unificado (ESU)", htmlBody, null, null);
+    }
+
+    private String construirHtmlBienvenida(String nombre) {
+        return """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"></head>
+            <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+                <div style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="color: #1e3a8a; margin: 0;">Ecosistema de Salud Unificado</h2>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Portal de Salud Ciudadana - Cruz del Eje</p>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <h3 style="color: #0f172a;">Bienvenido/a, %s</h3>
+                    <p style="color: #334155; line-height: 1.6;">
+                        Tu cuenta ha sido creada exitosamente en la plataforma asistencial.
+                        A partir de este momento puedes acceder a tu portal para gestionar turnos medicos,
+                        consultar tu historial clinico, recetas digitales y acceder a tu carnet virtual.
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="%s/login" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ingresar al Portal</a>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                        Este es un correo automatico emitido por el sistema ESU. Si no te has registrado, por favor ignora este mensaje.
+                    </p>
+                </div>
+            </body>
+            </html>
+        """.formatted(nombre, frontendUrl);
+    }
+
 }

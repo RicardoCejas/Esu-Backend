@@ -9,6 +9,7 @@ import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
+import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,6 +48,9 @@ class AuthControladorTest {
 
     @Mock
     private RecuperacionPasswordServicio recuperacionPasswordServicio;
+
+    @Mock
+    private EmailNotificacionServicio emailNotificacionServicio;
 
     @InjectMocks
     private AuthControlador authControlador;
@@ -134,4 +138,13 @@ class AuthControladorTest {
         assertNotNull(res.getBody());
         verify(recuperacionPasswordServicio, times(1)).resetearPassword(req);
     }
+
+    @Test
+    void testTestEmailEndpoint() {
+        var res = authControlador.testEmail("test@correo.com");
+        assertNotNull(res);
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        verify(emailNotificacionServicio, times(1)).enviarBienvenida(eq("test@correo.com"), eq("Usuario de Prueba"));
+    }
+
 }
