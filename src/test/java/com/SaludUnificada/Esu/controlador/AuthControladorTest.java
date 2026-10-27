@@ -147,4 +147,34 @@ class AuthControladorTest {
         verify(emailNotificacionServicio, times(1)).enviarBienvenida(eq("test@correo.com"), eq("Usuario de Prueba"));
     }
 
+
+    @Test
+    void testReenviarVerificacionEmail() {
+        Usuario usuario = new Usuario();
+        usuario.setEmail("test@paciente.com");
+        when(usuarioRepositorio.findByEmail("test@paciente.com")).thenReturn(Optional.of(usuario));
+
+        var res = authControlador.reenviarVerificacionEmail(java.util.Map.of("email", "test@paciente.com"));
+
+        assertNotNull(res);
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        verify(emailNotificacionServicio, times(1)).enviarEmailVerificacion(eq("test@paciente.com"), eq("test"), any(String.class));
+    }
+
+    @Test
+    void testVerificarEmailExitoso() {
+        Usuario usuario = new Usuario();
+        usuario.setTokenVerificacion("token-valido-123");
+        usuario.setEmailVerificado(false);
+        when(usuarioRepositorio.findByTokenVerificacion("token-valido-123")).thenReturn(Optional.of(usuario));
+
+        var res = authControlador.verificarEmail("token-valido-123");
+
+        assertNotNull(res);
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertTrue(usuario.getEmailVerificado());
+        assertNull(usuario.getTokenVerificacion());
+        verify(usuarioRepositorio, times(1)).save(usuario);
+    }
+
 }

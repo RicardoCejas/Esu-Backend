@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.util.UUID;
 import java.util.Map;
 
 @RestController
@@ -102,6 +103,10 @@ public class AuthControlador {
         usuario.setRol(rol);
         usuario.setEstadoActivo(true);
         usuario.setFechaDeAlta(LocalDate.now());
+        String tokenVerificacion = UUID.randomUUID().toString();
+        usuario.setTokenVerificacion(tokenVerificacion);
+        usuario.setEmailVerificado(false);
+
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
@@ -123,6 +128,7 @@ public class AuthControlador {
         
         if (emailNotificacionServicio != null) {
             try {
+                emailNotificacionServicio.enviarEmailVerificacion(guardado.getEmail(), guardado.getEmail().split("@")[0], tokenVerificacion);
                 emailNotificacionServicio.enviarBienvenida(guardado.getEmail(), guardado.getEmail().split("@")[0]);
             } catch (Exception ignored) {
             }
@@ -169,6 +175,57 @@ public class AuthControlador {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
                 "estado", "ERROR",
                 "mensaje", "Servicio de email no disponible"
+        ));
+    }
+
+
+    @PostMapping("/verify-email/resend")
+    public ResponseEntity<Map<String, Object>> reenviarVerificacionEmail(@RequestBody Map<String, String> payload) {
+        String email = payload.get("email");
+        if (email == null || email.isBlank()) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
+                email = auth.getName();
+            }
+        }
+
+        if (email != null && !email.isBlank()) {
+            Usuario usuario = usuarioRepositorio.findByEmail(email).orElse(null);
+            if (usuario != null) {
+                String token = UUID.randomUUID().toString();
+                usuario.setTokenVerificacion(token);
+                usuarioRepositorio.save(usuario);
+                if (emailNotificacionServicio != null) {
+                    try {
+                        emailNotificacionServicio.enviarEmailVerificacion(usuario.getEmail(), usuario.getEmail().split("@")[0], token);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Se ha enviado un nuevo enlace de confirmacion a tu casilla de correo."
+        ));
+    }
+
+    @GetMapping("/verify-email")
+    public ResponseEntity<Map<String, Object>> verificarEmail(@RequestParam("token") String token) {
+        if (token == null || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token de verificacion no proporcionado");
+        }
+
+        Usuario usuario = usuarioRepositorio.findByTokenVerificacion(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificacion ha expirado o no es valido."));
+
+        usuario.setEmailVerificado(true);
+        usuario.setTokenVerificacion(null);
+        usuarioRepositorio.save(usuario);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Correo electronico verificado exitosamente."
         ));
     }
 

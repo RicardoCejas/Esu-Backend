@@ -13,6 +13,7 @@ public interface UsuarioRepositorio extends JpaRepository<Usuario, Long> {
 
     boolean existsByEmail(String email);
 
-    // Query Method para buscar usuarios por su estado activo
     List<Usuario> findByEstadoActivo(Boolean estadoActivo);
+
+    Optional<Usuario> findByTokenVerificacion(String tokenVerificacion);
 }

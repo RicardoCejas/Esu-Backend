@@ -298,4 +298,49 @@ public class EmailNotificacionServicio {
         """.formatted(nombre, frontendUrl);
     }
 
+
+    @Async
+    public void enviarEmailVerificacion(String email, String nombre, String token) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        String nombreFinal = (nombre != null && !nombre.isBlank()) ? nombre : email.split("@")[0];
+        String linkVerificacion = frontendUrl + "/verificar-email?token=" + token;
+        String htmlBody = construirHtmlVerificacionEmail(nombreFinal, linkVerificacion);
+        enviarCorreoHtml(email, "Verifica tu correo electrónico - ESU Cruz del Eje", htmlBody, null, null);
+    }
+
+    private String construirHtmlVerificacionEmail(String nombre, String linkVerificacion) {
+        return """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"></head>
+            <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+                <div style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="color: #0284c7; margin: 0;">Ecosistema de Salud Unificado</h2>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Municipalidad de Cruz del Eje</p>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <h3 style="color: #0f172a;">Confirmación de Correo Electrónico</h3>
+                    <p style="color: #334155; line-height: 1.6;">
+                        Hola <strong>%s</strong>, para activar plenamente tu cuenta y acceder a tus turnos médicos, recetas digitales e historial clínico, confirma la titularidad de tu email haciendo clic en el siguiente enlace:
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="%s" style="background-color: #0284c7; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block;">Verificar mi Correo</a>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px; line-height: 1.5;">
+                        Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+                        <a href="%s" style="color: #0284c7; word-break: break-all;">%s</a>
+                    </p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                        Este enlace tiene una vigencia limitada. Si no te has registrado en ESU, ignora este mensaje.
+                    </p>
+                </div>
+            </body>
+            </html>
+        """.formatted(nombre, linkVerificacion, linkVerificacion, linkVerificacion);
+    }
+
 }
