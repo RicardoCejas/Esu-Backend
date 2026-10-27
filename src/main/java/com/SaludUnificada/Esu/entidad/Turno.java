@@ -77,6 +77,12 @@ public class Turno {
     @Column(name = "fecha_atencion")
     private LocalDateTime fechaAtencion;
 
+    @Column(name = "fecha_cancelacion")
+    private LocalDateTime fechaCancelacion;
+
+    @Column(name = "motivo_cancelacion", length = 500)
+    private String motivoCancelacion;
+
     @PrePersist
     protected void onCreate() {
         if (fechaCreacion == null) {

@@ -32,7 +32,7 @@ public class NotificacionUsuario {
     private String mensaje;
 
     @Column(nullable = false, length = 50)
-    private String tipo; // TURNO, RECETA, RECORDATORIO, SISTEMA
+    private String tipo;
 
     @Column(nullable = false)
     private Boolean leida = false;

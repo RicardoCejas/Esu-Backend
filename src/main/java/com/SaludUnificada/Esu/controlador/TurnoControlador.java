@@ -6,6 +6,8 @@ import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.servicio.ITurnoServicio;
 import com.SaludUnificada.Esu.servicio.RecordatorioTurnoServicio;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,11 +18,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -31,20 +38,37 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/turnos")
 @RequiredArgsConstructor
-@Tag(name = "Turnos", description = "Gestión de turnos médicos, check-in, copagos, atención y demanda espontánea")
+@Tag(name = "Turnos", description = "Gestion de turnos medicos, check-in, copagos, atencion y demanda espontanea")
 public class TurnoControlador {
 
     private final ITurnoServicio turnoServicio;
     private final RecordatorioTurnoServicio recordatorioTurnoServicio;
 
-    @Operation(
-            summary = "Registrar sobreturno médico de urgencia en sala (HU-BE-91 / HU-FE-63)",
-            description = "Permite registrar un sobreturno para atención de urgencias menores con flag esSobreturno=true, validando que no se supere el cupo máximo diario (3 sobreturnos por médico)."
-    )
+    @Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
+
+    private void validarPropiedadPaciente(Long pacienteId, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return;
+        }
+        boolean esPersonal = auth.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") ||
+                a.getAuthority().equals("ROLE_MEDICO") ||
+                a.getAuthority().equals("ROLE_PROFESIONAL") ||
+                a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+        if (!esPersonal && pacienteRepositorio != null) {
+            Paciente p = pacienteRepositorio.findByUsuarioEmail(auth.getName()).orElse(null);
+            if (p != null && !p.getId().equals(pacienteId)) {
+                throw new AccessDeniedException("No posee autorizacion para acceder a los turnos de otro paciente");
+            }
+        }
+    }
+
+    @Operation(summary = "Registrar sobreturno medico de urgencia en sala")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Sobreturno registrado exitosamente",
                     content = @Content(schema = @Schema(implementation = TurnoDtoResponse.class))),
-            @ApiResponse(responseCode = "422", description = "Cupo máximo de sobreturnos diarios superado",
+            @ApiResponse(responseCode = "422", description = "Cupo maximo de sobreturnos diarios superado",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "Profesional o paciente no encontrado",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
@@ -103,7 +127,10 @@ public class TurnoControlador {
     }
 
     @GetMapping("/paciente/{pacienteId}")
-    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosPorPaciente(@PathVariable Long pacienteId) {
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosPorPaciente(
+            @PathVariable Long pacienteId,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
         return ResponseEntity.ok(turnoServicio.obtenerTurnosPorPaciente(pacienteId));
     }
 
@@ -143,13 +170,13 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.atenderTurno(id, atencionDto, principal != null ? principal.getName() : null));
     }
 
-    @Operation(summary = "Descargar certificado oficial de asistencia a consulta médica en PDF")
+    @Operation(summary = "Descargar certificado oficial de asistencia a consulta medica en PDF")
     @GetMapping("/{id}/certificado-asistencia")
     @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<byte[]> descargarCertificadoAsistencia(@PathVariable Long id, Principal principal) {
         byte[] pdfBytes = turnoServicio.generarCertificadoAsistencia(id, principal != null ? principal.getName() : null);
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("inline", "certificado_asistencia_turno_" + id + ".pdf");
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }

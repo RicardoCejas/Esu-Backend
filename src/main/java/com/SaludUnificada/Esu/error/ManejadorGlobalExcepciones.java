@@ -2,16 +2,21 @@ package com.SaludUnificada.Esu.error;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
@@ -20,10 +25,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * HU-88: Manejador Global de Excepciones Estandarizado con RFC 7807 (Problem Details for HTTP APIs).
- * Genera respuestas de error uniformes, semánticas y legibles tanto para máquinas como humanos.
- */
 @ControllerAdvice
 public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
 
@@ -32,7 +33,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(NoEncontradoExcepcion.class)
     public ResponseEntity<ProblemDetail> handleNoEncontrado(NoEncontradoExcepcion ex, WebRequest request) {
-        log.warn("Recurso clínico no encontrado: {}", ex.getMessage());
+        log.warn("Recurso clinico no encontrado: {}", ex.getMessage());
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         problem.setType(URI.create(BASE_PROBLEM_TYPE + "recurso-no-encontrado"));
@@ -48,7 +49,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ReglaNegocioException.class)
     public ResponseEntity<ProblemDetail> handleReglaNegocio(ReglaNegocioException ex, WebRequest request) {
-        log.warn("Violación de regla de negocio clínica: {}", ex.getMessage());
+        log.warn("Violacion de regla de negocio clinica: {}", ex.getMessage());
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         problem.setType(URI.create(BASE_PROBLEM_TYPE + "regla-negocio-violada"));
@@ -69,14 +70,14 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request) {
 
-        log.warn("Fallo de validación en los datos de entrada: {} errores", ex.getBindingResult().getErrorCount());
+        log.warn("Fallo de validacion en datos de entrada: {} errores", ex.getBindingResult().getErrorCount());
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
-                "Uno o más campos enviados no cumplen con las restricciones de validación clínicas."
+                "Uno o mas campos enviados no cumplen con las restricciones de validacion clinicas."
         );
         problem.setType(URI.create(BASE_PROBLEM_TYPE + "validacion-fallida"));
-        problem.setTitle("Error de Validación de Datos");
+        problem.setTitle("Error de Validacion de Datos");
         problem.setProperty("timestamp", Instant.now());
 
         Map<String, String> invalidParams = new HashMap<>();
@@ -92,23 +93,46 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ProblemDetail> handleGlobalException(Exception ex, WebRequest request) {
-        log.error("Excepción no controlada en el servidor ESU: ", ex);
-
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Ocurrió un error inesperado en los servidores asistenciales. Por favor intente más tarde."
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.BAD_REQUEST,
+                LocalDateTime.now(),
+                "Parametro requerido ausente: " + ex.getParameterName(),
+                "Parametro faltante"
         );
-        problem.setType(URI.create(BASE_PROBLEM_TYPE + "error-interno"));
-        problem.setTitle("Error Interno del Servidor");
-        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
+    }
 
-        if (request instanceof ServletWebRequest servletRequest) {
-            problem.setInstance(URI.create(servletRequest.getRequest().getRequestURI()));
-        }
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                LocalDateTime.now(),
+                "El archivo adjunto supera el limite maximo permitido de 15MB.",
+                "Archivo demasiado grande"
+        );
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(message);
+    }
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorMessage> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        log.error("Violacion de integridad de datos en base de datos: {}", exception.getMessage());
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.CONFLICT,
+                LocalDateTime.now(),
+                "Conflicto de integridad de datos: el registro ya existe o viola una restriccion relacional.",
+                "Conflicto de integridad"
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(message);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -117,7 +141,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 LocalDateTime.now(),
                 exception.getMessage(),
-                "Solicitud inválida"
+                "Solicitud invalida"
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
     }
@@ -133,19 +157,19 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(message);
     }
 
-    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
-    public ResponseEntity<ErrorMessage> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException exception) {
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorMessage> handleBadCredentials(BadCredentialsException exception) {
         ErrorMessage message = new ErrorMessage(
                 HttpStatus.UNAUTHORIZED,
                 LocalDateTime.now(),
-                "Credenciales inválidas: email o contraseña incorrectos",
-                "Fallo de autenticación"
+                "Credenciales invalidas: email o contrasena incorrectos",
+                "Fallo de autenticacion"
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(message);
     }
 
-    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
-    public ResponseEntity<ErrorMessage> handleAccessDenied(org.springframework.security.access.AccessDeniedException exception) {
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorMessage> handleAccessDenied(AccessDeniedException exception) {
         ErrorMessage message = new ErrorMessage(
                 HttpStatus.FORBIDDEN,
                 LocalDateTime.now(),
@@ -172,8 +196,27 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
                 HttpStatus.GONE,
                 LocalDateTime.now(),
                 exception.getMessage(),
-                "Receta digital vencida (>30 días corridos de vigencia)"
+                "Receta digital vencida"
         );
         return ResponseEntity.status(HttpStatus.GONE).body(message);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ProblemDetail> handleGlobalException(Exception ex, WebRequest request) {
+        log.error("Excepcion no controlada en el servidor ESU: ", ex);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ocurrio un error inesperado en los servidores asistenciales. Por favor intente mas tarde."
+        );
+        problem.setType(URI.create(BASE_PROBLEM_TYPE + "error-interno"));
+        problem.setTitle("Error Interno del Servidor");
+        problem.setProperty("timestamp", Instant.now());
+
+        if (request instanceof ServletWebRequest servletRequest) {
+            problem.setInstance(URI.create(servletRequest.getRequest().getRequestURI()));
+        }
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
     }
 }

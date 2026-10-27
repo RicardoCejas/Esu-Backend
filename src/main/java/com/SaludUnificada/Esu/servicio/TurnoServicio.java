@@ -479,8 +479,19 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         turno.setEstado("CANCELADO");
-
+        turno.setFechaCancelacion(ahora);
+        turno.setMotivoCancelacion(emailAutenticado != null ? "Cancelado por usuario: " + emailAutenticado : "Cancelado por administracion");
         Turno guardado = turnoRepositorio.save(turno);
+
+        if (notificacionUsuarioServicio != null && turno.getPaciente() != null && turno.getPaciente().getUsuario() != null) {
+            notificacionUsuarioServicio.crearNotificacion(
+                turno.getPaciente().getUsuario(),
+                "Turno Cancelado",
+                "Su turno del dia " + turno.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido cancelado.",
+                "TURNO",
+                "/mis-turnos"
+            );
+        }
 
         return turnoMapper.paraDto(guardado);
 

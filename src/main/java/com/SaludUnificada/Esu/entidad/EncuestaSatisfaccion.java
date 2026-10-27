@@ -35,10 +35,10 @@ public class EncuestaSatisfaccion {
     private Profesional profesional;
 
     @Column(nullable = false)
-    private Integer puntuacion; // 1 a 5 estrellas
+    private Integer puntuacion;
 
     @Column(name = "tiempo_espera_percibido", length = 50)
-    private String tiempoEsperaPercibido; // EXCELENTE, ADECUADO, EXCESIVO
+    private String tiempoEsperaPercibido;
 
     @Column(length = 1000)
     private String comentario;

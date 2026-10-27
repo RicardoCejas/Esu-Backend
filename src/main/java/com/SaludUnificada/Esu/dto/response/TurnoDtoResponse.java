@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Detalle de respuesta de un turno médico")
+@Schema(description = "Detalle de respuesta de un turno medico")
 public class TurnoDtoResponse {
     private Long id;
     private LocalDateTime fechaHora;
@@ -22,17 +22,17 @@ public class TurnoDtoResponse {
     private PacienteDtoResponse paciente;
     private ProfesionalDtoResponse profesional;
 
-    // Datos de check-in presencial
     private LocalDateTime fechaCheckIn;
     private String recepcionistaCheckIn;
 
-    // Datos de copago y coseguro
     private BigDecimal montoCopago;
     private String numeroBono;
     private String metodoPago;
     private LocalDateTime fechaCopago;
 
-    // Datos de atención y evolución de consulta
     private String observacionesAtencion;
     private LocalDateTime fechaAtencion;
+
+    private LocalDateTime fechaCancelacion;
+    private String motivoCancelacion;
 }

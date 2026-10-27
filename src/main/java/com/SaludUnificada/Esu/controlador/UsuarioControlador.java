@@ -1,7 +1,9 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.request.PreferenciasUsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
+import com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio;
 import com.SaludUnificada.Esu.servicio.IUsuarioServicio;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -17,6 +20,9 @@ public class UsuarioControlador {
 
     @Autowired
     private IUsuarioServicio usuarioServicio;
+
+    @Autowired
+    private CarnetYFamiliarServicio carnetYFamiliarServicio;
 
     @PostMapping("/crear")
     public ResponseEntity<UsuarioDtoResponse> crearUsuario(@Valid @RequestBody UsuarioDtoRequest usuarioDto) {
@@ -50,15 +56,15 @@ public class UsuarioControlador {
         return ResponseEntity.ok(usuarioServicio.findByActivo(estado));
     }
 
-    @Autowired
-    private com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio carnetYFamiliarServicio;
-
-    // HU-BE-108: Persistencia de Preferencias de Usuario y Accesibilidad
     @PatchMapping("/preferencias")
     public ResponseEntity<Void> actualizarPreferencias(
-            @RequestParam String email,
-            @RequestBody com.SaludUnificada.Esu.dto.request.PreferenciasUsuarioDtoRequest request) {
-        carnetYFamiliarServicio.actualizarPreferencias(email, request);
+            Principal principal,
+            @RequestParam(required = false) String email,
+            @RequestBody PreferenciasUsuarioDtoRequest request) {
+        String targetEmail = (principal != null && principal.getName() != null && !principal.getName().isBlank())
+                ? principal.getName()
+                : email;
+        carnetYFamiliarServicio.actualizarPreferencias(targetEmail, request);
         return ResponseEntity.noContent().build();
     }
 }
