@@ -29,6 +29,9 @@ import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
 
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import com.SaludUnificada.Esu.repositorio.BloqueoAgendaRepositorio;
+import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
+
 
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -85,6 +88,15 @@ public class TurnoServicio implements ITurnoServicio {
     @Autowired(required = false)
 
     private EmailNotificacionServicio emailNotificacionServicio;
+    @Autowired(required = false)
+    private NotificacionUsuarioServicio notificacionUsuarioServicio;
+
+    @Autowired(required = false)
+    private BloqueoAgendaRepositorio bloqueoAgendaRepositorio;
+
+    @Autowired(required = false)
+    private DocumentoPdfServicio documentoPdfServicio;
+
 
     public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
 
@@ -139,6 +151,10 @@ public class TurnoServicio implements ITurnoServicio {
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
 
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
+        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
+        }
+
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
 
@@ -183,6 +199,16 @@ public class TurnoServicio implements ITurnoServicio {
         Turno guardado = turnoRepositorio.save(turno);
 
         recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+        if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
+            notificacionUsuarioServicio.crearNotificacion(
+                guardado.getPaciente().getUsuario(),
+                "Turno Confirmado",
+                "Su turno médico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                "TURNO",
+                "/mis-turnos"
+            );
+        }
+
 
         // HU-97: Envío asíncrono de confirmación de turno con link de cancelación
 
@@ -304,6 +330,14 @@ public class TurnoServicio implements ITurnoServicio {
 
             }
 
+        }
+
+        
+        if (bloqueoAgendaRepositorio != null) {
+            List<BloqueoAgenda> bloqueos = bloqueoAgendaRepositorio.findBloqueosEnRango(profesionalId, fecha.atStartOfDay(), fecha.plusDays(1).atStartOfDay());
+            if (!bloqueos.isEmpty()) {
+                disponibles.removeIf(slot -> bloqueos.stream().anyMatch(b -> !slot.isBefore(b.getFechaInicio()) && slot.isBefore(b.getFechaFin())));
+            }
         }
 
         return disponibles;
@@ -481,6 +515,10 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         validarHorario(nuevaFechaHora);
+        if (bloqueoAgendaRepositorio != null && turno.getProfesional() != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(turno.getProfesional().getId(), nuevaFechaHora).isEmpty()) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
+        }
+
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO)) {
 
@@ -495,6 +533,16 @@ public class TurnoServicio implements ITurnoServicio {
         Turno guardado = turnoRepositorio.save(turno);
 
         recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+        if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
+            notificacionUsuarioServicio.crearNotificacion(
+                guardado.getPaciente().getUsuario(),
+                "Turno Confirmado",
+                "Su turno médico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                "TURNO",
+                "/mis-turnos"
+            );
+        }
+
 
         return turnoMapper.paraDto(guardado);
 
@@ -560,5 +608,29 @@ public class TurnoServicio implements ITurnoServicio {
 
         Turno guardado = turnoRepositorio.save(turno);
         return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generarCertificadoAsistencia(Long turnoId, String emailAutenticado) {
+        Turno turno = turnoRepositorio.findById(turnoId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+
+        if (!"ATENDIDO".equalsIgnoreCase(turno.getEstado()) && !"EN_SALA_DE_ESPERA".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("Solo se puede emitir certificado de asistencia para turnos que han sido atendidos o se encuentran en sala de espera.");
+        }
+
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
+            if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorización para descargar certificados de otro paciente.");
+            }
+        }
+
+        if (documentoPdfServicio == null) {
+            throw new IllegalStateException("Servicio de generación PDF no disponible.");
+        }
+
+        return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http://localhost:5173/validar-documento?codigo=" + turno.getId());
     }
 }

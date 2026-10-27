@@ -142,4 +142,15 @@ public class TurnoControlador {
             Principal principal) {
         return ResponseEntity.ok(turnoServicio.atenderTurno(id, atencionDto, principal != null ? principal.getName() : null));
     }
+
+    @Operation(summary = "Descargar certificado oficial de asistencia a consulta médica en PDF")
+    @GetMapping("/{id}/certificado-asistencia")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<byte[]> descargarCertificadoAsistencia(@PathVariable Long id, Principal principal) {
+        byte[] pdfBytes = turnoServicio.generarCertificadoAsistencia(id, principal != null ? principal.getName() : null);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("inline", "certificado_asistencia_turno_" + id + ".pdf");
+        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+    }
 }

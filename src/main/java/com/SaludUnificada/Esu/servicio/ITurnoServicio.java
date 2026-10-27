@@ -25,4 +25,6 @@ public interface ITurnoServicio {
     TurnoDtoResponse realizarCheckIn(Long turnoId, String emailRecepcionista);
     TurnoDtoResponse registrarCopago(Long turnoId, CopagoDtoRequest copagoDto);
     TurnoDtoResponse atenderTurno(Long turnoId, AtencionTurnoDtoRequest atencionDto, String emailProfesional);
+
+    byte[] generarCertificadoAsistencia(Long turnoId, String emailAutenticado);
 }

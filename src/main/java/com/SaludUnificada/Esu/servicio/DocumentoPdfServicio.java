@@ -6,6 +6,7 @@ import com.SaludUnificada.Esu.entidad.HistoriaClinica;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.entidad.Turno;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
@@ -527,6 +528,86 @@ public class DocumentoPdfServicio {
     /**
      * Helper de foliado OpenPDF para numeración 'Página X de Y'
      */
+
+    public byte[] generarCertificadoAsistenciaPdf(Turno turno, String urlVerificacion) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4, 40, 40, 50, 50);
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Font.NORMAL);
+            Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Font.NORMAL);
+            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Font.NORMAL);
+            Font textFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Font.NORMAL);
+            Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL);
+
+            Paragraph header = new Paragraph("ESU - ECOSISTEMA DE SALUD UNIFICADO", titleFont);
+            header.setAlignment(Element.ALIGN_CENTER);
+            document.add(header);
+
+            Paragraph subHeader = new Paragraph("CERTIFICADO OFICIAL DE ASISTENCIA MÉDICA", subTitleFont);
+            subHeader.setAlignment(Element.ALIGN_CENTER);
+            document.add(subHeader);
+
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(" "));
+
+            String nombrePaciente = turno.getPaciente() != null ? turno.getPaciente().getNombre() + " " + turno.getPaciente().getApellido() : "PACIENTE";
+            String dniPaciente = turno.getPaciente() != null && turno.getPaciente().getDni() != null ? turno.getPaciente().getDni() : "-";
+            String nombreMedico = turno.getProfesional() != null ? turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido() : "PROFESIONAL ACTUANTE";
+            String matricula = turno.getProfesional() != null && turno.getProfesional().getMatricula() != null ? turno.getProfesional().getMatricula() : "M.P. PROV";
+            String fecha = turno.getFechaHora() != null ? turno.getFechaHora().format(DATE_FORMATTER) : java.time.LocalDate.now().toString();
+
+            String cuerpoTexto = "Por la presente se certifica que el/la paciente " + nombrePaciente + ", DNI Nº " + dniPaciente +
+                    ", concurrió a este centro de salud y fue atendido/a en consulta médica el día " + fecha + ".\n\n" +
+                    "Se extiende el presente certificado a pedido del/de la interesado/a para ser presentado ante las autoridades laborales, escolares o quien corresponda.";
+
+            Paragraph pCuerpo = new Paragraph(cuerpoTexto, textFont);
+            pCuerpo.setLeading(20f);
+            pCuerpo.setAlignment(Element.ALIGN_JUSTIFIED);
+            document.add(pCuerpo);
+
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(" "));
+
+            PdfPTable footerTable = new PdfPTable(2);
+            footerTable.setWidthPercentage(100);
+
+            PdfPCell cellFirma = new PdfPCell();
+            cellFirma.setBorder(Rectangle.NO_BORDER);
+            cellFirma.addElement(new Paragraph("Firma y Sello Digital:", headerFont));
+            cellFirma.addElement(new Paragraph("Dr./Dra. " + nombreMedico, textFont));
+            cellFirma.addElement(new Paragraph("Matrícula: " + matricula, textFont));
+            cellFirma.addElement(new Paragraph("Estado de Consulta: " + turno.getEstado(), textFont));
+            footerTable.addCell(cellFirma);
+
+            PdfPCell cellQr = new PdfPCell();
+            cellQr.setBorder(Rectangle.NO_BORDER);
+            cellQr.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            if (urlVerificacion != null && !urlVerificacion.isBlank()) {
+                byte[] qrBytes = generarQrBytes(urlVerificacion, 110, 110);
+                if (qrBytes != null) {
+                    Image qrImg = Image.getInstance(qrBytes);
+                    qrImg.setAlignment(Element.ALIGN_RIGHT);
+                    cellQr.addElement(qrImg);
+                }
+            }
+            footerTable.addCell(cellQr);
+
+            document.add(footerTable);
+
+            document.add(new Paragraph(" "));
+            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con validez legal. Código de Validación: TURNO-" + turno.getId() + "-" + Integer.toHexString(turno.hashCode()).toUpperCase(), smallFont);
+            pAviso.setAlignment(Element.ALIGN_CENTER);
+            document.add(pAviso);
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al generar el certificado de asistencia en PDF", e);
+        }
+    }
+
     public static class FoliadoPageEventHelper extends PdfPageEventHelper {
         private PdfTemplate totalPagesTemplate;
         private BaseFont baseFont;
