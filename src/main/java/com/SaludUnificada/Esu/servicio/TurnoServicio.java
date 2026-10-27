@@ -2,7 +2,15 @@ package com.SaludUnificada.Esu.servicio;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
+
+
+
+
 
 
 
@@ -10,7 +18,15 @@ import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+
+
+
+
 
 
 
@@ -18,7 +34,15 @@ import com.SaludUnificada.Esu.entidad.Paciente;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.entidad.Profesional;
+
+
+
+
 
 
 
@@ -26,7 +50,15 @@ import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.entidad.Turno;
+
+
+
+
 
 
 
@@ -34,7 +66,15 @@ import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
+
+
+
+
 
 
 
@@ -42,7 +82,15 @@ import com.SaludUnificada.Esu.mapper.TurnoMapper;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+
+
+
+
 
 
 
@@ -50,7 +98,15 @@ import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 
 
 
+
+
+
+
 import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
+
+
+
+
 
 
 
@@ -58,7 +114,15 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 
 
 
+
+
+
+
 import org.springframework.beans.factory.annotation.Autowired;
+
+
+
+
 
 
 
@@ -66,7 +130,15 @@ import org.springframework.beans.factory.annotation.Value;
 
 
 
+
+
+
+
 import org.springframework.stereotype.Service;
+
+
+
+
 
 
 
@@ -74,7 +146,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 
 
+
+
+
+
 import java.time.Clock;
+
+
+
+
 
 
 
@@ -82,7 +162,15 @@ import java.time.LocalDate;
 
 
 
+
+
+
+
 import java.time.LocalDateTime;
+
+
+
+
 
 
 
@@ -90,7 +178,15 @@ import java.time.LocalTime;
 
 
 
+
+
+
+
 import java.time.ZoneId;
+
+
+
+
 
 
 
@@ -98,7 +194,15 @@ import java.util.ArrayList;
 
 
 
+
+
+
+
 import java.util.List;
+
+
+
+
 
 
 
@@ -106,7 +210,15 @@ import java.util.stream.Collectors;
 
 
 
+
+
+
+
 @Service
+
+
+
+
 
 
 
@@ -114,7 +226,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private static final String CANCELADO = "CANCELADO";
+
+
+
+
 
 
 
@@ -122,7 +242,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private final TurnoRepositorio turnoRepositorio;
+
+
+
+
 
 
 
@@ -130,7 +258,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private final PacienteRepositorio pacienteRepositorio;
+
+
+
+
 
 
 
@@ -138,7 +274,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private final Clock clock;
+
+
+
+
 
 
 
@@ -146,7 +290,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private final RecordatorioTurnoRepositorio recordatorioRepositorio;
+
+
+
+
 
 
 
@@ -154,7 +306,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     private final LocalTime cierre;
+
+
+
+
 
 
 
@@ -162,7 +322,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Autowired(required = false)
+
+
+
+
 
 
 
@@ -170,7 +338,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
+
+
+
+
 
 
 
@@ -178,7 +354,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                          RecordatorioTurnoRepositorio recordatorioRepositorio, Clock clock, ZoneId turnosZoneId,
+
+
+
+
 
 
 
@@ -186,7 +370,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                          @Value("${esu.turnos.close:17:00}") LocalTime cierre,
+
+
+
+
 
 
 
@@ -194,7 +386,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         if (duracionSlotMinutos <= 0 || !cierre.isAfter(apertura)) {
+
+
+
+
 
 
 
@@ -202,7 +402,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -210,7 +418,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         this.turnoMapper = turnoMapper;
+
+
+
+
 
 
 
@@ -218,7 +434,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         this.profesionalRepositorio = profesionalRepositorio;
+
+
+
+
 
 
 
@@ -226,7 +450,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         this.clock = clock;
+
+
+
+
 
 
 
@@ -234,7 +466,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         this.apertura = apertura;
+
+
+
+
 
 
 
@@ -242,7 +482,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         this.duracionSlotMinutos = duracionSlotMinutos;
+
+
+
+
 
 
 
@@ -250,11 +498,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Override
 
 
 
+
+
+
+
     @Transactional
+
+
+
+
 
 
 
@@ -262,7 +522,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         LocalDateTime fechaHora = turnoDto.getFechaHora();
+
+
+
+
 
 
 
@@ -270,7 +538,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
+
+
+
+
 
 
 
@@ -278,7 +554,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+
+
+
+
 
 
 
@@ -286,7 +570,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -294,7 +586,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         Paciente paciente;
+
+
+
+
 
 
 
@@ -302,7 +602,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             paciente = pacienteRepositorio.findById(turnoDto.getPacienteId())
+
+
+
+
 
 
 
@@ -310,7 +618,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         } else if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+
+
+
+
 
 
 
@@ -318,11 +634,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                     .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
 
 
 
+
+
+
+
         } else {
+
+
+
+
 
 
 
@@ -330,7 +658,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -338,7 +674,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         turno.setFechaHora(fechaHora);
+
+
+
+
 
 
 
@@ -346,7 +690,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         turno.setEstado("PENDIENTE");
+
+
+
+
 
 
 
@@ -354,7 +706,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         turno.setProfesional(profesional);
+
+
+
+
 
 
 
@@ -362,7 +722,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+
+
+
+
 
 
 
@@ -370,7 +738,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         if (emailNotificacionServicio != null) {
+
+
+
+
 
 
 
@@ -378,7 +754,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 emailNotificacionServicio.enviarConfirmacionTurno(guardado);
+
+
+
+
 
 
 
@@ -386,7 +770,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 // Manejo preventivo de fallo sin abortar la transacción principal
+
+
+
+
 
 
 
@@ -394,7 +786,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -402,7 +802,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -410,7 +818,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Transactional
+
+
+
+
 
 
 
@@ -418,7 +834,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
+
+
+
+
 
 
 
@@ -426,7 +850,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
+
+
+
+
 
 
 
@@ -434,7 +866,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         LocalDateTime inicioDia = request.getFechaHora().toLocalDate().atStartOfDay();
+
+
+
+
 
 
 
@@ -442,7 +882,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         long sobreturnosHoy = turnoRepositorio.contarSobreturnosEnDia(request.getProfesionalId(), inicioDia, finDia);
+
+
+
+
 
 
 
@@ -450,7 +898,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             throw new ReglaNegocioException("Se ha superado el cupo máximo de sobreturnos (" +
+
+
+
+
 
 
 
@@ -458,7 +914,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -466,7 +930,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         sobreturno.setFechaHora(request.getFechaHora());
+
+
+
+
 
 
 
@@ -474,7 +946,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         sobreturno.setMotivoTurno(request.getMotivoSobreturno());
+
+
+
+
 
 
 
@@ -482,7 +962,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
+
+
+
+
 
 
 
@@ -490,7 +978,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         sobreturno.setPaciente(paciente);
+
+
+
+
 
 
 
@@ -498,7 +994,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         return turnoMapper.paraDto(guardado);
+
+
+
+
 
 
 
@@ -506,11 +1010,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Override
 
 
 
+
+
+
+
     @Transactional(readOnly = true)
+
+
+
+
 
 
 
@@ -518,7 +1034,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         if (!profesionalRepositorio.existsById(profesionalId)) {
+
+
+
+
 
 
 
@@ -526,7 +1050,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -534,11 +1066,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             return List.of();
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -546,7 +1090,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         LocalDateTime fin = fecha.atTime(cierre);
+
+
+
+
 
 
 
@@ -554,7 +1106,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 .findByProfesionalIdAndFechaHoraGreaterThanEqualAndFechaHoraLessThanAndEstadoNot(
+
+
+
+
 
 
 
@@ -562,7 +1122,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 .stream()
+
+
+
+
 
 
 
@@ -570,7 +1138,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 .map(Turno::getFechaHora)
+
+
+
+
 
 
 
@@ -578,7 +1154,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+
+
+
+
 
 
 
@@ -586,7 +1170,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         for (LocalDateTime slot = inicio; slot.plusMinutes(duracionSlotMinutos).compareTo(fin) <= 0;
+
+
+
+
 
 
 
@@ -594,7 +1186,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             if (slot.isAfter(ahora) && !ocupados.contains(slot)) {
+
+
+
+
 
 
 
@@ -602,11 +1202,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             }
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -614,7 +1226,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -622,7 +1242,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+
+
+
+
 
 
 
@@ -630,7 +1258,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         long minutosDesdeApertura = java.time.Duration.between(apertura, fechaHora.toLocalTime()).toMinutes();
+
+
+
+
 
 
 
@@ -638,7 +1274,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 && !fechaHora.toLocalTime().plusMinutes(duracionSlotMinutos).isAfter(cierre)
+
+
+
+
 
 
 
@@ -646,7 +1290,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 && fechaHora.getSecond() == 0 && fechaHora.getNano() == 0;
+
+
+
+
 
 
 
@@ -654,7 +1306,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             throw new IllegalArgumentException("El turno debe ser futuro, en día hábil y respetar la jornada y duración de slots configuradas.");
+
+
+
+
 
 
 
@@ -662,7 +1322,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -670,7 +1338,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Transactional(readOnly = true)
+
+
+
+
 
 
 
@@ -678,7 +1354,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         Turno turno = turnoRepositorio.findById(id)
+
+
+
+
 
 
 
@@ -686,7 +1370,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         return turnoMapper.paraDto(turno);
+
+
+
+
 
 
 
@@ -694,11 +1386,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Override
 
 
 
+
+
+
+
     @Transactional(readOnly = true)
+
+
+
+
 
 
 
@@ -706,7 +1410,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         return turnoRepositorio.findAll().stream().map(turnoMapper::paraDto).collect(Collectors.toList());
+
+
+
+
 
 
 
@@ -714,7 +1426,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Override
+
+
+
+
 
 
 
@@ -722,7 +1442,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     public void eliminarTurno(Long id) {
+
+
+
+
 
 
 
@@ -730,7 +1458,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             turnoRepositorio.deleteById(id);
+
+
+
+
 
 
 
@@ -738,7 +1474,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
             throw new NoEncontradoExcepcion("Turno no encontrado con ID: " + id);
+
+
+
+
 
 
 
@@ -746,7 +1490,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -754,7 +1506,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Transactional(readOnly = true)
+
+
+
+
 
 
 
@@ -762,7 +1522,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
+
+
+
+
 
 
 
@@ -770,11 +1538,23 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
                 .collect(Collectors.toList());
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -782,7 +1562,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     @Transactional(readOnly = true)
+
+
+
+
 
 
 
@@ -790,7 +1578,15 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
         return turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId).stream()
+
+
+
+
 
 
 
@@ -798,11 +1594,78 @@ public class TurnoServicio implements ITurnoServicio {
 
 
 
+
+
+
+
     }
 
 
 
-}
 
 
 
+
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado) {
+        Turno turno = turnoRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
+
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
+            if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorización para cancelar el turno de otro paciente.");
+            }
+        }
+
+        if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("El turno ya se encuentra cancelado.");
+        }
+
+        if ("ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("No se puede cancelar un turno que ya fue atendido.");
+        }
+
+        LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+        if (turno.getFechaHora().isBefore(ahora.plusHours(2))) {
+            throw new IllegalArgumentException("La cancelación debe realizarse con un mínimo de 2 horas de anticipación al horario del turno.");
+        }
+
+        turno.setEstado("CANCELADO");
+        Turno guardado = turnoRepositorio.save(turno);
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado) {
+        Turno turno = turnoRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
+
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
+            if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorización para reprogramar el turno de otro paciente.");
+            }
+        }
+
+        if ("CANCELADO".equalsIgnoreCase(turno.getEstado()) || "ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("No se puede reprogramar un turno que ya fue atendido o cancelado.");
+        }
+
+        validarHorario(nuevaFechaHora);
+
+        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO)) {
+            throw new IllegalStateException("El nuevo horario solicitado ya no está disponible.");
+        }
+
+        turno.setFechaHora(nuevaFechaHora);
+        turno.setEstado("PENDIENTE");
+        Turno guardado = turnoRepositorio.save(turno);
+
+        recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+        return turnoMapper.paraDto(guardado);
+    }
+}
