@@ -307,7 +307,7 @@ public class EmailNotificacionServicio {
         String nombreFinal = (nombre != null && !nombre.isBlank()) ? nombre : email.split("@")[0];
         String linkVerificacion = frontendUrl + "/verificar-email?token=" + token;
         String htmlBody = construirHtmlVerificacionEmail(nombreFinal, linkVerificacion);
-        enviarCorreoHtml(email, "Verifica tu correo electrónico - ESU Cruz del Eje", htmlBody, null, null);
+        enviarCorreoHtml(email, "Bienvenido/a a ESU - Confirma tu correo electrónico", htmlBody, null, null);
     }
 
     private String construirHtmlVerificacionEmail(String nombre, String linkVerificacion) {

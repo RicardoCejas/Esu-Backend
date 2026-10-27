@@ -129,7 +129,6 @@ public class AuthControlador {
         if (emailNotificacionServicio != null) {
             try {
                 emailNotificacionServicio.enviarEmailVerificacion(guardado.getEmail(), guardado.getEmail().split("@")[0], tokenVerificacion);
-                emailNotificacionServicio.enviarBienvenida(guardado.getEmail(), guardado.getEmail().split("@")[0]);
             } catch (Exception ignored) {
             }
         }
