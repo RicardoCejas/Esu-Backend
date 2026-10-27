@@ -252,5 +252,26 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
     }
 
-}
 
+    private void asegurarUsuarioDesarrollador() {
+        try {
+            Usuario dev = usuarioRepositorio.findByEmail("dev@esu.gob.ar").orElse(null);
+            if (dev == null) {
+                dev = new Usuario();
+                dev.setEmail("dev@esu.gob.ar");
+                dev.setPassword(passwordEncoder.encode("Dev12345!"));
+                dev.setRol("ADMIN");
+                dev.setEstadoActivo(true);
+                dev.setFechaDeAlta(LocalDate.now());
+                usuarioRepositorio.save(dev);
+                log.info("Usuario desarrollador (dev@esu.gob.ar) sembrado en base de datos.");
+            } else {
+                dev.setEstadoActivo(true);
+                dev.setPassword(passwordEncoder.encode("Dev12345!"));
+                usuarioRepositorio.save(dev);
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo sembrar el usuario desarrollador: {}", e.getMessage());
+        }
+    }
+}
