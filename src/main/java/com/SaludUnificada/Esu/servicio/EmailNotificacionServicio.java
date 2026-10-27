@@ -147,10 +147,18 @@ public class EmailNotificacionServicio {
                 MimeMessage message = mailSender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-                helper.setFrom(mailFrom);
+                try {
+                    helper.setFrom(mailFrom, "ESU - Salud Unificada");
+                } catch (Exception e) {
+                    helper.setFrom(mailFrom);
+                }
                 helper.setTo(destinatario);
                 helper.setSubject(asunto);
-                helper.setText(htmlContent, true);
+                message.addHeader("X-Mailer", "ESU-Platform/1.0");
+                message.addHeader("X-Auto-Response-Suppress", "All");
+                message.addHeader("Auto-Submitted", "auto-generated");
+                String textoPlano = extraerTextoPlano(htmlContent);
+                helper.setText(textoPlano, htmlContent);
 
                 if (adjuntoBytes != null && nombreAdjunto != null) {
                     helper.addAttachment(nombreAdjunto, new ByteArrayResource(adjuntoBytes));
@@ -250,6 +258,13 @@ public class EmailNotificacionServicio {
         String nombreFinal = (nombre != null && !nombre.isBlank()) ? nombre : email.split("@")[0];
         String htmlBody = construirHtmlBienvenida(nombreFinal);
         enviarCorreoHtml(email, "Bienvenido/a al Ecosistema de Salud Unificado (ESU)", htmlBody, null, null);
+    }
+
+    private String extraerTextoPlano(String html) {
+        if (html == null) {
+            return "";
+        }
+        return html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
     }
 
     private String construirHtmlBienvenida(String nombre) {
