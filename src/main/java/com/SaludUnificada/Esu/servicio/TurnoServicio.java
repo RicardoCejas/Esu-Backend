@@ -162,8 +162,6 @@ public class TurnoServicio implements ITurnoServicio {
 
         }
 
-        // Obtener paciente objetivo: por pacienteId explícito o por usuario autenticado
-
         Paciente paciente;
 
         if (turnoDto.getPacienteId() != null) {
@@ -208,22 +206,21 @@ public class TurnoServicio implements ITurnoServicio {
                 "/mis-turnos"
             );
         }
-
-
-        // HU-97: Envío asíncrono de confirmación de turno con link de cancelación
-
         if (emailNotificacionServicio != null) {
-
-            try {
-
-                emailNotificacionServicio.enviarConfirmacionTurno(guardado);
-
-            } catch (Exception ignored) {
-
-                // Manejo preventivo de fallo sin abortar la transacción principal
-
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                emailNotificacionServicio.enviarConfirmacionTurno(guardado);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                );
+            } else {
+                try { emailNotificacionServicio.enviarConfirmacionTurno(guardado); } catch (Exception ignored) {}
             }
-
         }
 
         return turnoMapper.paraDto(guardado);
@@ -642,6 +639,6 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("Servicio de generación PDF no disponible.");
         }
 
-        return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http://localhost:5173/validar-documento?codigo=" + turno.getId());
+        return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http:
     }
 }
