@@ -639,6 +639,6 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("Servicio de generación PDF no disponible.");
         }
 
-        return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http:
+        return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http://localhost:5173/validar-documento?codigo=" + turno.getId());
     }
 }
