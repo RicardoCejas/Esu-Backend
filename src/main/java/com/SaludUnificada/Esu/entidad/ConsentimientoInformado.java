@@ -51,7 +51,16 @@ public class ConsentimientoInformado {
     private LocalDateTime fechaHoraFirma;
 
     @Column(nullable = false, length = 30)
-    private String estado = "FIRMADO"; // FIRMADO, REVOCADO
+    private String estado = "FIRMADO";
+    @Column(name = "motivo_revocacion", length = 500)
+    private String motivoRevocacion;
+
+    @Column(name = "fecha_hora_revocacion")
+    private LocalDateTime fechaHoraRevocacion;
+
+    @Column(name = "ip_revocacion", length = 45)
+    private String ipRevocacion;
+
 
     @PrePersist
     public void prePersist() {
@@ -63,19 +72,13 @@ public class ConsentimientoInformado {
         }
     }
 
-    /**
-     * Garantía legal de inmutabilidad (Ley 26.529 Derechos del Paciente).
-     * Los registros de consentimiento firmado no pueden ser modificados.
-     */
-    @PreUpdate
+        @PreUpdate
     public void preUpdate() {
-        throw new IllegalStateException("Violación de Inmutabilidad Legal (Ley 26.529): Un Consentimiento Informado formalizado no puede ser modificado.");
+        if (!"REVOCADO".equalsIgnoreCase(this.estado)) {
+            throw new IllegalStateException("Violacion de Inmutabilidad Legal (Ley 26.529): Un Consentimiento Informado formalizado no puede ser alterado.");
+        }
     }
 
-    /**
-     * Garantía legal de inmutabilidad (Ley 26.529 Derechos del Paciente).
-     * Los registros de consentimiento firmado no pueden ser eliminados de la HCU.
-     */
     @PreRemove
     public void preRemove() {
         throw new IllegalStateException("Violación de Inmutabilidad Legal (Ley 26.529): Un Consentimiento Informado formalizado no puede ser eliminado del expediente clínico.");

@@ -121,6 +121,7 @@ class AuthControladorTest {
 
     @Test
     void testSolicitarRecuperacion() {
+        when(auditoriaSeguridadServicio.puedeSolicitarRecuperacion(any())).thenReturn(true);
         SolicitarRecuperacionDtoRequest req = new SolicitarRecuperacionDtoRequest("user@esu.com");
         var res = authControlador.solicitarRecuperacion(req);
 
@@ -150,6 +151,7 @@ class AuthControladorTest {
 
     @Test
     void testReenviarVerificacionEmail() {
+        when(auditoriaSeguridadServicio.puedeReenviarVerificacion(any())).thenReturn(true);
         Usuario usuario = new Usuario();
         usuario.setEmail("test@paciente.com");
         when(usuarioRepositorio.findByEmail("test@paciente.com")).thenReturn(Optional.of(usuario));

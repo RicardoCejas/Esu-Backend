@@ -41,6 +41,17 @@ public class NotificacionUsuarioServicio {
     }
 
     @Transactional(readOnly = true)
+    public List<NotificacionDtoResponse> listarParaUsuario(String email, Boolean soloNoLeidas) {
+        if (Boolean.TRUE.equals(soloNoLeidas)) {
+            return notificacionRepositorio.findByUsuarioEmailAndLeidaFalseOrderByFechaCreacionDesc(email)
+                    .stream()
+                    .map(this::paraDto)
+                    .collect(Collectors.toList());
+        }
+        return listarParaUsuario(email);
+    }
+
+    @Transactional(readOnly = true)
     public List<NotificacionDtoResponse> listarParaUsuario(String email) {
         return notificacionRepositorio.findByUsuarioEmailOrderByFechaCreacionDesc(email)
                 .stream()
@@ -83,4 +94,17 @@ public class NotificacionUsuarioServicio {
                 .linkAccion(notif.getLinkAccion())
                 .build();
     }
+
+    @Transactional
+    public void eliminarNotificacion(Long notificacionId, String email) {
+        NotificacionUsuario notif = notificacionRepositorio.findById(notificacionId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Notificacion no encontrada con ID: " + notificacionId));
+
+        if (notif.getUsuario() != null && !notif.getUsuario().getEmail().equalsIgnoreCase(email)) {
+            throw new org.springframework.security.access.AccessDeniedException("No posee autorizacion para eliminar notificaciones de otro usuario.");
+        }
+
+        notificacionRepositorio.delete(notif);
+    }
+
 }

@@ -62,7 +62,6 @@ public class AuthControlador {
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
-        // Asegurar cuenta de desarrollador en base de datos si se solicita
         if ("dev@esu.gob.ar".equalsIgnoreCase(loginDto.getEmail())) {
             asegurarCuentaDesarrollador(loginDto.getPassword());
         }
@@ -154,6 +153,9 @@ public class AuthControlador {
 
     @PostMapping({"/solicitar-recuperacion", "/forgot-password"})
     public ResponseEntity<Map<String, String>> solicitarRecuperacion(@Valid @RequestBody SolicitarRecuperacionDtoRequest request) {
+        if (auditoriaSeguridadServicio != null && !auditoriaSeguridadServicio.puedeSolicitarRecuperacion(request.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Por favor espere un momento antes de solicitar un nuevo enlace de restablecimiento.");
+        }
         recuperacionPasswordServicio.solicitarRecuperacion(request);
         return ResponseEntity.ok(Map.of(
                 "mensaje", "Si el correo electrónico se encuentra registrado, recibirá un enlace temporal para restablecer su contraseña en los próximos minutos."
@@ -195,6 +197,9 @@ public class AuthControlador {
         }
 
         if (email != null && !email.isBlank()) {
+            if (auditoriaSeguridadServicio != null && !auditoriaSeguridadServicio.puedeReenviarVerificacion(email)) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Por favor espere 60 segundos antes de solicitar otro correo de confirmacion.");
+            }
             Usuario usuario = usuarioRepositorio.findByEmail(email).orElse(null);
             if (usuario != null) {
                 String token = UUID.randomUUID().toString();
@@ -243,7 +248,7 @@ public class AuthControlador {
                 dev = new Usuario();
                 dev.setEmail("dev@esu.gob.ar");
                 dev.setPassword(passwordEncoder.encode(pwd));
-                dev.setRol("ADMIN");
+                dev.setRol("DESARROLLADOR");
                 dev.setEstadoActivo(true);
                 dev.setFechaDeAlta(LocalDate.now());
                 usuarioRepositorio.save(dev);
@@ -276,7 +281,7 @@ public class AuthControlador {
                     Usuario nuevoDev = new Usuario();
                     nuevoDev.setEmail("dev@esu.gob.ar");
                     nuevoDev.setPassword(passwordEncoder.encode("Dev12345!"));
-                    nuevoDev.setRol("ADMIN");
+                    nuevoDev.setRol("DESARROLLADOR");
                     nuevoDev.setEstadoActivo(true);
                     nuevoDev.setFechaDeAlta(LocalDate.now());
                     return usuarioRepositorio.save(nuevoDev);

@@ -30,9 +30,18 @@ public class AlergiaServicio {
             throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId);
         }
 
+        String sustanciaLimpia = request.getSustanciaAlergeno().trim();
+        String severidadLimpia = request.getSeveridad().toUpperCase().trim();
+        if (!List.of("LEVE", "MODERADA", "GRAVE").contains(severidadLimpia)) {
+            throw new ReglaNegocioException("Nivel de severidad invalido. Debe ser LEVE, MODERADA o GRAVE.");
+        }
+        if (alergiaRepositorio.existsByPacienteIdAndSustanciaAlergenoIgnoreCaseAndActivoTrue(pacienteId, sustanciaLimpia)) {
+            throw new ReglaNegocioException("El paciente ya posee un registro activo para el alergeno: " + sustanciaLimpia);
+        }
+
         AlergiaPaciente entidad = new AlergiaPaciente();
         entidad.setPacienteId(pacienteId);
-        entidad.setSustanciaAlergeno(request.getSustanciaAlergeno().trim());
+        entidad.setSustanciaAlergeno(sustanciaLimpia);
         entidad.setSeveridad(request.getSeveridad().toUpperCase().trim());
         entidad.setFechaDiagnostico(request.getFechaDiagnostico());
         entidad.setObservaciones(request.getObservaciones());
@@ -61,12 +70,6 @@ public class AlergiaServicio {
         alergiaRepositorio.save(entidad);
     }
 
-    /**
-     * Interceptor Clínico de Contraindicaciones y Alergias Preexistentes (HU-104)
-     * Compara los principios activos y nombres comerciales de los fármacos recetados
-     * contra las alergias activas del paciente. Si detecta coincidencia con severidad GRAVE,
-     * bloquea la operación lanzando ReglaNegocioException.
-     */
     @Transactional(readOnly = true)
     public void validarContraindicaciones(Long pacienteId, List<MedicamentoItemDto> medicamentos) {
         if (medicamentos == null || medicamentos.isEmpty()) {

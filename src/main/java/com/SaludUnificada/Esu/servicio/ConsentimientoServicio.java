@@ -6,6 +6,7 @@ import com.SaludUnificada.Esu.entidad.ConsentimientoInformado;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.ConsentimientoInformadoRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
@@ -39,7 +40,6 @@ public class ConsentimientoServicio {
         LocalDateTime ahora = LocalDateTime.now();
         String ipSegura = (ipFirma != null && !ipFirma.isBlank()) ? ipFirma : "127.0.0.1";
 
-        // Generar sello criptográfico SHA-256 vinculando fecha, IP, partes y contenido legal
         String cadenaSellado = String.format("CONSENTIMIENTO|%d|%d|%s|%s|%s|%s|%s",
                 paciente.getId(),
                 profesional.getId(),
@@ -93,15 +93,17 @@ public class ConsentimientoServicio {
                 entidad.getId(),
                 entidad.getPacienteId(),
                 entidad.getProfesionalId(),
-                prof != null ? prof.getNombre() + " " + prof.getApellido() : "Profesional #" + entidad.getProfesionalId(),
-                prof != null ? prof.getMatricula() : "-",
+                prof != null ? prof.getNombre() + " " + prof.getApellido() : null,
+                prof != null ? prof.getMatricula() : null,
                 entidad.getProcedimiento(),
                 entidad.getTextoLegal(),
                 entidad.getFirmaDigitalBase64(),
                 entidad.getIpFirma(),
                 entidad.getHashIntegridadSha256(),
                 entidad.getFechaHoraFirma(),
-                entidad.getEstado()
+                entidad.getEstado(),
+                entidad.getMotivoRevocacion(),
+                entidad.getFechaHoraRevocacion()
         );
     }
 
@@ -125,4 +127,24 @@ public class ConsentimientoServicio {
             throw new RuntimeException("Error inicializando SHA-256", e);
         }
     }
+
+    @Transactional
+    public ConsentimientoDtoResponse revocarConsentimiento(Long id, String motivo, String ipRevocacion) {
+        ConsentimientoInformado entidad = consentimientoRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Consentimiento informado no encontrado con ID: " + id));
+
+        if ("REVOCADO".equalsIgnoreCase(entidad.getEstado())) {
+            throw new ReglaNegocioException("El consentimiento informado ya ha sido revocado previamente.");
+        }
+
+        entidad.setEstado("REVOCADO");
+        entidad.setMotivoRevocacion(motivo != null && !motivo.isBlank() ? motivo.trim() : "Revocado por voluntad del paciente");
+        entidad.setFechaHoraRevocacion(LocalDateTime.now());
+        entidad.setIpRevocacion(ipRevocacion != null ? ipRevocacion : "127.0.0.1");
+
+        ConsentimientoInformado guardado = consentimientoRepositorio.save(entidad);
+        Profesional prof = profesionalRepositorio.findById(entidad.getProfesionalId()).orElse(null);
+        return mapearADto(guardado, prof);
+    }
+
 }

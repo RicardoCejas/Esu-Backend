@@ -13,6 +13,7 @@ import java.util.List;
 public interface NotificacionUsuarioRepositorio extends JpaRepository<NotificacionUsuario, Long> {
 
     List<NotificacionUsuario> findByUsuarioEmailOrderByFechaCreacionDesc(String email);
+    List<NotificacionUsuario> findByUsuarioEmailAndLeidaFalseOrderByFechaCreacionDesc(String email);
 
     long countByUsuarioEmailAndLeidaFalse(String email);
 

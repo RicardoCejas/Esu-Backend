@@ -102,7 +102,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
 
 
-        // 1. Administrador del Sistema
 
         Usuario admin = new Usuario();
 
@@ -120,7 +119,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
 
 
-        // 2. Recepcionista de Mesa de Entradas
 
         Usuario recepcion = new Usuario();
 
@@ -138,7 +136,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
 
 
-        // 3. Especialidades
 
         Especialidad espGeneral = new Especialidad(); espGeneral.setNombre("Medicina General"); espGeneral = especialidadRepositorio.save(espGeneral);
 
@@ -150,7 +147,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
 
 
-        // 4. Profesionales Médicos
 
         crearProfesional("Carlos", "Gómez", "MP-45210", "carlos.gomez@esu.gob.ar", "Medico123!", Set.of(espGeneral));
 
@@ -160,7 +156,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
 
 
-        // 5. Pacientes
 
         crearPaciente("Juan", "Pérez", "35123456", "AF-100234", "OSECAC", "juan.perez@salud.gob.ar", "Paciente123!");
 
@@ -260,7 +255,7 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
                 dev = new Usuario();
                 dev.setEmail("dev@esu.gob.ar");
                 dev.setPassword(passwordEncoder.encode("Dev12345!"));
-                dev.setRol("ADMIN");
+                dev.setRol("DESARROLLADOR");
                 dev.setEstadoActivo(true);
                 dev.setFechaDeAlta(LocalDate.now());
                 usuarioRepositorio.save(dev);
@@ -272,6 +267,22 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.warn("No se pudo sembrar el usuario desarrollador: {}", e.getMessage());
+        }
+    }
+    private void asegurarCentroCooperativa() {
+        try {
+            if (usuarioRepositorio.findByEmail("cooperativa@esu.gob.ar").isEmpty()) {
+                Usuario coop = new Usuario();
+                coop.setEmail("cooperativa@esu.gob.ar");
+                coop.setPassword(passwordEncoder.encode("Coop12345!"));
+                coop.setRol("RECEPCIONISTA");
+                coop.setEstadoActivo(true);
+                coop.setFechaDeAlta(LocalDate.now());
+                usuarioRepositorio.save(coop);
+                log.info("Cuenta institucional para Cooperativa de Cruz del Eje sembrada en base de datos.");
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo sembrar cuenta Cooperativa: {}", e.getMessage());
         }
     }
 }

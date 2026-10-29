@@ -490,6 +490,13 @@ public class TurnoServicio implements ITurnoServicio {
             );
         }
 
+        if (emailNotificacionServicio != null) {
+            try {
+                emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
+            } catch (Exception ignored) {
+            }
+        }
+
         return turnoMapper.paraDto(guardado);
 
     }

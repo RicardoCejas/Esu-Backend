@@ -24,8 +24,8 @@ public class NotificacionControlador {
     @Operation(summary = "Listar notificaciones del usuario autenticado")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<NotificacionDtoResponse>> listarNotificaciones(Principal principal) {
-        return ResponseEntity.ok(notificacionUsuarioServicio.listarParaUsuario(principal.getName()));
+    public ResponseEntity<List<NotificacionDtoResponse>> listarNotificaciones(@RequestParam(name = "soloNoLeidas", required = false) Boolean soloNoLeidas, Principal principal) {
+        return ResponseEntity.ok(notificacionUsuarioServicio.listarParaUsuario(principal.getName(), soloNoLeidas));
     }
 
     @Operation(summary = "Contar notificaciones no leídas para el badge/campanita")
@@ -51,4 +51,13 @@ public class NotificacionControlador {
         notificacionUsuarioServicio.marcarTodasComoLeidas(principal.getName());
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(summary = "Eliminar una notificacion especifica")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> eliminarNotificacion(@PathVariable Long id, Principal principal) {
+        notificacionUsuarioServicio.eliminarNotificacion(id, principal.getName());
+        return ResponseEntity.noContent().build();
+    }
+
 }

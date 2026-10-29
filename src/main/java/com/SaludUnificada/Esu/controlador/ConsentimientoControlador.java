@@ -8,6 +8,7 @@ import com.SaludUnificada.Esu.servicio.ConsentimientoServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,4 +79,20 @@ public class ConsentimientoControlador {
     public ResponseEntity<ConsentimientoDtoResponse> obtenerPorId(@PathVariable Long id) {
         return ResponseEntity.ok(consentimientoServicio.obtenerPorId(id));
     }
+
+    @PatchMapping("/{id}/revocar")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN', 'PROFESIONAL', 'MEDICO')")
+    public ResponseEntity<ConsentimientoDtoResponse> revocarConsentimiento(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> payload,
+            HttpServletRequest request
+    ) {
+        String motivo = (payload != null) ? payload.get("motivo") : null;
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isBlank()) {
+            ip = request.getRemoteAddr();
+        }
+        return ResponseEntity.ok(consentimientoServicio.revocarConsentimiento(id, motivo, ip));
+    }
+
 }

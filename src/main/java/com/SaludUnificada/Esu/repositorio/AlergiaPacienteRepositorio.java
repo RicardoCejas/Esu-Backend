@@ -10,4 +10,5 @@ import java.util.List;
 public interface AlergiaPacienteRepositorio extends JpaRepository<AlergiaPaciente, Long> {
     List<AlergiaPaciente> findByPacienteIdAndActivoTrueOrderByFechaRegistroDesc(Long pacienteId);
     List<AlergiaPaciente> findByPacienteIdOrderByFechaRegistroDesc(Long pacienteId);
+    boolean existsByPacienteIdAndSustanciaAlergenoIgnoreCaseAndActivoTrue(Long pacienteId, String sustanciaAlergeno);
 }

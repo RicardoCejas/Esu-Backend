@@ -31,9 +31,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         List<GrantedAuthority> authorities = new ArrayList<>();
-        // Agregar tanto con prefijo ROLE_ como el nombre directo para máxima compatibilidad
         String roleWithPrefix = rol.startsWith("ROLE_") ? rol : "ROLE_" + rol.toUpperCase();
         authorities.add(new SimpleGrantedAuthority(roleWithPrefix));
+
+        if ("DESARROLLADOR".equalsIgnoreCase(rol) || "DEV".equalsIgnoreCase(rol)) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_DESARROLLADOR"));
+        }
 
         return new User(
                 usuario.getEmail(),

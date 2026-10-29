@@ -30,6 +30,8 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
     private final ProfesionalRepositorio profesionalRepositorio;
     private final TurnoRepositorio turnoRepositorio;
     private final BloqueoAgendaMapper bloqueoAgendaMapper;
+    private final NotificacionUsuarioServicio notificacionUsuarioServicio;
+    private final EmailNotificacionServicio emailNotificacionServicio;
 
     @Override
     @Transactional
@@ -44,7 +46,6 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
         BloqueoAgenda entidad = bloqueoAgendaMapper.paraEntidad(request, profesional);
         BloqueoAgenda guardado = bloqueoAgendaRepositorio.save(entidad);
 
-        // Cancelación preventiva en lote de todos los turnos comprendidos en el rango
         List<Turno> turnosSolapados = turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(
                 profesionalId,
                 request.getFechaInicio(),
@@ -75,6 +76,28 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
 
         if (!turnosSolapados.isEmpty()) {
             turnoRepositorio.saveAll(turnosSolapados);
+            for (Turno tCancelado : turnosSolapados) {
+                if (tCancelado.getPaciente() != null && tCancelado.getPaciente().getUsuario() != null) {
+                    if (notificacionUsuarioServicio != null) {
+                        try {
+                            notificacionUsuarioServicio.crearNotificacion(
+                                    tCancelado.getPaciente().getUsuario(),
+                                    "Turno Cancelado por Indisponibilidad Medica",
+                                    "Su turno del " + (tCancelado.getFechaHora() != null ? tCancelado.getFechaHora().toString() : "") + " fue cancelado por bloqueo de agenda del profesional.",
+                                    "TURNO",
+                                    "/mis-turnos"
+                            );
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    if (emailNotificacionServicio != null) {
+                        try {
+                            emailNotificacionServicio.enviarCancelacionTurno(tCancelado, "Cancelacion por bloqueo de agenda del profesional: " + request.getMotivo());
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
         }
 
         log.info("Bloqueo de agenda registrado para profesional {}. Período: {} a {}. Turnos afectados: {}",

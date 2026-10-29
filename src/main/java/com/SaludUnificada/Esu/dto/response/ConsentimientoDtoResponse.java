@@ -24,4 +24,6 @@ public class ConsentimientoDtoResponse {
     private String hashIntegridadSha256;
     private LocalDateTime fechaHoraFirma;
     private String estado;
+    private String motivoRevocacion;
+    private LocalDateTime fechaHoraRevocacion;
 }

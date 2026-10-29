@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.PacienteDtoRequest;
 import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,14 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
+        String dniLimpio = (pacienteDto.getDni() != null) ? pacienteDto.getDni().replaceAll("[^0-9a-zA-Z]", "").trim() : "";
+        if (pacienteRepositorio.existsByDni(dniLimpio)) {
+            throw new ReglaNegocioException("Ya existe un paciente registrado con el DNI ingresado: " + dniLimpio);
+        }
+        pacienteDto.setDni(dniLimpio);
+        if (pacienteDto.getTelefono() != null) {
+            pacienteDto.setTelefono(pacienteDto.getTelefono().trim());
+        }
         Paciente paciente = pacienteMapper.paraEntidad(pacienteDto);
         Paciente pacienteGuardado = pacienteRepositorio.save(paciente);
         return pacienteMapper.paraDto(pacienteGuardado);

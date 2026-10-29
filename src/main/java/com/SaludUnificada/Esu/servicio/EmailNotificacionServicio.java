@@ -343,4 +343,71 @@ public class EmailNotificacionServicio {
         """.formatted(nombre, linkVerificacion, linkVerificacion, linkVerificacion);
     }
 
+
+    @Async
+    public void enviarCancelacionTurno(Turno turno, String motivo) {
+        if (turno == null || turno.getPaciente() == null) {
+            return;
+        }
+
+        String destinatario = obtenerEmailPaciente(turno);
+        if (destinatario == null || destinatario.isBlank()) {
+            return;
+        }
+
+        String pacienteNombre = "Estimado/a Paciente";
+        try {
+            pacienteNombre = turno.getPaciente().getNombre() + " " + turno.getPaciente().getApellido();
+        } catch (Exception ignored) {
+        }
+
+        String medicoNombre = "Profesional Medico";
+        try {
+            if (turno.getProfesional() != null) {
+                medicoNombre = turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido();
+            }
+        } catch (Exception ignored) {
+        }
+
+        String fechaHoraStr = turno.getFechaHora() != null ? turno.getFechaHora().format(DATE_TIME_FORMATTER) : "A convenir";
+        String codigoCita = "TURNO-" + turno.getId();
+        String motivoFinal = (motivo != null && !motivo.isBlank()) ? motivo : "Cancelacion administrativa";
+        String linkNuevoTurno = frontendUrl + "/turnos";
+
+        String htmlBody = construirHtmlTurnoCancelado(pacienteNombre, medicoNombre, fechaHoraStr, codigoCita, motivoFinal, linkNuevoTurno);
+        enviarCorreoHtml(destinatario, "Cancelacion de Turno Medico - " + codigoCita, htmlBody, null, null);
+    }
+
+    private String construirHtmlTurnoCancelado(String paciente, String medico, String fechaHora, String codigo, String motivo, String linkNuevoTurno) {
+        return """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"></head>
+            <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+                <div style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="color: #dc2626; margin: 0;">Aviso de Cancelacion de Turno</h2>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Ecosistema de Salud Unificado - Cruz del Eje</p>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="color: #334155; line-height: 1.6;">Hola <strong>%s</strong>,</p>
+                    <p style="color: #334155; line-height: 1.6;">Te informamos que tu turno medico ha sido cancelado en el sistema:</p>
+                    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 5px 0;"><strong>Codigo de Cita:</strong> %s</p>
+                        <p style="margin: 5px 0;"><strong>Fecha y Hora:</strong> %s hs</p>
+                        <p style="margin: 5px 0;"><strong>Profesional:</strong> %s</p>
+                        <p style="margin: 5px 0;"><strong>Motivo:</strong> %s</p>
+                    </div>
+                    <p style="color: #334155; line-height: 1.6;">Puedes ingresar a la plataforma para reprogramar una nueva consulta con tu profesional o especialidad requerida:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="%s" style="background-color: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Solicitar Nuevo Turno</a>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">Notificacion automatica institucional - Municipalidad de Cruz del Eje.</p>
+                </div>
+            </body>
+            </html>
+        """.formatted(paciente, codigo, fechaHora, medico, motivo, linkNuevoTurno);
+    }
+
 }

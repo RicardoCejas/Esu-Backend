@@ -40,7 +40,6 @@ public class CarnetYFamiliarServicio {
     @Autowired
     private UsuarioRepositorio usuarioRepositorio;
 
-    // HU-BE-93: Emisión de Carnet Digital con Token Criptográfico
     @Transactional(readOnly = true)
     public CarnetDigitalDtoResponse emitirCarnetDigital(Long pacienteId) {
         Paciente paciente = pacienteRepositorio.findById(pacienteId)
@@ -64,7 +63,6 @@ public class CarnetYFamiliarServicio {
                 .build();
     }
 
-    // HU-BE-93: Validación de autenticidad del Carnet
     @Transactional(readOnly = true)
     public boolean verificarCarnet(String qrPayload) {
         try {
@@ -87,7 +85,6 @@ public class CarnetYFamiliarServicio {
         }
     }
 
-    // HU-BE-94: Gestión de Grupo Familiar
     @Transactional
     public FamiliarDtoResponse vincularFamiliar(Long titularId, FamiliarDtoRequest request) {
         Paciente titular = pacienteRepositorio.findById(titularId)
@@ -114,13 +111,11 @@ public class CarnetYFamiliarServicio {
                 .collect(Collectors.toList());
     }
 
-    // HU-BE-95: Convenios y Coberturas
     @Transactional(readOnly = true)
     public List<ConvenioObraSocial> listarConveniosActivos() {
         return convenioObraSocialRepositorio.findByActivoTrue();
     }
 
-    // HU-BE-108: Preferencias de Usuario y Accesibilidad
     @Transactional
     public void actualizarPreferencias(String email, PreferenciasUsuarioDtoRequest request) {
         Usuario usuario = usuarioRepositorio.findByEmail(email)
@@ -168,4 +163,17 @@ public class CarnetYFamiliarServicio {
             throw new RuntimeException("Error calculando hash SHA-256", e);
         }
     }
+
+    @Transactional
+    public void desvincularFamiliar(Long titularId, Long vinculoId) {
+        VinculoFamiliar vinculo = vinculoFamiliarRepositorio.findById(vinculoId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Vinculo familiar no encontrado con ID: " + vinculoId));
+
+        if (vinculo.getTitular() == null || !vinculo.getTitular().getId().equals(titularId)) {
+            throw new org.springframework.security.access.AccessDeniedException("No posee autorizacion para desvincular un familiar de otro titular.");
+        }
+
+        vinculoFamiliarRepositorio.delete(vinculo);
+    }
+
 }

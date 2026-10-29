@@ -1,5 +1,9 @@
 package com.SaludUnificada.Esu.servicio;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.SaludUnificada.Esu.entidad.LogAuditoriaSeguridad;
 import com.SaludUnificada.Esu.repositorio.LogAuditoriaSeguridadRepositorio;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +19,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AuditoriaSeguridadServicio {
@@ -60,10 +65,6 @@ public class AuditoriaSeguridadServicio {
         log.warn("LOGIN_FAIL: Intento fallido para '{}' desde IP '{}'. Motivo: {}", email, ip, motivo);
     }
 
-    /**
-     * Valida si la cuenta o IP se encuentra temporalmente bloqueada por superar 5 intentos fallidos
-     * consecutivos dentro de los últimos 10 minutos.
-     */
     public boolean estaBloqueadoPorIntentosFallidos(String email) {
         if (email == null || email.isBlank()) {
             return false;
@@ -80,7 +81,6 @@ public class AuditoriaSeguridadServicio {
                     return true;
                 }
             } else if (ev.getEvento() == LogAuditoriaSeguridad.EventoSeguridad.LOGIN_OK) {
-                // Un login exitoso resetea la seguidilla de fallos
                 break;
             }
         }
@@ -125,4 +125,36 @@ public class AuditoriaSeguridadServicio {
         }
         return "Unknown-Client";
     }
+
+    private final Map<String, Instant> ultimoReenvioVerificacion = new ConcurrentHashMap<>();
+    private final Map<String, Instant> ultimaSolicitudRecuperacion = new ConcurrentHashMap<>();
+
+    public boolean puedeReenviarVerificacion(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        String key = email.trim().toLowerCase();
+        Instant ahora = Instant.now();
+        Instant previo = ultimoReenvioVerificacion.get(key);
+        if (previo != null && Duration.between(previo, ahora).getSeconds() < 60) {
+            return false;
+        }
+        ultimoReenvioVerificacion.put(key, ahora);
+        return true;
+    }
+
+    public boolean puedeSolicitarRecuperacion(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        String key = email.trim().toLowerCase();
+        Instant ahora = Instant.now();
+        Instant previo = ultimaSolicitudRecuperacion.get(key);
+        if (previo != null && Duration.between(previo, ahora).getSeconds() < 60) {
+            return false;
+        }
+        ultimaSolicitudRecuperacion.put(key, ahora);
+        return true;
+    }
+
 }

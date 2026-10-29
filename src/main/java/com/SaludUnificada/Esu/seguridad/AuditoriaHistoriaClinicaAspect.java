@@ -20,6 +20,8 @@ public class AuditoriaHistoriaClinicaAspect {
 
     @Autowired
     private LogAccesoHcRepositorio logAccesoHcRepositorio;
+    @Autowired
+    private com.SaludUnificada.Esu.repositorio.UsuarioRepositorio usuarioRepositorio;
 
     @Around("execution(* com.SaludUnificada.Esu.servicio.EvolucionMedicaServicio.obtener*(..)) || execution(* com.SaludUnificada.Esu.servicio.HistoriaClinicaServicio.obtener*(..))")
     public Object auditarYControlarAcceso(ProceedingJoinPoint joinPoint) throws Throwable {
@@ -30,20 +32,25 @@ public class AuditoriaHistoriaClinicaAspect {
         String ipAddress = "127.0.0.1";
 
         if (auth != null && auth.isAuthenticated()) {
+            if (usuarioRepositorio != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
+                usuarioRepositorio.findByEmail(auth.getName()).ifPresent(u -> {
+                    
+                });
+                var optUser = usuarioRepositorio.findByEmail(auth.getName());
+                if (optUser.isPresent()) {
+                    usuarioId = optUser.get().getId();
+                }
+            }
             rol = auth.getAuthorities().stream()
                 .map(Object::toString)
                 .reduce((a, b) -> a + "," + b)
                 .orElse("USER");
 
-            // Control estricto de privacidad y secreto médico (HU-79 DoD):
-            // Si el usuario es RECEPCIONISTA o ADMIN sin rol médico intentando acceder al expediente íntimo:
             if (rol.contains("RECEPCIONISTA") || (rol.contains("ADMIN") && !rol.contains("PROFESIONAL"))) {
-                // Bloqueo con 403 Forbidden por secreto médico
                 throw new AccessDeniedException("403 Forbidden: Secreto profesional médico. El perfil actual no tiene autorización para acceder a evoluciones clínicas confidenciales.");
             }
         }
 
-        // Obtener IP del cliente
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null) {
             HttpServletRequest req = attrs.getRequest();
@@ -56,17 +63,14 @@ public class AuditoriaHistoriaClinicaAspect {
             }
         }
 
-        // Obtener pacienteId de los argumentos si existe
         Long pacienteId = 0L;
         Object[] args = joinPoint.getArgs();
         if (args != null && args.length > 0 && args[0] instanceof Long) {
             pacienteId = (Long) args[0];
         }
 
-        // Ejecutar el método objetivo
         Object resultado = joinPoint.proceed();
 
-        // Registrar en bitácora de auditoría inmutable
         try {
             LogAccesoHc log = new LogAccesoHc(
                 usuarioId,
