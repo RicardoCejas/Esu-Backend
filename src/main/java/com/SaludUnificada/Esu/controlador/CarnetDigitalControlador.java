@@ -1,7 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.servicio.CarnetDigitalServicio;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,13 +12,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pacientes")
+@RequiredArgsConstructor
 public class CarnetDigitalControlador {
 
-    @Autowired
-    private CarnetDigitalServicio carnetDigitalServicio;
+    private final CarnetDigitalServicio carnetDigitalServicio;
 
     @GetMapping(value = "/{id}/carnet-digital/qr", produces = MediaType.IMAGE_PNG_VALUE)
-    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
     public ResponseEntity<byte[]> obtenerQrCredencial(@PathVariable Long id) {
         byte[] qrBytes = carnetDigitalServicio.generarQrCarnetDigital(id);
         HttpHeaders headers = new HttpHeaders();
@@ -30,7 +30,7 @@ public class CarnetDigitalControlador {
     @PostMapping("/carnet-digital/verificar")
     @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<Map<String, Object>> verificarQr(@RequestBody Map<String, String> payload) {
-        String qrContent = payload.get("qrContent");
+        String qrContent = payload != null ? payload.get("qrContent") : null;
         return ResponseEntity.ok(carnetDigitalServicio.verificarQrCarnet(qrContent));
     }
 }

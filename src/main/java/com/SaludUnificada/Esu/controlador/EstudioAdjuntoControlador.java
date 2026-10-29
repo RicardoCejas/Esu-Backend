@@ -1,21 +1,18 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.response.EspacioOcupadoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.EstudioAdjuntoDtoResponse;
 import com.SaludUnificada.Esu.entidad.EstudioAdjunto;
-import com.SaludUnificada.Esu.entidad.Paciente;
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.servicio.EstudioAdjuntoServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -33,27 +30,8 @@ public class EstudioAdjuntoControlador {
 
     private final EstudioAdjuntoServicio estudioServicio;
 
-    @Autowired(required = false)
-    private PacienteRepositorio pacienteRepositorio;
-
-    private void validarPropiedadPaciente(Long pacienteId, Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) {
-            return;
-        }
-        boolean esPersonal = auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_MEDICO") ||
-                a.getAuthority().equals("ROLE_PROFESIONAL"));
-        if (!esPersonal && pacienteRepositorio != null) {
-            Paciente p = pacienteRepositorio.findByUsuarioEmail(auth.getName()).orElse(null);
-            if (p != null && !p.getId().equals(pacienteId)) {
-                throw new AccessDeniedException("No posee autorizacion para acceder a los estudios de otro paciente");
-            }
-        }
-    }
-
     @PostMapping(value = "/subir", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Carga de archivo binario de estudio complementario")
     public ResponseEntity<EstudioAdjuntoDtoResponse> subirEstudio(
             @RequestParam("archivo") MultipartFile archivo,
@@ -69,11 +47,10 @@ public class EstudioAdjuntoControlador {
     }
 
     @GetMapping("/{id}/descargar")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessEstudio(#id)")
     @Operation(summary = "Descarga segura del archivo fisico del estudio medico")
     public ResponseEntity<Resource> descargarEstudio(@PathVariable Long id, Authentication authentication) {
         EstudioAdjunto estudio = estudioServicio.obtenerPorId(id);
-        estudioServicio.validarAccesoEstudio(estudio, authentication);
         Resource resource = estudioServicio.descargarArchivo(id);
 
         String contentType = estudio.getMimeType();
@@ -83,37 +60,29 @@ public class EstudioAdjuntoControlador {
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + estudio.getNombreArchivo() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"estudio_medico_" + id + ".pdf\"")
                 .body(resource);
     }
 
     @GetMapping("/paciente/{pacienteId}")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Listar todos los estudios medicos complementarios de un paciente")
     public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorPaciente(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+            @PathVariable Long pacienteId) {
         return ResponseEntity.ok(estudioServicio.listarPorPaciente(pacienteId));
     }
 
     @GetMapping("/paciente/{pacienteId}/conteo")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Contar estudios medicos adjuntos de un paciente")
-    public ResponseEntity<Long> contarEstudios(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+    public ResponseEntity<Long> contarEstudios(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(estudioServicio.contarEstudiosPorPaciente(pacienteId));
     }
 
     @GetMapping("/paciente/{pacienteId}/espacio")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Consultar volumen de almacenamiento ocupado por estudios del paciente")
-    public ResponseEntity<Map<String, Object>> obtenerEspacioOcupado(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+    public ResponseEntity<EspacioOcupadoDtoResponse> obtenerEspacioOcupado(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(estudioServicio.obtenerEspacioOcupadoPorPaciente(pacienteId));
     }
 
@@ -125,7 +94,7 @@ public class EstudioAdjuntoControlador {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessEstudio(#id)")
     @Operation(summary = "Eliminar de forma permanente un archivo de estudio medico adjunto")
     public ResponseEntity<Void> eliminarEstudio(@PathVariable Long id, Authentication authentication) {
         estudioServicio.eliminarEstudio(id, authentication);

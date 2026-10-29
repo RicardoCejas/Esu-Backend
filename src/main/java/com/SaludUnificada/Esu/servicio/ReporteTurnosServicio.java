@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.entidad.Turno;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
@@ -31,14 +32,31 @@ public class ReporteTurnosServicio {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PacienteRepositorio pacienteRepositorio;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final int MAX_REGISTROS_REPORTE = 10000;
+
+    private void validarRangoFechas(LocalDateTime desde, LocalDateTime hasta) {
+        if (desde != null && hasta != null) {
+            if (desde.isAfter(hasta)) {
+                throw new ReglaNegocioException("La fecha 'desde' no puede ser posterior a 'hasta'.");
+            }
+            if (java.time.Duration.between(desde, hasta).toDays() > 180) {
+                throw new ReglaNegocioException("El período de consulta de turnos no puede superar los 180 días.");
+            }
+        }
+    }
 
     @Transactional(readOnly = true)
     public byte[] exportarTurnosExcel(LocalDateTime desde, LocalDateTime hasta) {
+        validarRangoFechas(desde, hasta);
         LocalDateTime fechaInicio = desde != null ? desde : LocalDateTime.now().minusMonths(1);
         LocalDateTime fechaFin = hasta != null ? hasta : LocalDateTime.now().plusMonths(3);
 
         List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
-        log.info("Generando reporte Excel de turnos. Período: {} a {}. Total turnos encontrados: {}", fechaInicio, fechaFin, turnos.size());
+        if (turnos.size() > MAX_REGISTROS_REPORTE) {
+            turnos = turnos.subList(0, MAX_REGISTROS_REPORTE);
+            log.warn("Se truncó el reporte Excel a {} registros por límite de seguridad operacional.", MAX_REGISTROS_REPORTE);
+        }
+        log.info("Generando reporte Excel de turnos. Período: {} a {}. Total turnos procesados: {}", fechaInicio, fechaFin, turnos.size());
 
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Turnos");
@@ -118,11 +136,16 @@ public class ReporteTurnosServicio {
 
     @Transactional(readOnly = true)
     public byte[] exportarTurnosCsv(LocalDateTime desde, LocalDateTime hasta) {
+        validarRangoFechas(desde, hasta);
         LocalDateTime fechaInicio = desde != null ? desde : LocalDateTime.now().minusMonths(1);
         LocalDateTime fechaFin = hasta != null ? hasta : LocalDateTime.now().plusMonths(3);
 
         List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
-        log.info("Generando reporte CSV de turnos. Período: {} a {}. Total turnos encontrados: {}", fechaInicio, fechaFin, turnos.size());
+        if (turnos.size() > MAX_REGISTROS_REPORTE) {
+            turnos = turnos.subList(0, MAX_REGISTROS_REPORTE);
+            log.warn("Se truncó el reporte CSV a {} registros por límite de seguridad operacional.", MAX_REGISTROS_REPORTE);
+        }
+        log.info("Generando reporte CSV de turnos. Período: {} a {}. Total turnos procesados: {}", fechaInicio, fechaFin, turnos.size());
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
@@ -176,6 +199,7 @@ public class ReporteTurnosServicio {
             throw new RuntimeException("Error al generar el archivo CSV de turnos", e);
         }
     }
+
     @Transactional(readOnly = true)
     public byte[] exportarPacientesCsv() {
         List<Paciente> pacientes = pacienteRepositorio.findAll();

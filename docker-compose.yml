@@ -4,14 +4,16 @@ services:
     container_name: esu-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: db_esu
-    ports:
-      - "3306:3306"
+      MYSQL_USER: esu_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-EsuAppSecurePass2026!}
+    networks:
+      - esu-internal
     volumes:
       - esu_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "esu_app", "-p${MYSQL_PASSWORD:-EsuAppSecurePass2026!}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,12 +26,20 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD: root
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: esu_app
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-EsuAppSecurePass2026!}
+      JWT_SECRET: ${JWT_SECRET:-}
       SERVER_PORT: 8080
     ports:
       - "8080:8080"
+    networks:
+      - esu-internal
+
+networks:
+  esu-internal:
+    driver: bridge
 
 volumes:
   esu_mysql_data:

@@ -3,58 +3,47 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.DispensarRecetaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
+import com.SaludUnificada.Esu.dto.response.RecetaDigitalDtoResponse;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.mapper.RecetaDigitalMapper;
+import com.SaludUnificada.Esu.servicio.CatalogoFarmacologicoServicio;
 import com.SaludUnificada.Esu.servicio.RecetaDigitalServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 @Tag(name = "Recetas Digitales", description = "Emision, validacion y descarga oficial de recetas medicas digitales")
 public class RecetaControlador {
 
-    @Autowired
-    private RecetaDigitalServicio recetaServicio;
-
-    @Autowired
-    private com.SaludUnificada.Esu.servicio.CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
-
-    private void validarPropiedadReceta(RecetaDigital receta, Authentication auth) {
-        if (auth == null || !auth.isAuthenticated() || receta == null) {
-            return;
-        }
-        boolean esPersonal = auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_MEDICO") ||
-                a.getAuthority().equals("ROLE_PROFESIONAL"));
-        if (!esPersonal && receta.getPaciente() != null && receta.getPaciente().getUsuario() != null) {
-            if (!receta.getPaciente().getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
-                throw new AccessDeniedException("No posee autorizacion para acceder a recetas de otro paciente");
-            }
-        }
-    }
+    private final RecetaDigitalServicio recetaServicio;
+    private final CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
+    private final RecetaDigitalMapper recetaDigitalMapper;
 
     @PostMapping("/recetas")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Emitir nueva receta medica digital")
-    public ResponseEntity<RecetaDigital> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
-        return new ResponseEntity<>(recetaServicio.emitirReceta(request), HttpStatus.CREATED);
+    public ResponseEntity<RecetaDigitalDtoResponse> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
+        RecetaDigital receta = recetaServicio.emitirReceta(request);
+        return new ResponseEntity<>(recetaDigitalMapper.toDto(receta), HttpStatus.CREATED);
     }
 
     @PostMapping("/recetas/validar")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Validar requisitos previos para prescripcion medica")
     public ResponseEntity<Map<String, Object>> validarPrescripcion(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         recetaServicio.validarProfesionalHabilitado(request.getProfesionalId());
@@ -65,24 +54,24 @@ public class RecetaControlador {
     }
 
     @PostMapping("/recetas/dispensar")
-    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas")
+    @PreAuthorize("hasAnyRole('FARMACIA', 'ADMIN')")
+    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas (Exclusivo Farmacias y Admin)")
     public ResponseEntity<DispensarRecetaDtoResponse> dispensarReceta(@Valid @RequestBody DispensarRecetaDtoRequest request) {
         return ResponseEntity.ok(recetaServicio.dispensarReceta(request));
     }
 
     @GetMapping("/recetas/{id}")
+    @PreAuthorize("@securityPolicy.canAccessReceta(#id)")
     @Operation(summary = "Obtener datos de una receta medica")
-    public ResponseEntity<RecetaDigital> obtenerReceta(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<RecetaDigitalDtoResponse> obtenerReceta(@PathVariable Long id) {
         RecetaDigital receta = recetaServicio.obtenerPorId(id);
-        validarPropiedadReceta(receta, authentication);
-        return ResponseEntity.ok(receta);
+        return ResponseEntity.ok(recetaDigitalMapper.toDto(receta));
     }
 
     @GetMapping("/recetas/{id}/pdf")
+    @PreAuthorize("@securityPolicy.canAccessReceta(#id)")
     @Operation(summary = "Descargar receta medica oficial en PDF con codigo QR y Hash SHA-256")
-    public ResponseEntity<byte[]> descargarRecetaPdf(@PathVariable Long id, Authentication authentication) {
-        RecetaDigital receta = recetaServicio.obtenerPorId(id);
-        validarPropiedadReceta(receta, authentication);
+    public ResponseEntity<byte[]> descargarRecetaPdf(@PathVariable Long id) {
         byte[] pdfBytes = recetaServicio.generarPdf(id);
 
         HttpHeaders headers = new HttpHeaders();
@@ -98,27 +87,33 @@ public class RecetaControlador {
     public ResponseEntity<Map<String, Object>> verificarDocumentoPublico(@PathVariable String hash) {
         return ResponseEntity.ok(recetaServicio.verificarDocumentoPublico(hash));
     }
+
     @GetMapping("/recetas/paciente/{pacienteId}")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Listar recetas medicas digitales por paciente")
-    public ResponseEntity<List<RecetaDigital>> listarPorPaciente(
+    public ResponseEntity<List<RecetaDigitalDtoResponse>> listarPorPaciente(
             @PathVariable Long pacienteId,
-            @RequestParam(required = false) String estado,
-            Authentication authentication) {
-        return ResponseEntity.ok(recetaServicio.listarPorPaciente(pacienteId, estado));
+            @RequestParam(required = false) String estado) {
+        List<RecetaDigital> recetas = recetaServicio.listarPorPaciente(pacienteId, estado);
+        return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
     }
 
     @PatchMapping("/recetas/{id}/anular")
-    public ResponseEntity<RecetaDigital> anularReceta(
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<RecetaDigitalDtoResponse> anularReceta(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> payload,
             Principal principal) {
         String motivo = payload != null ? payload.get("motivo") : null;
-        return ResponseEntity.ok(recetaServicio.anularReceta(id, motivo, principal != null ? principal.getName() : null));
+        RecetaDigital receta = recetaServicio.anularReceta(id, motivo, principal != null ? principal.getName() : null);
+        return ResponseEntity.ok(recetaDigitalMapper.toDto(receta));
     }
+
     @GetMapping("/recetas/farmacologia/monodrogas")
     public ResponseEntity<List<String>> listarMonodrogas(@RequestParam(required = false) String query) {
         return ResponseEntity.ok(catalogoFarmacologicoServicio.buscarMonodrogas(query));
     }
+
     @PostMapping("/recetas/actualizar-vencimientos")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<Map<String, Object>> marcarRecetasVencidas() {
@@ -128,7 +123,8 @@ public class RecetaControlador {
 
     @GetMapping("/recetas/cie10/{codigo}")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
-    public ResponseEntity<List<RecetaDigital>> listarPorCie10(@PathVariable String codigo) {
-        return ResponseEntity.ok(recetaServicio.listarPorCodigoCie10(codigo));
+    public ResponseEntity<List<RecetaDigitalDtoResponse>> listarPorCie10(@PathVariable String codigo) {
+        List<RecetaDigital> recetas = recetaServicio.listarPorCodigoCie10(codigo);
+        return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
     }
 }

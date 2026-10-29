@@ -1,15 +1,12 @@
 package com.SaludUnificada.Esu.servicio;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
-
+import com.SaludUnificada.Esu.dto.response.LogAuditoriaSeguridadDtoResponse;
 import com.SaludUnificada.Esu.entidad.LogAuditoriaSeguridad;
 import com.SaludUnificada.Esu.repositorio.LogAuditoriaSeguridadRepositorio;
+import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,19 +14,26 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AuditoriaSeguridadServicio {
 
-    private static final Logger log = LoggerFactory.getLogger(AuditoriaSeguridadServicio.class);
     private static final int MAX_INTENTOS_FALLIDOS = 5;
     private static final int VENTANA_MINUTOS = 10;
 
-    @Autowired
-    private LogAuditoriaSeguridadRepositorio auditoriaRepositorio;
+    private final LogAuditoriaSeguridadRepositorio auditoriaRepositorio;
+    private final RequestIpUtil requestIpUtil;
+
+    private final Map<String, Instant> ultimoReenvioVerificacion = new ConcurrentHashMap<>();
+    private final Map<String, Instant> ultimaSolicitudRecuperacion = new ConcurrentHashMap<>();
 
     @Transactional
     public void registrarLoginExitoso(String email) {
@@ -58,7 +62,7 @@ public class AuditoriaSeguridadServicio {
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(userAgent);
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.LOGIN_FAIL);
-        logEntry.setDetalle(motivo != null ? motivo : "Credenciales incorrectas");
+        logEntry.setDetalle(motivo != null ? motivo : "Credenciales inválidas.");
         logEntry.setFecha(LocalDateTime.now());
 
         auditoriaRepositorio.save(logEntry);
@@ -70,8 +74,8 @@ public class AuditoriaSeguridadServicio {
             return false;
         }
 
-        LocalDateTime limite = LocalDateTime.now().minusMinutes(VENTANA_MINUTOS);
-        List<LogAuditoriaSeguridad> eventos = auditoriaRepositorio.findEventosRecientesPorEmail(email.trim().toLowerCase(), limite);
+        LocalDateTime ventana = LocalDateTime.now().minusMinutes(VENTANA_MINUTOS);
+        List<LogAuditoriaSeguridad> eventos = auditoriaRepositorio.findEventosRecientesPorEmail(email.trim().toLowerCase(), ventana);
 
         int fallosConsecutivos = 0;
         for (LogAuditoriaSeguridad ev : eventos) {
@@ -88,24 +92,28 @@ public class AuditoriaSeguridadServicio {
         return false;
     }
 
-    public Page<LogAuditoriaSeguridad> listarAuditoria(Pageable pageable) {
-        return auditoriaRepositorio.findAllByOrderByFechaDesc(pageable);
+    public Page<LogAuditoriaSeguridadDtoResponse> listarAuditoria(Pageable pageable) {
+        return auditoriaRepositorio.findAllByOrderByFechaDesc(pageable).map(this::toDto);
+    }
+
+    public LogAuditoriaSeguridadDtoResponse toDto(LogAuditoriaSeguridad entity) {
+        if (entity == null) return null;
+        return LogAuditoriaSeguridadDtoResponse.builder()
+                .id(entity.getId())
+                .email(entity.getEmail())
+                .ipAddress(entity.getIpAddress())
+                .userAgent(entity.getUserAgent())
+                .evento(entity.getEvento() != null ? entity.getEvento().name() : "")
+                .detalle(entity.getDetalle())
+                .fecha(entity.getFecha())
+                .build();
     }
 
     private String obtenerClientIp() {
         try {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String xForwardedFor = request.getHeader("X-Forwarded-For");
-                if (xForwardedFor != null && !xForwardedFor.isBlank() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
-                    return xForwardedFor.split(",")[0].trim();
-                }
-                String xRealIp = request.getHeader("X-Real-IP");
-                if (xRealIp != null && !xRealIp.isBlank() && !"unknown".equalsIgnoreCase(xRealIp)) {
-                    return xRealIp.trim();
-                }
-                return request.getRemoteAddr();
+            if (attributes != null && requestIpUtil != null) {
+                return requestIpUtil.obtenerIpCliente(attributes.getRequest());
             }
         } catch (Exception ignored) {
         }
@@ -125,9 +133,6 @@ public class AuditoriaSeguridadServicio {
         }
         return "Unknown-Client";
     }
-
-    private final Map<String, Instant> ultimoReenvioVerificacion = new ConcurrentHashMap<>();
-    private final Map<String, Instant> ultimaSolicitudRecuperacion = new ConcurrentHashMap<>();
 
     public boolean puedeReenviarVerificacion(String email) {
         if (email == null || email.isBlank()) {

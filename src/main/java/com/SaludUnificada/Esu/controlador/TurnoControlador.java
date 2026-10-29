@@ -6,8 +6,6 @@ import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
-import com.SaludUnificada.Esu.entidad.Paciente;
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.servicio.ITurnoServicio;
 import com.SaludUnificada.Esu.servicio.RecordatorioTurnoServicio;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,16 +16,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -43,26 +38,6 @@ public class TurnoControlador {
 
     private final ITurnoServicio turnoServicio;
     private final RecordatorioTurnoServicio recordatorioTurnoServicio;
-
-    @Autowired(required = false)
-    private PacienteRepositorio pacienteRepositorio;
-
-    private void validarPropiedadPaciente(Long pacienteId, Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) {
-            return;
-        }
-        boolean esPersonal = auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_MEDICO") ||
-                a.getAuthority().equals("ROLE_PROFESIONAL") ||
-                a.getAuthority().equals("ROLE_RECEPCIONISTA"));
-        if (!esPersonal && pacienteRepositorio != null) {
-            Paciente p = pacienteRepositorio.findByUsuarioEmail(auth.getName()).orElse(null);
-            if (p != null && !p.getId().equals(pacienteId)) {
-                throw new AccessDeniedException("No posee autorizacion para acceder a los turnos de otro paciente");
-            }
-        }
-    }
 
     @Operation(summary = "Registrar sobreturno medico de urgencia en sala")
     @ApiResponses({
@@ -89,6 +64,7 @@ public class TurnoControlador {
     }
 
     @GetMapping("/disponibles")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<LocalDateTime>> obtenerDisponibilidad(
             @RequestParam Long profesionalId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
@@ -102,6 +78,7 @@ public class TurnoControlador {
     }
 
     @GetMapping("/obtener/{id}")
+    @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<TurnoDtoResponse> obtenerTurnoPorId(@PathVariable Long id) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnoPorId(id));
     }
@@ -113,13 +90,14 @@ public class TurnoControlador {
     }
 
     @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminarTurno(@PathVariable Long id) {
         turnoServicio.eliminarTurno(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/filtrar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     public ResponseEntity<List<TurnoDtoResponse>> filtrarTurnos(
             @RequestParam Long profesionalId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fechaHora) {
@@ -127,21 +105,20 @@ public class TurnoControlador {
     }
 
     @GetMapping("/paciente/{pacienteId}")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosPorPaciente(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+            @PathVariable Long pacienteId) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosPorPaciente(pacienteId));
     }
 
     @PutMapping("/{id}/cancelar")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<TurnoDtoResponse> cancelarTurno(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.cancelarTurno(id, principal != null ? principal.getName() : null));
     }
 
     @PutMapping("/{id}/reprogramar")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<TurnoDtoResponse> reprogramarTurno(
             @PathVariable Long id,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime nuevaFechaHora,
@@ -172,7 +149,7 @@ public class TurnoControlador {
 
     @Operation(summary = "Descargar certificado oficial de asistencia a consulta medica en PDF")
     @GetMapping("/{id}/certificado-asistencia")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<byte[]> descargarCertificadoAsistencia(@PathVariable Long id, Principal principal) {
         byte[] pdfBytes = turnoServicio.generarCertificadoAsistencia(id, principal != null ? principal.getName() : null);
         HttpHeaders headers = new HttpHeaders();
@@ -180,27 +157,26 @@ public class TurnoControlador {
         headers.setContentDispositionFormData("inline", "certificado_asistencia_turno_" + id + ".pdf");
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
+
     @GetMapping("/paciente/{pacienteId}/proximos")
-    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosProximos(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosProximos(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosProximosPaciente(pacienteId));
     }
 
     @GetMapping("/paciente/{pacienteId}/historial")
-    public ResponseEntity<List<TurnoDtoResponse>> obtenerHistorialTurnos(
-            @PathVariable Long pacienteId,
-            Authentication authentication) {
-        validarPropiedadPaciente(pacienteId, authentication);
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerHistorialTurnos(@PathVariable Long pacienteId) {
         return ResponseEntity.ok(turnoServicio.obtenerHistorialTurnosPaciente(pacienteId));
     }
+
     @PatchMapping("/recordatorios/{id}/leido")
     @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<Void> marcarRecordatorioLeido(@PathVariable Long id, Principal principal) {
         recordatorioTurnoServicio.marcarComoLeido(id, principal != null ? principal.getName() : null);
         return ResponseEntity.noContent().build();
     }
+
     @PutMapping("/{id}/ausente")
     @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<TurnoDtoResponse> marcarAusente(@PathVariable Long id, Principal principal) {
