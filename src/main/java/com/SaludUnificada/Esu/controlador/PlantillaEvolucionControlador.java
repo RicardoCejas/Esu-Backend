@@ -34,4 +34,16 @@ public class PlantillaEvolucionControlador {
             @Valid @RequestBody PlantillaEvolucionDtoRequest request) {
         return new ResponseEntity<>(plantillaServicio.crearPlantilla(request), HttpStatus.CREATED);
     }
+    @GetMapping("/{id}")
+    @Operation(summary = "Obtener detalle de plantilla clínica por ID")
+    public ResponseEntity<PlantillaEvolucionDtoResponse> obtenerPlantilla(@PathVariable Long id) {
+        return ResponseEntity.ok(plantillaServicio.obtenerPorId(id));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Desactivar plantilla clínica por ID")
+    public ResponseEntity<Void> desactivarPlantilla(@PathVariable Long id) {
+        plantillaServicio.cambiarEstadoPlantilla(id, false);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -67,4 +67,10 @@ public class UsuarioControlador {
         carnetYFamiliarServicio.actualizarPreferencias(targetEmail, request);
         return ResponseEntity.noContent().build();
     }
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<UsuarioDtoResponse> cambiarEstado(
+            @PathVariable Long id,
+            @RequestParam boolean activo) {
+        return ResponseEntity.ok(usuarioServicio.cambiarEstadoActivo(id, activo));
+    }
 }

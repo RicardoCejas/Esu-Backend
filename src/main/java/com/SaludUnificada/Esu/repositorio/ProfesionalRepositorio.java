@@ -14,6 +14,8 @@ import java.util.List;
 @Repository
 public interface ProfesionalRepositorio extends JpaRepository<Profesional, Long> {
 
+    boolean existsByMatricula(String matricula);
+    Optional<Profesional> findByMatricula(String matricula);
     List<Profesional> findByEspecialidadesId(Long especialidadId);
 
     List<Profesional> findByEspecialidades_Id(Long especialidadId);

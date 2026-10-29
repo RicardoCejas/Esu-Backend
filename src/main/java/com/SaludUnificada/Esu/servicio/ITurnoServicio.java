@@ -19,6 +19,8 @@ public interface ITurnoServicio {
     void eliminarTurno(Long id);
     List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora);
     List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId);
+    List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId);
+    List<TurnoDtoResponse> obtenerHistorialTurnosPaciente(Long pacienteId);
     TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado);
     TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado);
 

@@ -14,4 +14,5 @@ public interface IProfesionalServicio {
     List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId);
     List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad);
     Profesional obtenerEntidadProfesionalPorId(Long id);
+    ProfesionalDtoResponse cambiarEstadoActivo(Long id, boolean activo);
 }

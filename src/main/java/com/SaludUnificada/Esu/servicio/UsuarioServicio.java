@@ -77,4 +77,11 @@ public class UsuarioServicio implements IUsuarioServicio {
         return usuarioRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id));
     }
+    @Override
+    public UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        usuario.setEstadoActivo(activo);
+        Usuario guardado = usuarioRepositorio.save(usuario);
+        return usuarioMapper.paraDto(guardado);
+    }
 }

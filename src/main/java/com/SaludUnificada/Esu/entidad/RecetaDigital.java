@@ -67,6 +67,12 @@ public class RecetaDigital {
     @Column(name = "codigo_qr_url", length = 500)
     private String codigoQrUrl;
 
+    @Column(name = "motivo_anulacion", length = 300)
+    private String motivoAnulacion;
+
+    @Column(name = "fecha_anulacion")
+    private LocalDateTime fechaAnulacion;
+
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 

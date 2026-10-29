@@ -180,4 +180,19 @@ public class TurnoControlador {
         headers.setContentDispositionFormData("inline", "certificado_asistencia_turno_" + id + ".pdf");
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
+    @GetMapping("/paciente/{pacienteId}/proximos")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosProximos(
+            @PathVariable Long pacienteId,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosProximosPaciente(pacienteId));
+    }
+
+    @GetMapping("/paciente/{pacienteId}/historial")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerHistorialTurnos(
+            @PathVariable Long pacienteId,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
+        return ResponseEntity.ok(turnoServicio.obtenerHistorialTurnosPaciente(pacienteId));
+    }
 }

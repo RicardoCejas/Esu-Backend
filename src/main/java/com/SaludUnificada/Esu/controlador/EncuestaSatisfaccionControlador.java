@@ -40,4 +40,13 @@ public class EncuestaSatisfaccionControlador {
     public ResponseEntity<Map<String, Object>> obtenerMetricasSatisfaccion() {
         return ResponseEntity.ok(encuestaServicio.obtenerMetricasSatisfaccion());
     }
+    @GetMapping("/profesional/{profesionalId}")
+    public ResponseEntity<Map<String, Object>> obtenerMetricasPorProfesional(@PathVariable Long profesionalId) {
+        return ResponseEntity.ok(encuestaServicio.obtenerMetricasSatisfaccionPorProfesional(profesionalId));
+    }
+
+    @GetMapping("/turno/{turnoId}/existe")
+    public ResponseEntity<Map<String, Object>> verificarTurnoEncuestado(@PathVariable Long turnoId) {
+        return ResponseEntity.ok(encuestaServicio.verificarTurnoEncuestado(turnoId));
+    }
 }

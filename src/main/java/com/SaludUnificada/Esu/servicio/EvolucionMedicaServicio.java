@@ -86,7 +86,6 @@ public class EvolucionMedicaServicio {
         evolucion.setDescripcionCie10(request.getDescripcionCie10());
         evolucion.setTratamiento(request.getTratamiento());
 
-        // Signos vitales
         evolucion.setPresionArterial(request.getPresionArterial());
         evolucion.setFrecuenciaCardiaca(request.getFrecuenciaCardiaca());
         evolucion.setTemperatura(request.getTemperatura());
@@ -94,7 +93,6 @@ public class EvolucionMedicaServicio {
         evolucion.setTalla(request.getTalla());
         evolucion.setImc(request.getImc());
 
-        // Firma electrónica inalterable
         if (Boolean.TRUE.equals(request.getFirmar())) {
             evolucion.setFirmada(true);
             evolucion.setFechaFirma(LocalDateTime.now());
@@ -110,7 +108,6 @@ public class EvolucionMedicaServicio {
 
         EvolucionMedica guardada = evolucionRepositorio.save(evolucion);
 
-        // Si incluye medicamentos prescriptos
         if (request.getMedicamentos() != null && !request.getMedicamentos().isEmpty()) {
             RecetaDigitalDtoRequest rRequest = new RecetaDigitalDtoRequest();
             rRequest.setPacienteId(paciente.getId());
@@ -203,11 +200,10 @@ public class EvolucionMedicaServicio {
             dto.setFechaNacimiento(paciente.getFechaNacimiento().toString());
             dto.setEdad(Period.between(paciente.getFechaNacimiento(), LocalDate.now()).getYears());
         } else {
-            dto.setEdad(34); // fallback representativo
+            dto.setEdad(34);
             dto.setFechaNacimiento("1992-05-14");
         }
 
-        // Alertas médicas críticas obtenidas de la base de datos (HU-104 / HU-76)
         List<AlergiaPaciente> alergias = alergiaRepositorio.findByPacienteIdAndActivoTrueOrderByFechaRegistroDesc(pacienteId);
         if (!alergias.isEmpty()) {
             List<String> alertas = alergias.stream()
@@ -223,14 +219,30 @@ public class EvolucionMedicaServicio {
             ));
         }
 
-        // Antecedentes
-        dto.setAntecedentes(List.of(
-            "Asma bronquial diagnosticada en 2018",
-            "Apendicectomía laparoscópica (2021)",
-            "Vacunación antigripal anual al día"
-        ));
+        List<EvolucionMedica> evolucionesPrevias = evolucionRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
+        List<String> diagnosticosPrevios = evolucionesPrevias.stream()
+                .map(EvolucionMedica::getDiagnostico)
+                .filter(d -> d != null && !d.isBlank())
+                .distinct()
+                .limit(5)
+                .collect(Collectors.toList());
 
-        // Buscar última evolución médica para signos vitales
+        if (diagnosticosPrevios.isEmpty()) {
+            List<HistoriaClinica> hcList = historiaClinicaRepositorio.findByPacienteId(pacienteId);
+            diagnosticosPrevios = hcList.stream()
+                    .map(HistoriaClinica::getDiagnostico)
+                    .filter(d -> d != null && !d.isBlank())
+                    .distinct()
+                    .limit(5)
+                    .collect(Collectors.toList());
+        }
+
+        if (!diagnosticosPrevios.isEmpty()) {
+            dto.setAntecedentes(diagnosticosPrevios);
+        } else {
+            dto.setAntecedentes(List.of("Sin antecedentes patologicos diagnosticados"));
+        }
+
         List<EvolucionMedica> evoluciones = evolucionRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
         if (!evoluciones.isEmpty()) {
             EvolucionMedica ult = evoluciones.get(0);
@@ -265,9 +277,6 @@ public class EvolucionMedicaServicio {
         return evoluciones.stream().map(this::convertirATimelineItem).collect(Collectors.toList());
     }
 
-    /**
-     * Búsqueda Parametrizada y Paginación Optimizada del Timeline Clínico (HU-102)
-     */
     public Page<TimelineItemDto> obtenerTimelineParametrizado(
             Long pacienteId,
             String q,

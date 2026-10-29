@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.ProfesionalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.ProfesionalDtoResponse;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
@@ -28,8 +29,13 @@ public class ProfesionalServicio implements IProfesionalServicio {
     @Transactional
     public ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesionalDto) {
         if (profesionalDto.getMatricula() == null || profesionalDto.getMatricula().isBlank()) {
-            throw new IllegalArgumentException("La matrícula del profesional es obligatoria");
+            throw new IllegalArgumentException("La matricula del profesional es obligatoria");
         }
+        String matriculaLimpia = profesionalDto.getMatricula().trim().toUpperCase();
+        if (profesionalRepositorio.existsByMatricula(matriculaLimpia)) {
+            throw new ReglaNegocioException("Ya existe un profesional registrado con la matricula: " + matriculaLimpia);
+        }
+        profesionalDto.setMatricula(matriculaLimpia);
         Profesional profesional = profesionalMapper.paraEntidad(profesionalDto);
         Profesional profesionalGuardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(profesionalGuardado);
@@ -94,5 +100,13 @@ public class ProfesionalServicio implements IProfesionalServicio {
     public Profesional obtenerEntidadProfesionalPorId(Long id) {
         return profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+    }
+    @Override
+    @Transactional
+    public ProfesionalDtoResponse cambiarEstadoActivo(Long id, boolean activo) {
+        Profesional profesional = obtenerEntidadProfesionalPorId(id);
+        profesional.setEstadoActivo(activo);
+        Profesional guardado = profesionalRepositorio.save(profesional);
+        return profesionalMapper.paraDto(guardado);
     }
 }

@@ -17,6 +17,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -91,5 +93,22 @@ public class RecetaControlador {
     @Operation(summary = "Endpoint publico para verificar autenticidad e integridad mediante QR o Hash")
     public ResponseEntity<Map<String, Object>> verificarDocumentoPublico(@PathVariable String hash) {
         return ResponseEntity.ok(recetaServicio.verificarDocumentoPublico(hash));
+    }
+    @GetMapping("/recetas/paciente/{pacienteId}")
+    @Operation(summary = "Listar recetas medicas digitales por paciente")
+    public ResponseEntity<List<RecetaDigital>> listarPorPaciente(
+            @PathVariable Long pacienteId,
+            @RequestParam(required = false) String estado,
+            Authentication authentication) {
+        return ResponseEntity.ok(recetaServicio.listarPorPaciente(pacienteId, estado));
+    }
+
+    @PatchMapping("/recetas/{id}/anular")
+    public ResponseEntity<RecetaDigital> anularReceta(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> payload,
+            Principal principal) {
+        String motivo = payload != null ? payload.get("motivo") : null;
+        return ResponseEntity.ok(recetaServicio.anularReceta(id, motivo, principal != null ? principal.getName() : null));
     }
 }

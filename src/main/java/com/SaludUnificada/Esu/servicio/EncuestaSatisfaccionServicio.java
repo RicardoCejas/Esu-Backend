@@ -77,4 +77,21 @@ public class EncuestaSatisfaccionServicio {
         metricas.put("npsEstimado", totalEncuestas > 0 ? "SATISFACTORIO" : "SIN_DATOS");
         return metricas;
     }
+    @Transactional(readOnly = true)
+    public Map<String, Object> obtenerMetricasSatisfaccionPorProfesional(Long profesionalId) {
+        Double promedio = encuestaRepositorio.obtenerPromedioPuntuacionProfesional(profesionalId);
+        Map<String, Object> metricas = new HashMap<>();
+        metricas.put("profesionalId", profesionalId);
+        metricas.put("promedioEstrellas", promedio != null ? Math.round(promedio * 100.0) / 100.0 : 0.0);
+        return metricas;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> verificarTurnoEncuestado(Long turnoId) {
+        boolean encuestado = encuestaRepositorio.existsByTurnoId(turnoId);
+        Map<String, Object> res = new HashMap<>();
+        res.put("turnoId", turnoId);
+        res.put("encuestado", encuestado);
+        return res;
+    }
 }

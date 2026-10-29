@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/estudios")
@@ -101,5 +102,17 @@ public class EstudioAdjuntoControlador {
     @Operation(summary = "Listar los estudios medicos adjuntos a una consulta clinica especifica")
     public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorEvolucion(@PathVariable Long evolucionId) {
         return ResponseEntity.ok(estudioServicio.listarPorEvolucion(evolucionId));
+    }
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Void> eliminarEstudio(@PathVariable Long id, Authentication authentication) {
+        estudioServicio.eliminarEstudio(id, authentication);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/paciente/{pacienteId}/espacio")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Map<String, Object>> obtenerEspacioOcupado(@PathVariable Long pacienteId) {
+        return ResponseEntity.ok(estudioServicio.obtenerEspacioOcupadoPorPaciente(pacienteId));
     }
 }

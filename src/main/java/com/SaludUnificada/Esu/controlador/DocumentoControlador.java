@@ -53,9 +53,6 @@ public class DocumentoControlador {
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
-    /**
-     * HU-107: Generación y descarga streaming del expediente clínico completo en PDF foliado
-     */
     @GetMapping("/historia-clinica/{pacienteId}/pdf-completo")
     @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Descarga streaming del expediente clínico integral foliado (Página X de Y, QR y Hash SHA-256)")
@@ -80,7 +77,6 @@ public class DocumentoControlador {
                 paciente, hc, evoluciones, recetas, urlVerificacion
         );
 
-        // Registro de Auditoría Legal obligatorio en log_acceso_hc (Ley 26.529)
         registrarAuditoriaDescarga(pacienteId, httpRequest);
 
         StreamingResponseBody responseBody = outputStream -> {
@@ -106,9 +102,6 @@ public class DocumentoControlador {
                 .body(responseBody);
     }
 
-    /**
-     * Previsualización rápida de documentos PDF antes de firma (HU-79 Frontend)
-     */
     @PostMapping("/previsualizar-pdf")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Previsualizar PDF en vivo antes de la firma digital inalterable")

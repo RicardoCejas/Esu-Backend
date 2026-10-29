@@ -75,4 +75,11 @@ public class ProfesionalControlador {
     public ResponseEntity<List<ProfesionalDtoResponse>> filtrarPorEspecialidad(@PathVariable Long especialidadId) {
         return ResponseEntity.ok(profesionalServicio.filtrarPorEspecialidad(especialidadId));
     }
+    @PatchMapping("/{id}/estado")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ProfesionalDtoResponse> cambiarEstado(
+            @PathVariable Long id,
+            @RequestParam boolean activo) {
+        return ResponseEntity.ok(profesionalServicio.cambiarEstadoActivo(id, activo));
+    }
 }

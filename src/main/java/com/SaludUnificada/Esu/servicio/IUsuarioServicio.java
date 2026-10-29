@@ -14,4 +14,5 @@ public interface IUsuarioServicio {
     UsuarioDtoResponse findByUsername(String username);
     List<UsuarioDtoResponse> findByActivo(boolean estado);
     Usuario obtenerEntidadUsuarioPorId(Long id);
+    UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo);
 }

@@ -9,6 +9,7 @@ import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.error.RecetaVencidaException;
 import com.SaludUnificada.Esu.error.RecetaYaDispensadaException;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
@@ -54,7 +55,6 @@ public class RecetaDigitalServicio {
     public RecetaDigital emitirReceta(RecetaDigitalDtoRequest request) {
         validarProfesionalHabilitado(request.getProfesionalId());
 
-        // HU-104: Interceptor Clínico de Contraindicaciones y Alergias Preexistentes
         if (alergiaServicio != null) {
             alergiaServicio.validarContraindicaciones(request.getPacienteId(), request.getMedicamentos());
         }
@@ -65,7 +65,6 @@ public class RecetaDigitalServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
-        // Validación HU-106: No permitir duplicación del mismo principio activo dentro de la misma receta
         if (request.getMedicamentos() != null) {
             Set<String> principiosActivosVistos = new HashSet<>();
             for (MedicamentoItemDto item : request.getMedicamentos()) {
@@ -109,7 +108,6 @@ public class RecetaDigitalServicio {
         }
         receta.setMedicamentos(meds);
 
-        // Generar hash SHA-256 de integridad antes de persistir
         String textoParaHash = String.format("RECETA|%s|%s|%s|%s|%s|%s",
             paciente.getDni(),
             profesional.getMatricula(),
@@ -126,20 +124,16 @@ public class RecetaDigitalServicio {
 
         RecetaDigital guardada = recetaRepositorio.save(receta);
 
-        // HU-97: Envío asíncrono de notificación formal con receta digital en PDF adjunta
         try {
             byte[] pdfBytes = pdfServicio.generarRecetaPdf(guardada, qrUrl);
             emailServicio.enviarRecetaDigital(guardada, pdfBytes);
         } catch (Exception ignored) {
-            // Manejo preventivo sin interrumpir la emisión de la receta
+
         }
 
         return guardada;
     }
 
-    /**
-     * HU-105: Endpoint transaccional de dispensación farmacéutica
-     */
     @Transactional
     public DispensarRecetaDtoResponse dispensarReceta(DispensarRecetaDtoRequest request) {
         String claveBusqueda = extraerHashOId(request.getCodigoOQr());
@@ -147,7 +141,9 @@ public class RecetaDigitalServicio {
         RecetaDigital receta = buscarRecetaPorCodigoOHash(claveBusqueda)
             .orElseThrow(() -> new NoEncontradoExcepcion("No se encontró ninguna receta médica registrada con el identificador o QR: " + request.getCodigoOQr()));
 
-        // Validación de dispensación previa (HTTP 409)
+        if ("ANULADA".equalsIgnoreCase(receta.getEstadoReceta())) {
+            throw new ReglaNegocioException(String.format("La receta oficial #%d fue ANULADA y no puede ser dispensada.", receta.getId()));
+        }
         if ("DISPENSADA".equalsIgnoreCase(receta.getEstadoReceta()) || receta.getFechaDispensacion() != null) {
             throw new RecetaYaDispensadaException(
                 String.format("La receta oficial #%d (Hash: %s) ya fue DISPENSADA el %s por la farmacia matrícula %s.",
@@ -159,7 +155,6 @@ public class RecetaDigitalServicio {
             );
         }
 
-        // Validación de vigencia (HTTP 410)
         LocalDate hoy = LocalDate.now();
         if (receta.getFechaVencimiento() != null && receta.getFechaVencimiento().isBefore(hoy)) {
             receta.setEstadoReceta("VENCIDA");
@@ -172,7 +167,6 @@ public class RecetaDigitalServicio {
             );
         }
 
-        // Actualización transaccional
         receta.setEstadoReceta("DISPENSADA");
         receta.setFechaDispensacion(LocalDateTime.now());
         receta.setMatriculaFarmaciaDispensadora(request.getMatriculaFarmacia());
@@ -199,7 +193,6 @@ public class RecetaDigitalServicio {
         }
         String limpia = clave.trim();
 
-        // Si es numérico directo, buscar por ID
         if (limpia.matches("^\\d+$")) {
             Optional<RecetaDigital> porId = recetaRepositorio.findById(Long.parseLong(limpia));
             if (porId.isPresent()) return porId;
@@ -272,5 +265,30 @@ public class RecetaDigitalServicio {
         res.put("valido", false);
         res.put("mensaje", "No se encontró ningún documento oficial registrado con dicho código de verificación.");
         return res;
+    }
+    @Transactional
+    public RecetaDigital anularReceta(Long id, String motivo, String emailProfesional) {
+        RecetaDigital receta = obtenerPorId(id);
+        if ("DISPENSADA".equalsIgnoreCase(receta.getEstadoReceta())) {
+            throw new ReglaNegocioException("No es posible anular una receta medica que ya ha sido dispensada en farmacia.");
+        }
+        if ("ANULADA".equalsIgnoreCase(receta.getEstadoReceta())) {
+            throw new ReglaNegocioException("La receta medica ya se encuentra anulada.");
+        }
+        receta.setEstadoReceta("ANULADA");
+        receta.setMotivoAnulacion(motivo != null && !motivo.isBlank() ? motivo.trim() : "Anulada por prescripcion medica");
+        receta.setFechaAnulacion(LocalDateTime.now());
+        return recetaRepositorio.save(receta);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecetaDigital> listarPorPaciente(Long pacienteId, String estado) {
+        List<RecetaDigital> lista = recetaRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteId);
+        if (estado != null && !estado.isBlank()) {
+            return lista.stream()
+                    .filter(r -> estado.equalsIgnoreCase(r.getEstadoReceta()))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+        return lista;
     }
 }

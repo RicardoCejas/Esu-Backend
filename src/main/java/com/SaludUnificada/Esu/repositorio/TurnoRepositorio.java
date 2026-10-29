@@ -43,7 +43,6 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
             @Param("profesionalId") Long profesionalId,
             @Param("desde") LocalDateTime desde);
 
-    // HU-98: Consultas JPA agregadas con COUNT y GROUP BY para métricas y ausentismo
     @Query("SELECT t.estado, COUNT(t) FROM Turno t WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta GROUP BY t.estado")
     List<Object[]> contarTurnosPorEstadoYFechaHoraEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
 
@@ -55,4 +54,7 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
 
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH p.usuario LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.usuario WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta ORDER BY t.fechaHora ASC")
     List<Turno> findReporteTurnosEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
+    List<Turno> findByPacienteIdAndFechaHoraGreaterThanEqualOrderByFechaHoraAsc(Long pacienteId, LocalDateTime desde);
+
+    List<Turno> findByPacienteIdAndFechaHoraLessThanOrderByFechaHoraDesc(Long pacienteId, LocalDateTime hasta);
 }

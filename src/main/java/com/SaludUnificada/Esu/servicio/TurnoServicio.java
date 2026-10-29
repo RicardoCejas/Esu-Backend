@@ -32,7 +32,6 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.BloqueoAgendaRepositorio;
 import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
 
-
 import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -97,7 +96,6 @@ public class TurnoServicio implements ITurnoServicio {
     @Autowired(required = false)
     private DocumentoPdfServicio documentoPdfServicio;
 
-
     public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
 
                          PacienteRepositorio pacienteRepositorio, ProfesionalRepositorio profesionalRepositorio,
@@ -147,6 +145,10 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fechaHora = turnoDto.getFechaHora();
 
         validarHorario(fechaHora);
+        LocalDateTime ahora = LocalDateTime.now(this.clock);
+        if (fechaHora.isBefore(ahora)) {
+            throw new ReglaNegocioException("No es posible solicitar turnos medicos en fechas u horarios pasados.");
+        }
 
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
 
@@ -154,7 +156,6 @@ public class TurnoServicio implements ITurnoServicio {
         if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
             throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
         }
-
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
 
@@ -329,7 +330,6 @@ public class TurnoServicio implements ITurnoServicio {
 
         }
 
-        
         if (bloqueoAgendaRepositorio != null) {
             List<BloqueoAgenda> bloqueos = bloqueoAgendaRepositorio.findBloqueosEnRango(profesionalId, fecha.atStartOfDay(), fecha.plusDays(1).atStartOfDay());
             if (!bloqueos.isEmpty()) {
@@ -534,7 +534,6 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
         }
 
-
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO)) {
 
             throw new IllegalStateException("El nuevo horario solicitado ya no está disponible.");
@@ -558,11 +557,9 @@ public class TurnoServicio implements ITurnoServicio {
             );
         }
 
-
         return turnoMapper.paraDto(guardado);
 
     }
-
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -647,5 +644,24 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, "http://localhost:5173/validar-documento?codigo=" + turno.getId());
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId) {
+        LocalDateTime ahora = LocalDateTime.now(this.clock);
+        return turnoRepositorio.findByPacienteIdAndFechaHoraGreaterThanEqualOrderByFechaHoraAsc(pacienteId, ahora)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerHistorialTurnosPaciente(Long pacienteId) {
+        LocalDateTime ahora = LocalDateTime.now(this.clock);
+        return turnoRepositorio.findByPacienteIdAndFechaHoraLessThanOrderByFechaHoraDesc(pacienteId, ahora)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
     }
 }

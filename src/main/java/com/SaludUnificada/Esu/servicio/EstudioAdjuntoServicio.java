@@ -27,7 +27,9 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -43,7 +45,7 @@ public class EstudioAdjuntoServicio {
     @Value("${esu.uploads.estudios.dir:uploads/estudios}")
     private String directorioCargas;
 
-    private static final long MAX_FILE_SIZE = 15L * 1024 * 1024; // 15MB
+    private static final long MAX_FILE_SIZE = 15L * 1024 * 1024;
     private static final Set<String> EXTENSIONES_PERMITIDAS = Set.of("pdf", "png", "jpg", "jpeg");
     private static final Set<String> EXTENSIONES_PROHIBIDAS = Set.of(
             "exe", "bat", "cmd", "sh", "msi", "jar", "bin", "com", "vbs", "js", "ps1", "scr", "pif"
@@ -121,7 +123,6 @@ public class EstudioAdjuntoServicio {
             Path baseDir = Paths.get(directorioCargas).toAbsolutePath().normalize();
             Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
 
-            // Prevención de Path Traversal
             if (!ruta.startsWith(baseDir)) {
                 throw new SecurityException("Acceso no autorizado: la ruta del archivo se encuentra fuera del directorio permitido.");
             }
@@ -215,5 +216,29 @@ public class EstudioAdjuntoServicio {
                 entidad.getFechaCarga(),
                 "/api/estudios/" + entidad.getId() + "/descargar"
         );
+    }
+    @Transactional
+    public void eliminarEstudio(Long estudioId, Authentication auth) {
+        EstudioAdjunto entidad = obtenerPorId(estudioId);
+        validarAccesoEstudio(entidad, auth);
+        try {
+            Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
+            Files.deleteIfExists(ruta);
+        } catch (Exception ignored) {
+        }
+        estudioRepositorio.delete(entidad);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> obtenerEspacioOcupadoPorPaciente(Long pacienteId) {
+        List<EstudioAdjunto> lista = estudioRepositorio.findByPacienteIdOrderByFechaCargaDesc(pacienteId);
+        long totalBytes = lista.stream().mapToLong(e -> e.getTamanioBytes() != null ? e.getTamanioBytes() : 0L).sum();
+        double totalMb = Math.round((totalBytes / (1024.0 * 1024.0)) * 100.0) / 100.0;
+        Map<String, Object> res = new HashMap<>();
+        res.put("pacienteId", pacienteId);
+        res.put("totalEstudios", lista.size());
+        res.put("totalBytes", totalBytes);
+        res.put("totalMegabytes", totalMb);
+        return res;
     }
 }

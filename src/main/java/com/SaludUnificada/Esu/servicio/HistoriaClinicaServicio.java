@@ -53,9 +53,9 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     }
 
     @Override
-    public List<HistoriaClinicaDtoResponse> buscarPorPacienteId(Long pacienteId) { // Tipo de retorno corregido
+    public List<HistoriaClinicaDtoResponse> buscarPorPacienteId(Long pacienteId) {
         List<HistoriaClinica> historiasClinicas = historiaClinicaRepositorio.findByPacienteId(pacienteId);
-        // Mapear la lista de entidades a una lista de DTOs
+
         return historiasClinicas.stream()
                 .map(historiaClinicaMapper::paraDto)
                 .collect(Collectors.toList());

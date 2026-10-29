@@ -72,19 +72,15 @@ public class PlantillaEvolucionServicio {
             .build();
     }
 
-    /**
-     * Precarga de datos: al menos tres plantillas iniciales (Pediatría, Clínica Médica, Cardiología)
-     */
     @PostConstruct
     public void precargarPlantillasIniciales() {
         try {
             if (plantillaRepositorio.count() == 0) {
-                // Buscar o crear especialidades si hiciera falta
+
                 Especialidad pediatria = obtenerOCrearEspecialidad("Pediatría");
                 Especialidad clinica = obtenerOCrearEspecialidad("Clínica Médica");
                 Especialidad cardiologia = obtenerOCrearEspecialidad("Cardiología");
 
-                // 1. Pediatría
                 PlantillaEvolucion p1 = new PlantillaEvolucion();
                 p1.setTitulo("Control de Crecimiento y Desarrollo Infantil");
                 p1.setEspecialidad(pediatria);
@@ -96,7 +92,6 @@ public class PlantillaEvolucionServicio {
                 p1.setFechaCreacion(LocalDateTime.now());
                 plantillaRepositorio.save(p1);
 
-                // 2. Clínica Médica
                 PlantillaEvolucion p2 = new PlantillaEvolucion();
                 p2.setTitulo("Consulta General del Adulto - Seguimiento");
                 p2.setEspecialidad(clinica);
@@ -108,7 +103,6 @@ public class PlantillaEvolucionServicio {
                 p2.setFechaCreacion(LocalDateTime.now());
                 plantillaRepositorio.save(p2);
 
-                // 3. Cardiología
                 PlantillaEvolucion p3 = new PlantillaEvolucion();
                 p3.setTitulo("Evaluación Cardiovascular e Hipertensión Arterial");
                 p3.setEspecialidad(cardiologia);
@@ -121,7 +115,7 @@ public class PlantillaEvolucionServicio {
                 plantillaRepositorio.save(p3);
             }
         } catch (Exception ignored) {
-            // Silencioso en caso de inicializaciones en contextos donde la tabla aún se está creando
+
         }
     }
 
@@ -133,5 +127,18 @@ public class PlantillaEvolucionServicio {
         Especialidad e = new Especialidad();
         e.setNombre(nombre);
         return especialidadRepositorio.save(e);
+    }
+    public PlantillaEvolucionDtoResponse obtenerPorId(Long id) {
+        PlantillaEvolucion p = plantillaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Plantilla no encontrada con ID: " + id));
+        return mapearADto(p);
+    }
+
+    @Transactional
+    public void cambiarEstadoPlantilla(Long id, boolean activo) {
+        PlantillaEvolucion p = plantillaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Plantilla no encontrada con ID: " + id));
+        p.setActivo(activo);
+        plantillaRepositorio.save(p);
     }
 }
