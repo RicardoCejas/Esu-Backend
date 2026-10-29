@@ -22,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -361,6 +363,11 @@ public class RecetaDigitalServicio {
                     .collect(java.util.stream.Collectors.toList());
         }
         return lista;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecetaDigital> listarPorPacientePaginado(Long pacienteId, Pageable pageable) {
+        return recetaRepositorio.findByPacienteId(pacienteId, pageable);
     }
 
     @Transactional

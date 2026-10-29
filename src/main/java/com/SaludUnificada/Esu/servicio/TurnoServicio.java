@@ -42,6 +42,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.beans.factory.annotation.Value;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -395,9 +397,13 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional(readOnly = true)
 
     public List<TurnoDtoResponse> listarTodos() {
-
         return turnoRepositorio.findAll().stream().map(turnoMapper::paraDto).collect(Collectors.toList());
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<TurnoDtoResponse> listarPaginados(Pageable pageable) {
+        return turnoRepositorio.findAll(pageable).map(turnoMapper::paraDto);
     }
 
     @Override

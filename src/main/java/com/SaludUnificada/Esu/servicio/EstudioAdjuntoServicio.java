@@ -191,7 +191,11 @@ public class EstudioAdjuntoServicio {
     public Resource descargarArchivo(Long estudioId) {
         EstudioAdjunto estudio = obtenerPorId(estudioId);
         try {
+            Path basePath = Paths.get(directorioCargas).toAbsolutePath().normalize();
             Path ruta = Paths.get(estudio.getRutaAlmacenamiento()).toAbsolutePath().normalize();
+            if (!ruta.startsWith(basePath)) {
+                throw new SecurityException("Acceso a ruta de archivo no permitida (Path Traversal prevenido).");
+            }
             Resource resource = new UrlResource(ruta.toUri());
             if (resource.exists() && resource.isReadable()) {
                 return resource;
@@ -286,7 +290,11 @@ public class EstudioAdjuntoServicio {
     public void eliminarEstudio(Long estudioId, Authentication auth) {
         EstudioAdjunto entidad = obtenerPorId(estudioId);
         validarAccesoEstudio(entidad, auth);
-        limpiarArchivoFisico(Paths.get(entidad.getRutaAlmacenamiento()));
+        Path basePath = Paths.get(directorioCargas).toAbsolutePath().normalize();
+        Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
+        if (ruta.startsWith(basePath)) {
+            limpiarArchivoFisico(ruta);
+        }
         estudioRepositorio.delete(entidad);
     }
 

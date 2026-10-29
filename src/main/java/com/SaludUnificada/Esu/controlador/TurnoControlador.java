@@ -18,6 +18,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -87,6 +89,12 @@ public class TurnoControlador {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
+    }
+
+    @GetMapping("/paginados")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    public ResponseEntity<Page<TurnoDtoResponse>> listarPaginados(Pageable pageable) {
+        return ResponseEntity.ok(turnoServicio.listarPaginados(pageable));
     }
 
     @DeleteMapping("/eliminar/{id}")

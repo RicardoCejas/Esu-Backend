@@ -5,6 +5,8 @@ import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +18,7 @@ public interface ITurnoServicio {
     List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
     TurnoDtoResponse obtenerTurnoPorId(Long id);
     List<TurnoDtoResponse> listarTodos();
+    Page<TurnoDtoResponse> listarPaginados(Pageable pageable);
     void eliminarTurno(Long id);
     List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora);
     List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId);

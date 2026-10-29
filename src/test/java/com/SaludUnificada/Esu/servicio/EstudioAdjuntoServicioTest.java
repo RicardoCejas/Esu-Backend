@@ -76,4 +76,16 @@ class EstudioAdjuntoServicioTest {
                 estudioServicio.almacenarEstudio(file, 5L, null, "INFORME", LocalDate.now())
         );
     }
+    @Test
+    void testDescargarArchivo_BloqueaPathTraversal() {
+        EstudioAdjunto estudio = new EstudioAdjunto();
+        estudio.setId(99L);
+        estudio.setRutaAlmacenamiento(tempDir.getParent().resolve("archivo_secreto.txt").toString());
+
+        when(estudioRepositorio.findById(99L)).thenReturn(java.util.Optional.of(estudio));
+
+        assertThrows(SecurityException.class, () ->
+                estudioServicio.descargarArchivo(99L)
+        );
+    }
 }
