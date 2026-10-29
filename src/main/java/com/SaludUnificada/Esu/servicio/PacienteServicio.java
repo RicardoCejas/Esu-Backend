@@ -7,6 +7,13 @@ import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.entidad.HistoriaClinica;
+import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.entidad.Turno;
+import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
+import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +31,15 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Autowired
     private PacienteMapper pacienteMapper;
+
+    @Autowired(required = false)
+    private TurnoRepositorio turnoRepositorio;
+
+    @Autowired(required = false)
+    private RecetaDigitalRepositorio recetaRepositorio;
+
+    @Autowired(required = false)
+    private HistoriaClinicaRepositorio historiaClinicaRepositorio;
 
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
@@ -75,10 +91,12 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Override
     public PacienteDtoResponse buscarPorDni(String dni) {
-        if (dni == null || dni.isEmpty()) {
+        if (dni == null || dni.trim().isEmpty()) {
             throw new IllegalArgumentException("El DNI no puede ser nulo o vacio");
         }
-        Paciente paciente = pacienteRepositorio.findByDni(dni)
+        String dniNormalizado = dni.replaceAll("[^0-9a-zA-Z]", "").trim();
+        Paciente paciente = pacienteRepositorio.findByDni(dniNormalizado)
+                .or(() -> pacienteRepositorio.findByDni(dni.trim()))
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con DNI: " + dni));
         return pacienteMapper.paraDto(paciente);
     }
@@ -112,5 +130,49 @@ public class PacienteServicio implements IPacienteServicio {
         if (nroAfiliado != null && !nroAfiliado.isBlank()) paciente.setNroAfiliado(nroAfiliado.trim());
         Paciente guardado = pacienteRepositorio.save(paciente);
         return pacienteMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public void fusionarPacientes(Long pacienteOrigenId, Long pacienteDestinoId, String motivo, String emailAdmin) {
+        if (pacienteOrigenId == null || pacienteDestinoId == null || pacienteOrigenId.equals(pacienteDestinoId)) {
+            throw new IllegalArgumentException("Los IDs de paciente origen y destino deben ser distintos y no nulos.");
+        }
+        Paciente origen = pacienteRepositorio.findById(pacienteOrigenId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente origen no encontrado con ID: " + pacienteOrigenId));
+        Paciente destino = pacienteRepositorio.findById(pacienteDestinoId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente destino no encontrado con ID: " + pacienteDestinoId));
+
+        if (turnoRepositorio != null) {
+            List<Turno> turnos = turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteOrigenId);
+            for (Turno t : turnos) {
+                t.setPaciente(destino);
+            }
+            turnoRepositorio.saveAll(turnos);
+        }
+
+        if (recetaRepositorio != null) {
+            List<RecetaDigital> recetas = recetaRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteOrigenId);
+            for (RecetaDigital r : recetas) {
+                r.setPaciente(destino);
+            }
+            recetaRepositorio.saveAll(recetas);
+        }
+
+        if (historiaClinicaRepositorio != null) {
+            List<HistoriaClinica> historias = historiaClinicaRepositorio.findByPacienteId(pacienteOrigenId);
+            for (HistoriaClinica hc : historias) {
+                hc.setPaciente(destino);
+            }
+            historiaClinicaRepositorio.saveAll(historias);
+        }
+
+        if (origen.getUsuario() != null) {
+            origen.getUsuario().setEstadoActivo(false);
+        }
+        origen.setNombre("[FUSIONADO #" + destino.getId() + "] " + origen.getNombre());
+        origen.setDni("FUSIONADO-" + origen.getId() + "-" + origen.getDni());
+        origen.setNroAfiliado("FUSIONADO-" + origen.getId() + "-" + origen.getNroAfiliado());
+        pacienteRepositorio.save(origen);
     }
 }

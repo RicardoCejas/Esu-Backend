@@ -44,6 +44,7 @@ public class DocumentoControlador {
     private final LogAccesoHcRepositorio logAccesoHcRepositorio;
     private final UsuarioRepositorio usuarioRepositorio;
     private final RequestIpUtil requestIpUtil;
+    private final TokenVerificacionDocumentoRepositorio tokenVerificacionDocumentoRepositorio;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -64,8 +65,15 @@ public class DocumentoControlador {
         List<EvolucionMedica> evoluciones = evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
         List<RecetaDigital> recetas = recetaDigitalRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteId);
 
-        String opaqueToken = UUID.nameUUIDFromBytes(("HC-" + paciente.getId()).getBytes(StandardCharsets.UTF_8)).toString();
-        String urlVerificacion = frontendUrl + "/verificar-documento?token=" + opaqueToken;
+        String randomToken = UUID.randomUUID().toString();
+        TokenVerificacionDocumento tokenDoc = new TokenVerificacionDocumento(
+                randomToken,
+                paciente.getId(),
+                "EXPEDIENTE_CLINICO",
+                java.time.LocalDateTime.now().plusDays(7)
+        );
+        tokenVerificacionDocumentoRepositorio.save(tokenDoc);
+        String urlVerificacion = frontendUrl + "/verificar-documento?token=" + randomToken;
 
         byte[] pdfBytes = pdfServicio.generarExpedienteCompletoPdf(
                 paciente, hc, evoluciones, recetas, urlVerificacion
@@ -97,7 +105,7 @@ public class DocumentoControlador {
     }
 
     @PostMapping("/previsualizar-pdf")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessPatient(#request.pacienteId)")
     @Operation(summary = "Previsualizar PDF en vivo antes de la firma digital inalterable")
     public ResponseEntity<byte[]> previsualizarPdf(@Valid @RequestBody PrevisualizarPdfDtoRequest request) {
         if (request == null || request.getPacienteId() == null) {
@@ -143,5 +151,25 @@ public class DocumentoControlador {
                 u.getRol() != null ? u.getRol() : "USUARIO"
         );
         logAccesoHcRepositorio.save(log);
+    }
+
+    @GetMapping("/verificar-token/{token}")
+    @Operation(summary = "Verificación pública de validez de token de documento oficial")
+    public ResponseEntity<java.util.Map<String, Object>> verificarTokenPublico(@PathVariable String token) {
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("valido", false, "mensaje", "Token inválido"));
+        }
+        var opt = tokenVerificacionDocumentoRepositorio.findByToken(token.trim());
+        if (opt.isEmpty() || !opt.get().esValido()) {
+            return ResponseEntity.ok(java.util.Map.of("valido", false, "mensaje", "Token de verificación expirado o inexistente."));
+        }
+        var doc = opt.get();
+        return ResponseEntity.ok(java.util.Map.of(
+                "valido", true,
+                "tipoDocumento", doc.getTipoDocumento(),
+                "fechaEmision", doc.getFechaCreacion(),
+                "fechaExpiracion", doc.getFechaExpiracion(),
+                "mensaje", "Documento oficial íntegro y verificado."
+        ));
     }
 }

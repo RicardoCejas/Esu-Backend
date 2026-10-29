@@ -135,16 +135,26 @@ public class AuditoriaSeguridadServicio {
     }
 
     public boolean puedeReenviarVerificacion(String email) {
+        String ip = obtenerClientIp();
         if (email == null || email.isBlank()) {
             return false;
         }
-        String key = email.trim().toLowerCase();
+        String keyEmail = "EMAIL:" + email.trim().toLowerCase();
+        String keyIp = "IP:" + ip;
         Instant ahora = Instant.now();
-        Instant previo = ultimoReenvioVerificacion.get(key);
-        if (previo != null && Duration.between(previo, ahora).getSeconds() < 60) {
+
+        Instant previoEmail = ultimoReenvioVerificacion.get(keyEmail);
+        if (previoEmail != null && Duration.between(previoEmail, ahora).getSeconds() < 60) {
             return false;
         }
-        ultimoReenvioVerificacion.put(key, ahora);
+
+        Instant previoIp = ultimoReenvioVerificacion.get(keyIp);
+        if (previoIp != null && Duration.between(previoIp, ahora).getSeconds() < 15) {
+            return false;
+        }
+
+        ultimoReenvioVerificacion.put(keyEmail, ahora);
+        ultimoReenvioVerificacion.put(keyIp, ahora);
         return true;
     }
 

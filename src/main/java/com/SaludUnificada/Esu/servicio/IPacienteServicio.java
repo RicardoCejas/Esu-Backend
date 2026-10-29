@@ -20,4 +20,5 @@ public interface IPacienteServicio {
     Paciente obtenerEntidadPacientePorId(Long id);
     PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado);
     PacienteDtoResponse obtenerPerfilAutenticado(String email);
+    void fusionarPacientes(Long pacienteOrigenId, Long pacienteDestinoId, String motivo, String emailAdmin);
 }

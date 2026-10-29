@@ -48,32 +48,53 @@ public class AuthControlador {
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
-        if (auditoriaSeguridadServicio != null && auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(loginDto.getEmail())) {
+        String email = loginDto.getEmail() != null ? loginDto.getEmail().trim().toLowerCase() : "";
+        if (auditoriaSeguridadServicio != null && auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(email)) {
             throw new ResponseStatusException(HttpStatus.LOCKED,
-                    "La cuenta se encuentra temporalmente bloqueada por superar 5 intentos fallidos consecutivos en menos de 10 minutos. Por favor aguarde o recupere su clave.");
+                    "La cuenta se encuentra temporalmente bloqueada por superar intentos fallidos consecutivos. Por favor aguarde o recupere su clave.");
         }
 
-        Usuario usuario = usuarioRepositorio.findByEmail(loginDto.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
+        Usuario usuario = usuarioRepositorio.findByEmail(email).orElse(null);
+        if (usuario == null) {
+            if (auditoriaSeguridadServicio != null) {
+                auditoriaSeguridadServicio.registrarLoginFallido(email, "Cuenta no existente");
+            }
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas.");
+        }
 
         if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
+            if (auditoriaSeguridadServicio != null) {
+                auditoriaSeguridadServicio.registrarLoginFallido(email, "Cuenta inactiva");
+            }
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta se encuentra deshabilitada.");
         }
 
         if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+            if (auditoriaSeguridadServicio != null) {
+                auditoriaSeguridadServicio.registrarLoginFallido(email, "Email no verificado");
+            }
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Debe confirmar su dirección de correo electrónico antes de ingresar a la plataforma.");
         }
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginDto.getEmail(),
-                        loginDto.getPassword()
-                )
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, loginDto.getPassword())
+            );
+        } catch (org.springframework.security.core.AuthenticationException ex) {
+            if (auditoriaSeguridadServicio != null) {
+                auditoriaSeguridadServicio.registrarLoginFallido(email, "Contraseña incorrecta");
+            }
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas.");
+        }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String token = jwtTokenProvider.generarToken(authentication);
+
+        if (auditoriaSeguridadServicio != null) {
+            auditoriaSeguridadServicio.registrarLoginExitoso(email);
+        }
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
                 .accessToken(token)
@@ -158,22 +179,6 @@ public class AuthControlador {
         recuperacionPasswordServicio.resetearPassword(request);
         return ResponseEntity.ok(Map.of(
                 "mensaje", "La contraseña ha sido actualizada exitosamente. Ya puede iniciar sesión con sus nuevas credenciales."
-        ));
-    }
-
-    @GetMapping("/test-email")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> testEmail(@RequestParam("destinatario") String destinatario) {
-        if (emailNotificacionServicio != null) {
-            emailNotificacionServicio.enviarBienvenida(destinatario, "Usuario de Prueba");
-            return ResponseEntity.ok(Map.of(
-                    "estado", "OK",
-                    "mensaje", "Correo de prueba enviado a " + destinatario
-            ));
-        }
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                "estado", "ERROR",
-                "mensaje", "Servicio de email no disponible"
         ));
     }
 

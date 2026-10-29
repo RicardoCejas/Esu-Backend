@@ -18,4 +18,5 @@ public interface IHistoriaClinicaServicio {
     List<HistoriaClinicaDtoResponse> buscarPorRangoFechas(LocalDateTime inicio, LocalDateTime fin);
     long contarPorPaciente(Long pacienteId);
     Page<HistoriaClinicaDtoResponse> listarPorPacientePaginado(Long pacienteId, Pageable pageable);
+    void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo);
 }
