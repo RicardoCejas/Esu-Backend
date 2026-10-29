@@ -42,12 +42,20 @@ public class LogAccesoHc {
     @Column(name = "rol_usuario", length = 50)
     private String rolUsuario;
 
+    @Column(name = "motivo", length = 500)
+    private String motivo;
+
     public LogAccesoHc(Long usuarioId, Long pacienteId, String accion, String ipAddress, String rolUsuario) {
+        this(usuarioId, pacienteId, accion, ipAddress, rolUsuario, null);
+    }
+
+    public LogAccesoHc(Long usuarioId, Long pacienteId, String accion, String ipAddress, String rolUsuario, String motivo) {
         this.usuarioId = usuarioId;
         this.pacienteId = pacienteId;
         this.fechaHora = LocalDateTime.now();
         this.accion = accion;
         this.ipAddress = ipAddress;
         this.rolUsuario = rolUsuario;
+        this.motivo = motivo;
     }
 }

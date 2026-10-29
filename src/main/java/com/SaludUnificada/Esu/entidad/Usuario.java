@@ -63,6 +63,13 @@ public class Usuario {
     @Column(name = "token_verificacion_usado")
     private Boolean tokenVerificacionUsado = false;
 
+    @Column(name = "token_version")
+    private Integer tokenVersion = 1;
+
+    public void revocarSesiones() {
+        this.tokenVersion = (this.tokenVersion != null ? this.tokenVersion : 0) + 1;
+    }
+
     @OneToOne(mappedBy = "usuario")
     private Paciente paciente;
 

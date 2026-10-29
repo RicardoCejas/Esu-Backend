@@ -46,14 +46,15 @@ public class ConsentimientoControlador {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessConsentimiento(#id)")
     @Operation(summary = "Consultar el detalle probatorio y hash de un consentimiento informado por ID")
     public ResponseEntity<ConsentimientoDtoResponse> obtenerPorId(@PathVariable Long id) {
         return ResponseEntity.ok(consentimientoServicio.obtenerPorId(id));
     }
 
     @PatchMapping("/{id}/revocar")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN', 'PROFESIONAL', 'MEDICO')")
+    @PreAuthorize("@securityPolicy.canAccessConsentimiento(#id)")
+    @Operation(summary = "Revocar formalmente un consentimiento informado con registro de IP y motivo")
     public ResponseEntity<ConsentimientoDtoResponse> revocarConsentimiento(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> payload,
@@ -65,7 +66,8 @@ public class ConsentimientoControlador {
     }
 
     @GetMapping("/profesional/{profesionalId}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId))")
+    @Operation(summary = "Listar consentimientos formalizados bajo la supervision de un profesional medico")
     public ResponseEntity<List<ConsentimientoDtoResponse>> listarPorProfesional(@PathVariable Long profesionalId) {
         return ResponseEntity.ok(consentimientoServicio.listarPorProfesional(profesionalId));
     }

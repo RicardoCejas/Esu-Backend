@@ -22,6 +22,7 @@ public interface ITurnoServicio {
     List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId);
     List<TurnoDtoResponse> obtenerHistorialTurnosPaciente(Long pacienteId);
     TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado);
+    TurnoDtoResponse confirmarTurno(Long id, String emailAutenticado);
     TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado);
 
     TurnoDtoResponse realizarCheckIn(Long turnoId, String emailRecepcionista);

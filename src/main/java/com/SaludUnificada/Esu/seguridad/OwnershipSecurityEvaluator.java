@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Component("securityPolicy")
@@ -20,16 +21,17 @@ public class OwnershipSecurityEvaluator {
     private final RecetaDigitalRepositorio recetaRepositorio;
     private final EstudioAdjuntoRepositorio estudioRepositorio;
     private final HistoriaClinicaRepositorio historiaClinicaRepositorio;
+    private final AlergiaPacienteRepositorio alergiaRepositorio;
+    private final ConsentimientoInformadoRepositorio consentimientoRepositorio;
+    private final LogAccesoHcRepositorio logAccesoHcRepositorio;
 
     private Authentication getAuthentication() {
         return SecurityContextHolder.getContext().getAuthentication();
     }
 
-    private boolean isStaff(Authentication auth) {
+    private boolean isReceptionist(Authentication auth) {
         if (auth == null) return false;
-        return auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_RECEPCIONISTA"));
     }
 
     private boolean isDoctor(Authentication auth) {
@@ -51,31 +53,58 @@ public class OwnershipSecurityEvaluator {
         return usuarioRepositorio.findByEmail(auth.getName());
     }
 
+    /**
+     * Acceso clínico a datos del paciente (Historia Clínica, Evoluciones, Estudios, Alergias).
+     * Solo permitido para:
+     * - Administradores
+     * - El propio paciente
+     * - Profesionales con relación asistencial autorizada (turno previo, receta emitida o acceso de emergencia auditado).
+     * Recepción NO tiene acceso clínico.
+     */
     public boolean canAccessPatient(Long pacienteId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth) || isStaff(auth)) return true;
+        if (isAdmin(auth)) return true;
 
         Optional<Usuario> usuarioOpt = getCurrentUser(auth);
         if (usuarioOpt.isEmpty()) return false;
         Usuario usuario = usuarioOpt.get();
 
         if (isDoctor(auth)) {
-            // Verify doctor is active; and check if the doctor has an appointment or relationship with this patient
             Optional<Profesional> profOpt = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail());
             if (profOpt.isEmpty()) return false;
             Profesional prof = profOpt.get();
             if (!Boolean.TRUE.equals(prof.getEstadoActivo())) return false;
 
+            // 1. Relación asistencial por turnos
             boolean hasAppointment = turnoRepositorio.existsByProfesionalIdAndPacienteId(prof.getId(), pacienteId);
             if (hasAppointment) return true;
-            // Also allow if doctor is attending in the clinic network
-            return true;
+
+            // 2. Relación asistencial por recetas emitidas
+            boolean hasPrescription = recetaRepositorio.existsByProfesionalIdAndPacienteId(prof.getId(), pacienteId);
+            if (hasPrescription) return true;
+
+            // 3. Acceso de emergencia auditado activo en las últimas 24 horas
+            LocalDateTime ventanaEmergencia = LocalDateTime.now().minusHours(24);
+            return logAccesoHcRepositorio.existsByUsuarioIdAndPacienteIdAndAccionAndFechaHoraGreaterThanEqual(
+                    usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ventanaEmergencia
+            );
         }
 
-        // Patient role: can only access their own record
+        // Rol Paciente: solo a su propio expediente
         Optional<Paciente> pacOpt = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail());
         return pacOpt.isPresent() && pacOpt.get().getId().equals(pacienteId);
+    }
+
+    /**
+     * Acceso administrativo (padrón, asignación de turnos, check-in, datos de contacto).
+     * Permitido para: Administradores, Recepcionistas, Profesionales autorizados y el propio Paciente.
+     */
+    public boolean canAccessPatientAdmin(Long pacienteId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth) || isReceptionist(auth)) return true;
+        return canAccessPatient(pacienteId);
     }
 
     public boolean isCurrentPatient(Long pacienteId) {
@@ -87,10 +116,29 @@ public class OwnershipSecurityEvaluator {
         return pacOpt.isPresent() && pacOpt.get().getId().equals(pacienteId);
     }
 
+    public boolean isDoctorAuthor(Long profesionalId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        Optional<Usuario> usuarioOpt = getCurrentUser(auth);
+        if (usuarioOpt.isEmpty()) return false;
+        Optional<Profesional> profOpt = profesionalRepositorio.findByUsuarioEmail(usuarioOpt.get().getEmail());
+        return profOpt.isPresent() && profOpt.get().getId().equals(profesionalId);
+    }
+
+    public boolean isTurnoDoctor(Long turnoId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
+        if (turnoOpt.isEmpty() || turnoOpt.get().getProfesional() == null) return false;
+        return isDoctorAuthor(turnoOpt.get().getProfesional().getId());
+    }
+
     public boolean canAccessTurno(Long turnoId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isStaff(auth) || isAdmin(auth)) return true;
+        if (isReceptionist(auth) || isAdmin(auth)) return true;
 
         Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
         if (turnoOpt.isEmpty()) return false;
@@ -106,7 +154,7 @@ public class OwnershipSecurityEvaluator {
                    turno.getProfesional().getUsuario().getEmail().equalsIgnoreCase(usuario.getEmail());
         }
 
-        // Patient:
+        // Paciente:
         return turno.getPaciente() != null &&
                turno.getPaciente().getUsuario() != null &&
                turno.getPaciente().getUsuario().getEmail().equalsIgnoreCase(usuario.getEmail());
@@ -161,5 +209,36 @@ public class OwnershipSecurityEvaluator {
 
         if (hc.getPaciente() == null) return false;
         return canAccessPatient(hc.getPaciente().getId());
+    }
+
+    public boolean canAccessConsentimiento(Long consentimientoId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+
+        Optional<ConsentimientoInformado> consentOpt = consentimientoRepositorio.findById(consentimientoId);
+        if (consentOpt.isEmpty()) return false;
+        ConsentimientoInformado consent = consentOpt.get();
+
+        if (isDoctor(auth)) {
+            if (isDoctorAuthor(consent.getProfesionalId())) {
+                return true;
+            }
+            return canAccessPatient(consent.getPacienteId());
+        }
+
+        return canAccessPatient(consent.getPacienteId());
+    }
+
+    public boolean canAccessAlergia(Long alergiaId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+
+        Optional<AlergiaPaciente> alergiaOpt = alergiaRepositorio.findById(alergiaId);
+        if (alergiaOpt.isEmpty()) return false;
+        AlergiaPaciente alergia = alergiaOpt.get();
+
+        return canAccessPatient(alergia.getPacienteId());
     }
 }

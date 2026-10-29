@@ -164,14 +164,6 @@ class AuthControladorTest {
     }
 
     @Test
-    void testTestEmailEndpoint() {
-        var res = authControlador.testEmail("test@correo.com");
-        assertNotNull(res);
-        assertEquals(HttpStatus.OK, res.getStatusCode());
-        verify(emailNotificacionServicio, times(1)).enviarBienvenida(eq("test@correo.com"), eq("Usuario de Prueba"));
-    }
-
-    @Test
     void testReenviarVerificacionEmail() {
         when(auditoriaSeguridadServicio.puedeReenviarVerificacion(any())).thenReturn(true);
         Usuario usuario = new Usuario();

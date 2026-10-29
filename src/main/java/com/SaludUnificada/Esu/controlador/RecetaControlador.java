@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.DispensarRecetaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
+import com.SaludUnificada.Esu.dto.response.VerificacionRecetaPublicaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.RecetaDigitalDtoResponse;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.mapper.RecetaDigitalMapper;
@@ -35,7 +36,7 @@ public class RecetaControlador {
     private final RecetaDigitalMapper recetaDigitalMapper;
 
     @PostMapping("/recetas")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isDoctorAuthor(#request.profesionalId)")
     @Operation(summary = "Emitir nueva receta medica digital")
     public ResponseEntity<RecetaDigitalDtoResponse> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         RecetaDigital receta = recetaServicio.emitirReceta(request);
@@ -84,7 +85,7 @@ public class RecetaControlador {
 
     @GetMapping("/public/verificar/{hash}")
     @Operation(summary = "Endpoint publico para verificar autenticidad e integridad mediante QR o Hash")
-    public ResponseEntity<Map<String, Object>> verificarDocumentoPublico(@PathVariable String hash) {
+    public ResponseEntity<VerificacionRecetaPublicaDtoResponse> verificarDocumentoPublico(@PathVariable String hash) {
         return ResponseEntity.ok(recetaServicio.verificarDocumentoPublico(hash));
     }
 
@@ -99,7 +100,7 @@ public class RecetaControlador {
     }
 
     @PatchMapping("/recetas/{id}/anular")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessReceta(#id)")
     public ResponseEntity<RecetaDigitalDtoResponse> anularReceta(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> payload,

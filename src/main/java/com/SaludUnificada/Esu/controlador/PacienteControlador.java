@@ -49,13 +49,13 @@ public class PacienteControlador {
     }
 
     @GetMapping({"", "/obtener/todos"})
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<List<PacienteDtoResponse>> listarTodos() {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
     }
 
     @GetMapping("/paginado")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<Page<PacienteDtoResponse>> listarPaginado(Pageable pageable) {
         return ResponseEntity.ok(pacienteServicio.buscarPacientesPaginados(pageable));
     }
@@ -142,5 +142,16 @@ public class PacienteControlador {
             @RequestParam(required = false) String obraSocial,
             @RequestParam(required = false) String nroAfiliado) {
         return ResponseEntity.ok(pacienteServicio.actualizarDatosContacto(id, telefono, obraSocial, nroAfiliado));
+    }
+
+    @PostMapping("/fusionar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.Map<String, String>> fusionarPacientes(
+            @RequestParam Long pacienteOrigenId,
+            @RequestParam Long pacienteDestinoId,
+            @RequestParam(required = false) String motivo,
+            Principal principal) {
+        pacienteServicio.fusionarPacientes(pacienteOrigenId, pacienteDestinoId, motivo, principal != null ? principal.getName() : "ADMIN");
+        return ResponseEntity.ok(java.util.Map.of("mensaje", "Pacientes fusionados correctamente"));
     }
 }

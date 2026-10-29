@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.DispensarRecetaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.MedicamentoItemDto;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
+import com.SaludUnificada.Esu.dto.response.VerificacionRecetaPublicaDtoResponse;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
@@ -122,7 +123,8 @@ public class RecetaDigitalServicio {
                 .append(receta.getFechaEmision()).append("|")
                 .append(receta.getFechaVencimiento()).append("|")
                 .append(receta.getCodigoCie10() != null ? receta.getCodigoCie10().trim() : "").append("|")
-                .append(receta.getDiagnostico() != null ? receta.getDiagnostico().trim() : "");
+                .append(receta.getDiagnostico() != null ? receta.getDiagnostico().trim() : "").append("|")
+                .append(receta.getIndicacionesGenerales() != null ? receta.getIndicacionesGenerales().trim() : "");
 
         if (receta.getMedicamentos() != null) {
             for (MedicamentoReceta item : receta.getMedicamentos()) {
@@ -250,35 +252,55 @@ public class RecetaDigitalServicio {
         return pdfServicio.generarRecetaPdf(receta, qrUrl);
     }
 
-    public Map<String, Object> verificarDocumentoPublico(String hash) {
-        Map<String, Object> res = new HashMap<>();
+    @Transactional(readOnly = true)
+    public Optional<RecetaDigital> buscarRecetaPorCodigoOHashReadOnly(String clave) {
+        if (clave == null || clave.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        String limpia = clave.trim();
+
+        if (limpia.matches("^\\d+$")) {
+            Long id = Long.parseLong(limpia);
+            Optional<RecetaDigital> porId = recetaRepositorio.findById(id);
+            if (porId.isPresent()) return porId;
+        }
+
+        return recetaRepositorio.findByHashIntegridad(limpia);
+    }
+
+    @Transactional(readOnly = true)
+    public VerificacionRecetaPublicaDtoResponse verificarDocumentoPublico(String hash) {
         String hashLimpio = extraerHashOId(hash);
-        var optReceta = buscarRecetaPorCodigoOHash(hashLimpio);
+        var optReceta = buscarRecetaPorCodigoOHashReadOnly(hashLimpio);
         if (optReceta.isPresent()) {
             RecetaDigital r = optReceta.get();
             boolean vencida = r.getFechaVencimiento() != null && r.getFechaVencimiento().isBefore(LocalDate.now());
-            String estado = "DISPENSADA".equalsIgnoreCase(r.getEstadoReceta()) ? "DISPENSADA" : (vencida ? "VENCIDA" : "VIGENTE");
+            String estado = "DISPENSADA".equalsIgnoreCase(r.getEstadoReceta()) ? "DISPENSADA" :
+                    ("ANULADA".equalsIgnoreCase(r.getEstadoReceta()) ? "ANULADA" : (vencida ? "VENCIDA" : "VIGENTE"));
 
-            res.put("valido", true);
-            res.put("id", r.getId());
-            res.put("tipoDocumento", "RECETA_DIGITAL");
-            res.put("emisor", "Dr./Dra. " + r.getProfesional().getNombre() + " " + r.getProfesional().getApellido());
-            res.put("matricula", r.getProfesional().getMatricula());
-            res.put("paciente", r.getPaciente().getNombre() + " " + r.getPaciente().getApellido());
-            res.put("dni", r.getPaciente().getDni());
-            res.put("fechaEmision", r.getFechaEmision());
-            res.put("fechaVencimiento", r.getFechaVencimiento());
-            res.put("fechaDispensacion", r.getFechaDispensacion());
-            res.put("farmaciaDispensadora", r.getMatriculaFarmaciaDispensadora());
-            res.put("estado", estado);
-            res.put("medicamentos", r.getMedicamentos());
-            res.put("hashSha256", r.getHashIntegridad());
-            return res;
+            String hashCalculado = calcularHashReceta(r);
+            boolean integridadValida = hashCalculado != null && hashCalculado.equalsIgnoreCase(r.getHashIntegridad());
+
+            return VerificacionRecetaPublicaDtoResponse.builder()
+                .valido(true)
+                .id(r.getId())
+                .tipoDocumento("RECETA_DIGITAL")
+                .estado(estado)
+                .fechaEmision(r.getFechaEmision())
+                .fechaVencimiento(r.getFechaVencimiento())
+                .fechaDispensacion(r.getFechaDispensacion())
+                .farmaciaDispensadora(r.getMatriculaFarmaciaDispensadora())
+                .matriculaProfesional(r.getProfesional() != null ? r.getProfesional().getMatricula() : null)
+                .hashIntegridadSha256(r.getHashIntegridad())
+                .integridadValida(integridadValida)
+                .mensaje("Documento oficial validado. Cumple con la normativa de firma e integridad electrónica.")
+                .build();
         }
 
-        res.put("valido", false);
-        res.put("mensaje", "No se encontró ningún documento oficial registrado con dicho código de verificación.");
-        return res;
+        return VerificacionRecetaPublicaDtoResponse.builder()
+            .valido(false)
+            .mensaje("No se encontró ningún documento oficial registrado con dicho código de verificación.")
+            .build();
     }
 
     @Transactional

@@ -9,6 +9,13 @@ import com.SaludUnificada.Esu.entidad.HistoriaClinica;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.HistoriaClinicaMapper;
 import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
+import com.SaludUnificada.Esu.entidad.LogAccesoHc;
+import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.LogAccesoHcRepositorio;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +31,18 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
 
     @Autowired
     private HistoriaClinicaMapper historiaClinicaMapper;
+
+    @Autowired(required = false)
+    private LogAccesoHcRepositorio logAccesoHcRepositorio;
+
+    @Autowired(required = false)
+    private UsuarioRepositorio usuarioRepositorio;
+
+    @Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
+
+    @Autowired(required = false)
+    private RequestIpUtil requestIpUtil;
 
     @Override
     public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest historiaClinicaDto) {
@@ -79,5 +98,23 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     public Page<HistoriaClinicaDtoResponse> listarPorPacientePaginado(Long pacienteId, Pageable pageable) {
         return historiaClinicaRepositorio.findByPacienteId(pacienteId, pageable)
                 .map(historiaClinicaMapper::paraDto);
+    }
+
+    @Override
+    @Transactional
+    public void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo) {
+        if (motivo == null || motivo.trim().length() < 10) {
+            throw new IllegalArgumentException("Debe especificarse un motivo clínico válido y detallado para el acceso de emergencia (mínimo 10 caracteres).");
+        }
+        if (pacienteRepositorio != null && !pacienteRepositorio.existsById(pacienteId)) {
+            throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId);
+        }
+        if (usuarioRepositorio != null && logAccesoHcRepositorio != null) {
+            Usuario usuario = usuarioRepositorio.findByEmail(emailProfesional)
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado"));
+            String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(null) : "127.0.0.1";
+            LogAccesoHc log = new LogAccesoHc(usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ip, usuario.getRol(), motivo.trim());
+            logAccesoHcRepositorio.save(log);
+        }
     }
 }

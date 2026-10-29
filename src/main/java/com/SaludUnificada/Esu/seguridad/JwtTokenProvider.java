@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.seguridad;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class JwtTokenProvider {
 
@@ -22,6 +24,12 @@ public class JwtTokenProvider {
 
     @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    @Value("${app.jwt.issuer:esu-backend}")
+    private String jwtIssuer;
+
+    @Value("${app.jwt.audience:esu-frontend}")
+    private String jwtAudience;
 
     @PostConstruct
     public void validateSecret() {
@@ -45,8 +53,27 @@ public class JwtTokenProvider {
                 .collect(Collectors.joining(","));
 
         return Jwts.builder()
+                .issuer(jwtIssuer)
+                .audience().add(jwtAudience).and()
                 .subject(userPrincipal.getUsername())
                 .claim("roles", roles)
+                .claim("tv", 1)
+                .issuedAt(ahora)
+                .expiration(fechaExpiracion)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    public String generarTokenParaUsuario(String email, String rol, Integer tokenVersion) {
+        Date ahora = new Date();
+        Date fechaExpiracion = new Date(ahora.getTime() + jwtExpirationMs);
+
+        return Jwts.builder()
+                .issuer(jwtIssuer)
+                .audience().add(jwtAudience).and()
+                .subject(email)
+                .claim("roles", rol.startsWith("ROLE_") ? rol : "ROLE_" + rol)
+                .claim("tv", tokenVersion != null ? tokenVersion : 1)
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
@@ -54,16 +81,7 @@ public class JwtTokenProvider {
     }
 
     public String generarTokenParaUsuario(String email, String rol) {
-        Date ahora = new Date();
-        Date fechaExpiracion = new Date(ahora.getTime() + jwtExpirationMs);
-
-        return Jwts.builder()
-                .subject(email)
-                .claim("roles", rol.startsWith("ROLE_") ? rol : "ROLE_" + rol)
-                .issuedAt(ahora)
-                .expiration(fechaExpiracion)
-                .signWith(getSigningKey(), Jwts.SIG.HS256)
-                .compact();
+        return generarTokenParaUsuario(email, rol, 1);
     }
 
     public String obtenerUsernameDelJwt(String token) {
@@ -76,14 +94,35 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    public Integer obtenerTokenVersionDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            Object tv = claims.get("tv");
+            if (tv instanceof Number) {
+                return ((Number) tv).intValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public boolean validarToken(String token) {
         try {
             Jwts.parser()
+                    .requireIssuer(jwtIssuer)
+                    .requireAudience(jwtAudience)
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
+            log.debug("Token JWT inválido o expirado: {}", e.getMessage());
             return false;
         }
     }

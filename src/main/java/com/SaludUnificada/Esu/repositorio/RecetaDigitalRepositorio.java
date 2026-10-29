@@ -19,6 +19,8 @@ public interface RecetaDigitalRepositorio extends JpaRepository<RecetaDigital, L
 
     Optional<RecetaDigital> findByHashIntegridad(String hashIntegridad);
 
+    boolean existsByProfesionalIdAndPacienteId(Long profesionalId, Long pacienteId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM RecetaDigital r WHERE r.id = :id")
     Optional<RecetaDigital> findByIdForUpdate(@Param("id") Long id);

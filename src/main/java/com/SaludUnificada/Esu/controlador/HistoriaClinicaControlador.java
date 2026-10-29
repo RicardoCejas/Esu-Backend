@@ -76,4 +76,17 @@ public class HistoriaClinicaControlador {
             Pageable pageable) {
         return ResponseEntity.ok(historiaClinicaServicio.listarPorPacientePaginado(pacienteId, pageable));
     }
+
+    @PostMapping("/emergencia/{pacienteId}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<java.util.Map<String, String>> habilitarAccesoEmergencia(
+            @PathVariable Long pacienteId,
+            @RequestBody java.util.Map<String, String> payload,
+            java.security.Principal principal) {
+        String motivo = payload != null ? payload.get("motivo") : null;
+        historiaClinicaServicio.registrarAccesoEmergencia(pacienteId, principal != null ? principal.getName() : null, motivo);
+        return ResponseEntity.ok(java.util.Map.of(
+                "mensaje", "Acceso de emergencia/guardia registrado y habilitado exitosamente bajo protocolo de auditoría médica legal."
+        ));
+    }
 }

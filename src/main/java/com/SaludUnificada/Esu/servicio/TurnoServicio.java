@@ -202,27 +202,11 @@ public class TurnoServicio implements ITurnoServicio {
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
-                "Turno Confirmado",
-                "Su turno médico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                "Turno Solicitado",
+                "Su turno médico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado y se encuentra pendiente de confirmación.",
                 "TURNO",
                 "/mis-turnos"
             );
-        }
-        if (emailNotificacionServicio != null) {
-            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
-                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            try {
-                                emailNotificacionServicio.enviarConfirmacionTurno(guardado);
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                );
-            } else {
-                try { emailNotificacionServicio.enviarConfirmacionTurno(guardado); } catch (Exception ignored) {}
-            }
         }
 
         return turnoMapper.paraDto(guardado);
@@ -487,6 +471,9 @@ public class TurnoServicio implements ITurnoServicio {
         turno.setFechaCancelacion(ahora);
         turno.setMotivoCancelacion(emailAutenticado != null ? "Cancelado por usuario: " + emailAutenticado : "Cancelado por administracion");
         Turno guardado = turnoRepositorio.save(turno);
+        try {
+            recordatorioRepositorio.deleteByTurnoId(guardado.getId());
+        } catch (Exception ignored) {}
 
         if (notificacionUsuarioServicio != null && turno.getPaciente() != null && turno.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
@@ -517,6 +504,49 @@ public class TurnoServicio implements ITurnoServicio {
 
         return turnoMapper.paraDto(guardado);
 
+    }
+
+    @Override
+    @Transactional
+    public TurnoDtoResponse confirmarTurno(Long id, String emailAutenticado) {
+        Turno turno = turnoRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
+
+        if (!"PENDIENTE".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("Solo se pueden confirmar turnos en estado PENDIENTE. Estado actual: " + turno.getEstado());
+        }
+
+        turno.setEstado("CONFIRMADO");
+        Turno guardado = turnoRepositorio.save(turno);
+
+        if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
+            notificacionUsuarioServicio.crearNotificacion(
+                guardado.getPaciente().getUsuario(),
+                "Turno Confirmado",
+                "Su turno médico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido confirmado.",
+                "TURNO",
+                "/mis-turnos"
+            );
+        }
+
+        if (emailNotificacionServicio != null) {
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                emailNotificacionServicio.enviarConfirmacionTurno(guardado);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                );
+            } else {
+                try { emailNotificacionServicio.enviarConfirmacionTurno(guardado); } catch (Exception ignored) {}
+            }
+        }
+
+        return turnoMapper.paraDto(guardado);
     }
 
     @Override

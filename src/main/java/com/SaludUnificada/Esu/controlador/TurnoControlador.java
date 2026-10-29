@@ -111,6 +111,12 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosPorPaciente(pacienteId));
     }
 
+    @PutMapping("/{id}/confirmar")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    public ResponseEntity<TurnoDtoResponse> confirmarTurno(@PathVariable Long id, Principal principal) {
+        return ResponseEntity.ok(turnoServicio.confirmarTurno(id, principal != null ? principal.getName() : null));
+    }
+
     @PutMapping("/{id}/cancelar")
     @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<TurnoDtoResponse> cancelarTurno(@PathVariable Long id, Principal principal) {
@@ -139,7 +145,7 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/atender")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.isTurnoDoctor(#id)")
     public ResponseEntity<TurnoDtoResponse> atenderTurno(
             @PathVariable Long id,
             @Valid @RequestBody AtencionTurnoDtoRequest atencionDto,
@@ -178,13 +184,13 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/ausente")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
     public ResponseEntity<TurnoDtoResponse> marcarAusente(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.marcarAusente(id, principal != null ? principal.getName() : null));
     }
 
     @GetMapping("/profesional/{profesionalId}/hoy")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isDoctorAuthor(#profesionalId)")
     public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosHoyProfesional(@PathVariable Long profesionalId) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosHoyProfesional(profesionalId));
     }
