@@ -54,6 +54,9 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Autowired(required = false)
     private OwnershipSecurityEvaluator ownershipSecurityEvaluator;
 
+    @Autowired(required = false)
+    private NotificacionUsuarioServicio notificacionUsuarioServicio;
+
     @Override
     @Transactional
     public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest dto) {
@@ -159,5 +162,27 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
             log.warn("ALERTA DE SEGURIDAD AUDITABLE: Acceso de emergencia/break-glass activado para paciente ID={} por usuario={} (rol={}) desde IP={}. Motivo: {}",
                     pacienteId, emailProfesional, rol, ip, motivo.trim());
         }
+
+        if (pacienteRepositorio != null && notificacionUsuarioServicio != null) {
+            pacienteRepositorio.findById(pacienteId).ifPresent(p -> {
+                if (p.getUsuario() != null) {
+                    notificacionUsuarioServicio.crearNotificacion(
+                            p.getUsuario(),
+                            "Acceso de Emergencia a Historia Clínica",
+                            "Se ha registrado un acceso facultativo de guardia/emergencia médica a su historia clínica bajo protocolo legal.",
+                            "HISTORIA_CLINICA",
+                            "/mi-historia-clinica"
+                    );
+                }
+            });
+        }
+    }
+
+    @Override
+    public Page<LogAccesoHc> listarAccesosEmergenciaPaginado(Pageable pageable) {
+        if (logAccesoHcRepositorio == null) {
+            return Page.empty(pageable);
+        }
+        return logAccesoHcRepositorio.findByAccionOrderByFechaHoraDesc("ACCESO_EMERGENCIA", pageable);
     }
 }

@@ -129,6 +129,27 @@ Los servicios quedarán operativos con health checks:
 
 ---
 
+## Procedimiento de Respaldo (Backup) y Restauración
+
+Para garantizar la continuidad operativa y el cumplimiento del marco legal clínico (Ley 26.529 de conservación de historias clínicas), el sistema cuenta con el siguiente protocolo de backup y recuperación ante desastres:
+
+### 1. Respaldo en Caliente de la Base de Datos (MySQL)
+Se utiliza `mysqldump` con la opción `--single-transaction` para no bloquear tablas clínicas ni turnos durante la exportación:
+```bash
+# Backup consistente con compresión gzip
+docker exec esu_mysql mysqldump -u esu_app -p"${DB_PASSWORD}"   --single-transaction --quick --routines --triggers esu_db | gzip > backup_esu_$(date +%Y%m%d_%H%M%S).sql.gz
+```
+
+### 2. Restauración de Esquema y Datos
+1. Verificar que el servicio MySQL esté disponible y saludable.
+2. Descomprimir e inyectar el dump:
+```bash
+gunzip < backup_esu_YYYYMMDD_HHMMSS.sql.gz | docker exec -i esu_mysql mysql -u esu_app -p"${DB_PASSWORD}" esu_db
+```
+3. Al iniciar el backend de Spring Boot, Flyway validará automáticamente el estado de las migraciones existentes contra `flyway_schema_history` y aplicará únicamente aquellas migraciones pendientes, preservando la integridad referencial y de auditoría.
+
+---
+
 ## Equipo de Desarrollo
 * **Martino Costigliolo**
 * **Braian Aguilera**

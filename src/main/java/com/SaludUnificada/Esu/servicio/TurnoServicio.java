@@ -165,6 +165,14 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional
 
     public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto, String emailAutenticado) {
+        if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
+            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(turnoDto.getIdempotencyKey().trim());
+            if (previo.isPresent()) {
+                log.info("Turno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
+                        turnoDto.getIdempotencyKey(), previo.get().getId());
+                return turnoMapper.paraDto(previo.get());
+            }
+        }
 
         LocalDateTime fechaHora = turnoDto.getFechaHora();
 
@@ -239,6 +247,9 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         Turno turno = new Turno();
+        if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
+            turno.setIdempotencyKey(turnoDto.getIdempotencyKey().trim());
+        }
 
         turno.setFechaHora(fechaHora);
 
@@ -278,56 +289,75 @@ public class TurnoServicio implements ITurnoServicio {
 
     public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
         LocalDateTime ahora = ahora();
-        if (request.getFechaHora().isBefore(ahora)) {
+        LocalDateTime fechaHora = request.getFechaHora().withSecond(0).withNano(0);
+        if (fechaHora.isBefore(ahora)) {
             throw new ReglaNegocioException("No es posible solicitar sobreturnos en fechas u horarios pasados.");
         }
+
+        validarHorario(fechaHora);
 
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
                 .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
-        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), request.getFechaHora()).isEmpty()) {
+        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
             throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
         }
 
-        Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
+        if (disponibilidadRepositorio != null) {
+            List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
+            if (disponibilidades.isEmpty()) {
+                throw new ReglaNegocioException("El profesional no posee disponibilidad configurada para la jornada del sobreturno (agenda cerrada).");
+            }
+        }
 
+        Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
 
-        LocalDateTime inicioDia = request.getFechaHora().toLocalDate().atStartOfDay();
+        if (turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(paciente.getId(), fechaHora, CANCELADO)) {
+            throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo día y horario.");
+        }
 
+        LocalDateTime inicioDia = fechaHora.toLocalDate().atStartOfDay();
         LocalDateTime finDia = inicioDia.plusDays(1).minusNanos(1);
 
         long sobreturnosHoy = turnoRepositorio.contarSobreturnosEnDia(request.getProfesionalId(), inicioDia, finDia);
-
         if (sobreturnosHoy >= LIMITE_SOBRETURNOS_DIARIOS) {
-
             throw new ReglaNegocioException("Se ha superado el cupo máximo de sobreturnos (" +
-
                     LIMITE_SOBRETURNOS_DIARIOS + " por día) para el profesional en la jornada indicada.");
-
         }
 
         Turno sobreturno = new Turno();
-
-        sobreturno.setFechaHora(request.getFechaHora());
-
+        sobreturno.setFechaHora(fechaHora);
         sobreturno.setEstado("PENDIENTE");
-
         sobreturno.setMotivoTurno(request.getMotivoSobreturno());
-
         sobreturno.setEsSobreturno(true);
-
         sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
-
         sobreturno.setProfesional(profesional);
-
         sobreturno.setPaciente(paciente);
 
         Turno guardado = turnoRepositorio.save(sobreturno);
 
-        return turnoMapper.paraDto(guardado);
+        if (recordatorioRepositorio != null) {
+            try {
+                recordatorioRepositorio.deleteByTurnoId(guardado.getId());
+                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+            } catch (Exception ex) {
+                log.error("Fallo al crear recordatorio para el sobreturno ID={}: {}", guardado.getId(), ex.getMessage());
+            }
+        }
 
+        if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
+            notificacionUsuarioServicio.crearNotificacion(
+                guardado.getPaciente().getUsuario(),
+                "Sobreturno Solicitado",
+                "Su sobreturno médico de urgencia para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado exitosamente.",
+                "TURNO",
+                "/mis-turnos"
+            );
+        }
+
+        return turnoMapper.paraDto(guardado);
     }
 
     @Override
@@ -548,7 +578,7 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("No se puede cancelar un turno que ya fue marcado como ausente.");
         }
 
-        LocalDateTime ahora = LocalDateTime.now(clock.withZone(zoneId));
+        LocalDateTime ahora = ahora();
 
         if (turno.getFechaHora().isBefore(ahora.plusHours(2))) {
 

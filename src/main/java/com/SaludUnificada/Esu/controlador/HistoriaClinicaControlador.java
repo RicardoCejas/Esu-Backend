@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
+import com.SaludUnificada.Esu.entidad.LogAccesoHc;
 import com.SaludUnificada.Esu.servicio.IHistoriaClinicaServicio;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -91,5 +92,11 @@ public class HistoriaClinicaControlador {
         return ResponseEntity.ok(java.util.Map.of(
                 "mensaje", "Acceso de emergencia/guardia registrado y habilitado exitosamente bajo protocolo de auditoría médica legal."
         ));
+    }
+
+    @GetMapping("/emergencia/auditoria")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<LogAccesoHc>> listarAuditoriaEmergencias(Pageable pageable) {
+        return ResponseEntity.ok(historiaClinicaServicio.listarAccesosEmergenciaPaginado(pageable));
     }
 }

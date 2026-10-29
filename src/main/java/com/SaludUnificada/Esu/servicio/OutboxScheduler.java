@@ -78,6 +78,13 @@ public class OutboxScheduler {
      */
     public void procesarEventoIndividual(OutboxEvento ev) {
         try {
+            // Idempotencia externa: si el efecto ya fue emitido y solo faltaba confirmar en BD
+            if (Boolean.TRUE.equals(ev.getDespachadoExterno())) {
+                log.info("Evento outbox ID={} ya fue despachado externamente. Omitiendo reenvío de correo y confirmando estado ENVIADO.", ev.getId());
+                marcarExitoTransaccional(ev.getId());
+                return;
+            }
+
             if ("RECETA_EMITIDA".equalsIgnoreCase(ev.getTipoEvento())) {
                 if (recetaRepositorio == null || pdfServicio == null || emailServicio == null) {
                     marcarFalloTransaccional(ev.getId(), "Servicios requeridos no disponibles", ev.getIntentos());
@@ -93,6 +100,7 @@ public class OutboxScheduler {
                 // Generación de PDF y envío SMTP fuera de transacción de base de datos
                 byte[] pdfBytes = pdfServicio.generarRecetaPdf(receta, ev.getPayload());
                 emailServicio.enviarRecetaDigital(receta, pdfBytes);
+                marcarDespachoExterno(ev.getId());
 
                 marcarExitoTransaccional(ev.getId());
 
@@ -110,6 +118,7 @@ public class OutboxScheduler {
 
                 // Despacho de email fuera de transacción de base de datos
                 emailServicio.enviarConfirmacionTurno(turno);
+                marcarDespachoExterno(ev.getId());
 
                 marcarExitoTransaccional(ev.getId());
 
@@ -124,9 +133,19 @@ public class OutboxScheduler {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void marcarDespachoExterno(Long eventoId) {
+        outboxEventoRepositorio.findById(eventoId).ifPresent(e -> {
+            e.setDespachadoExterno(true);
+            e.setFechaActualizacion(ahora());
+            outboxEventoRepositorio.save(e);
+        });
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void marcarExitoTransaccional(Long eventoId) {
         outboxEventoRepositorio.findById(eventoId).ifPresent(e -> {
             e.setEstado("ENVIADO");
+            e.setDespachadoExterno(true);
             e.setLeaseHasta(null);
             e.setProximoIntento(null);
             e.setFechaActualizacion(ahora());

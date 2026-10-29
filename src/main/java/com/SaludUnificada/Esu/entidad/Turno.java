@@ -42,6 +42,9 @@ public class Turno {
     @Column(name = "motivo_sobreturno")
     private String motivoSobreturno;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 

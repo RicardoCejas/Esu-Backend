@@ -157,6 +157,26 @@ class OutboxSchedulerTest {
     }
 
     @Test
+    void testProcesarEventosPendientes_EfectoExternoYaDespachado_NoDuplicaEnvio() {
+        OutboxEvento evento = new OutboxEvento();
+        evento.setId(6L);
+        evento.setTipoEvento("TURNO_CREADO");
+        evento.setAggregateId(40L);
+        evento.setEstado("PENDIENTE");
+        evento.setDespachadoExterno(true); // Ya fue enviado previamente
+
+        when(outboxEventoRepositorio.reclamarEventosDisponibles(any(LocalDateTime.class), any(PageRequest.class)))
+                .thenReturn(List.of(evento));
+        when(outboxEventoRepositorio.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        when(outboxEventoRepositorio.findById(6L)).thenReturn(Optional.of(evento));
+
+        outboxScheduler.procesarEventosPendientes();
+
+        assertEquals("ENVIADO", evento.getEstado());
+        verifyNoInteractions(emailServicio);
+    }
+
+    @Test
     void testReintentarEventoManual() {
         OutboxEvento evento = new OutboxEvento();
         evento.setId(5L);
