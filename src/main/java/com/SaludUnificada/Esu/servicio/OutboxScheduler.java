@@ -31,7 +31,7 @@ public class OutboxScheduler {
     @Scheduled(fixedDelayString = "${esu.outbox.fixed-delay-ms:10000}")
     @Transactional
     public void procesarEventosPendientes() {
-        List<OutboxEvento> eventos = outboxEventoRepositorio.findByEstadoOrderByFechaCreacionAsc("PENDIENTE", PageRequest.of(0, 50));
+        List<OutboxEvento> eventos = outboxEventoRepositorio.findByEstadoForUpdate("PENDIENTE", PageRequest.of(0, 50));
         if (eventos.isEmpty()) {
             return;
         }
@@ -41,6 +41,13 @@ public class OutboxScheduler {
             try {
                 despacharEvento(ev);
                 ev.setEstado("ENVIADO");
+                ev.setFechaActualizacion(LocalDateTime.now());
+            } catch (IllegalArgumentException ex) {
+                log.error("Tipo de evento no soportado para outbox evento ID={}: {}", ev.getId(), ex.getMessage());
+                int intentos = ev.getIntentos() != null ? ev.getIntentos() + 1 : 1;
+                ev.setIntentos(intentos);
+                ev.setUltimoError(ex.getMessage());
+                ev.setEstado("ERROR_TIPO_DESCONOCIDO");
                 ev.setFechaActualizacion(LocalDateTime.now());
             } catch (Exception ex) {
                 log.error("Error al procesar outbox evento ID={}: {}", ev.getId(), ex.getMessage());
@@ -72,6 +79,8 @@ public class OutboxScheduler {
                     emailServicio.enviarConfirmacionTurno(turno);
                 }
             }
+        } else {
+            throw new IllegalArgumentException("Tipo de evento no soportado por outbox: " + ev.getTipoEvento());
         }
     }
 }

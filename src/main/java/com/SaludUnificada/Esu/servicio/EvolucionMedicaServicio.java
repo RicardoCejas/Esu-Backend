@@ -400,24 +400,45 @@ public class EvolucionMedicaServicio {
         return item;
     }
 
-        @Transactional
+    @Transactional
     public com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse guardarBorradorConsulta(ConsultaBorradorDtoRequest request, String emailProfesional) {
-        Long profesionalId = null;
-        if (emailProfesional != null) {
-            var profOpt = profesionalRepositorio.findByUsuarioEmail(emailProfesional);
-            if (profOpt.isPresent()) {
-                profesionalId = profOpt.get().getId();
+        if (emailProfesional == null || emailProfesional.isBlank()) {
+            throw new AccessDeniedException("Debe identificarse un profesional autenticado para guardar un borrador clínico.");
+        }
+        Profesional profesional = profesionalRepositorio.findByUsuarioEmail(emailProfesional)
+                .orElseThrow(() -> new AccessDeniedException("El usuario autenticado (" + emailProfesional + ") no tiene un perfil de profesional asociado."));
+        Long profesionalId = profesional.getId();
+
+        if (request.getTurnoId() != null) {
+            Turno turno = turnoRepositorio.findById(request.getTurnoId())
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + request.getTurnoId()));
+            if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesionalId)) {
+                throw new AccessDeniedException("No posee autorización para redactar un borrador sobre un turno asignado a otro profesional.");
+            }
+            if (turno.getPaciente() != null) {
+                if (request.getPacienteId() != null && !request.getPacienteId().equals(turno.getPaciente().getId())) {
+                    throw new ReglaNegocioException("El paciente indicado no coincide con el paciente del turno.");
+                }
+                request.setPacienteId(turno.getPaciente().getId());
             }
         }
-        if (profesionalId == null) {
-            profesionalId = 1L;
+
+        if (request.getPacienteId() == null) {
+            throw new ReglaNegocioException("Debe indicarse un paciente válido para asociar el borrador.");
+        }
+
+        if (!pacienteRepositorio.existsById(request.getPacienteId())) {
+            throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId());
         }
 
         ConsultaBorrador borrador = null;
         if (request.getTurnoId() != null && borradorRepositorio != null) {
             borrador = borradorRepositorio.findByTurnoId(request.getTurnoId()).orElse(null);
+            if (borrador != null && !borrador.getProfesionalId().equals(profesionalId)) {
+                throw new AccessDeniedException("No posee autorización para sobrescribir el borrador de otro profesional.");
+            }
         }
-        if (borrador == null && borradorRepositorio != null && request.getPacienteId() != null) {
+        if (borrador == null && borradorRepositorio != null) {
             borrador = borradorRepositorio.findByProfesionalIdAndPacienteId(profesionalId, request.getPacienteId()).orElse(null);
         }
         if (borrador == null) {
@@ -444,6 +465,35 @@ public class EvolucionMedicaServicio {
                 .timestamp(System.currentTimeMillis())
                 .mensaje("Borrador de consulta persistido exitosamente en el servidor.")
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ConsultaBorrador obtenerBorradorConsulta(Long turnoId, Long pacienteId, String emailProfesional) {
+        if (emailProfesional == null || emailProfesional.isBlank()) {
+            throw new AccessDeniedException("Debe autenticarse como profesional para consultar borradores clínicos.");
+        }
+        Profesional profesional = profesionalRepositorio.findByUsuarioEmail(emailProfesional)
+                .orElseThrow(() -> new AccessDeniedException("El usuario autenticado (" + emailProfesional + ") no tiene un perfil de profesional asociado."));
+        Long profesionalId = profesional.getId();
+
+        if (turnoId != null && borradorRepositorio != null) {
+            Turno turno = turnoRepositorio.findById(turnoId)
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+            if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesionalId)) {
+                throw new AccessDeniedException("No posee autorización para consultar el borrador de un turno asignado a otro profesional.");
+            }
+            ConsultaBorrador b = borradorRepositorio.findByTurnoId(turnoId).orElse(null);
+            if (b != null && !b.getProfesionalId().equals(profesionalId)) {
+                throw new AccessDeniedException("El borrador pertenece a otro profesional.");
+            }
+            return b;
+        }
+
+        if (pacienteId != null && borradorRepositorio != null) {
+            return borradorRepositorio.findByProfesionalIdAndPacienteId(profesionalId, pacienteId).orElse(null);
+        }
+
+        return null;
     }
 
     public byte[] generarPdfEvolucion(Long evolucionId) {
