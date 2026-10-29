@@ -1,7 +1,11 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.entidad.OutboxEvento;
+import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.repositorio.OutboxEventoRepositorio;
+import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -18,8 +22,13 @@ import java.util.List;
 public class OutboxScheduler {
 
     private final OutboxEventoRepositorio outboxEventoRepositorio;
+    private final RecetaDigitalRepositorio recetaRepositorio;
+    private final TurnoRepositorio turnoRepositorio;
+    private final DocumentoPdfServicio pdfServicio;
+    private final EmailNotificacionServicio emailServicio;
+    private final NotificacionUsuarioServicio notificacionUsuarioServicio;
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelayString = "${esu.outbox.fixed-delay-ms:10000}")
     @Transactional
     public void procesarEventosPendientes() {
         List<OutboxEvento> eventos = outboxEventoRepositorio.findByEstadoOrderByFechaCreacionAsc("PENDIENTE", PageRequest.of(0, 50));
@@ -30,18 +39,39 @@ public class OutboxScheduler {
         log.debug("Procesando {} eventos de outbox pendientes", eventos.size());
         for (OutboxEvento ev : eventos) {
             try {
+                despacharEvento(ev);
                 ev.setEstado("ENVIADO");
                 ev.setFechaActualizacion(LocalDateTime.now());
             } catch (Exception ex) {
                 log.error("Error al procesar outbox evento ID={}: {}", ev.getId(), ex.getMessage());
-                ev.setIntentos(ev.getIntentos() != null ? ev.getIntentos() + 1 : 1);
+                int intentos = ev.getIntentos() != null ? ev.getIntentos() + 1 : 1;
+                ev.setIntentos(intentos);
                 ev.setUltimoError(ex.getMessage());
-                if (ev.getIntentos() >= 3) {
+                if (intentos >= 3) {
                     ev.setEstado("FALLIDO");
                 }
                 ev.setFechaActualizacion(LocalDateTime.now());
             }
         }
         outboxEventoRepositorio.saveAll(eventos);
+    }
+
+    private void despacharEvento(OutboxEvento ev) {
+        if ("RECETA_EMITIDA".equalsIgnoreCase(ev.getTipoEvento())) {
+            if (recetaRepositorio != null && pdfServicio != null && emailServicio != null) {
+                RecetaDigital receta = recetaRepositorio.findById(ev.getAggregateId()).orElse(null);
+                if (receta != null) {
+                    byte[] pdfBytes = pdfServicio.generarRecetaPdf(receta, ev.getPayload());
+                    emailServicio.enviarRecetaDigital(receta, pdfBytes);
+                }
+            }
+        } else if ("TURNO_CREADO".equalsIgnoreCase(ev.getTipoEvento())) {
+            if (turnoRepositorio != null && emailServicio != null) {
+                Turno turno = turnoRepositorio.findById(ev.getAggregateId()).orElse(null);
+                if (turno != null) {
+                    emailServicio.enviarConfirmacionTurno(turno);
+                }
+            }
+        }
     }
 }

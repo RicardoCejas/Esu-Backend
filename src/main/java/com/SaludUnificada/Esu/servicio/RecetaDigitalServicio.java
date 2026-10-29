@@ -198,6 +198,9 @@ public class RecetaDigitalServicio {
         receta.setMatriculaFarmaciaDispensadora(request.getMatriculaFarmacia());
 
         RecetaDigital actualizada = recetaRepositorio.save(receta);
+        if (!"DISPENSADA".equalsIgnoreCase(actualizada.getEstadoReceta())) {
+            throw new ReglaNegocioException("Error de consistencia al registrar la dispensación de la receta.");
+        }
 
         return DispensarRecetaDtoResponse.builder()
             .recetaId(actualizada.getId())
@@ -378,5 +381,20 @@ public class RecetaDigitalServicio {
             return List.of();
         }
         return recetaRepositorio.findByCodigoCie10(cie10.trim().toUpperCase());
+    }
+    @Transactional
+    public int marcarRecetasVencidasBatch(int batchSize) {
+        LocalDate hoy = LocalDate.now();
+        List<RecetaDigital> vigentes = recetaRepositorio.findByEstadoRecetaAndFechaVencimientoLessThan("EMITIDA", hoy);
+        int total = 0;
+        for (RecetaDigital r : vigentes) {
+            r.setEstadoReceta("VENCIDA");
+            recetaRepositorio.save(r);
+            total++;
+            if (batchSize > 0 && total >= batchSize) {
+                break;
+            }
+        }
+        return total;
     }
 }

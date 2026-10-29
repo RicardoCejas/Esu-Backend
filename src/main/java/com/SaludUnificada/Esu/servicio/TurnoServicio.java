@@ -161,6 +161,7 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
+                .or(() -> profesionalRepositorio.findById(turnoDto.getProfesionalId()))
 
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
         if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
@@ -240,7 +241,8 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("No es posible solicitar sobreturnos en fechas u horarios pasados.");
         }
 
-        Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
+        Profesional profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
+                .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
         if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), request.getFechaHora()).isEmpty()) {

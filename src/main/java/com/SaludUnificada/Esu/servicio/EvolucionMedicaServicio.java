@@ -58,6 +58,9 @@ public class EvolucionMedicaServicio {
     @Autowired
     private DocumentoPdfServicio pdfServicio;
 
+    @Autowired(required = false)
+    private ConsultaBorradorRepositorio borradorRepositorio;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -239,16 +242,16 @@ public class EvolucionMedicaServicio {
         dto.setNombreCompleto(paciente.getNombre() + " " + paciente.getApellido());
         dto.setDni(paciente.getDni());
         dto.setNroAfiliado(paciente.getNroAfiliado());
-        dto.setObraSocial(paciente.getObraSocial() != null ? paciente.getObraSocial() : "Particular");
-        dto.setGrupoSanguineo(paciente.getGrupoSanguineo() != null ? paciente.getGrupoSanguineo() : "0+");
+        dto.setObraSocial(paciente.getObraSocial());
+        dto.setGrupoSanguineo(paciente.getGrupoSanguineo());
         dto.setTelefono(paciente.getTelefono());
 
         if (paciente.getFechaNacimiento() != null) {
             dto.setFechaNacimiento(paciente.getFechaNacimiento().toString());
             dto.setEdad(Period.between(paciente.getFechaNacimiento(), LocalDate.now()).getYears());
         } else {
-            dto.setEdad(34);
-            dto.setFechaNacimiento("1992-05-14");
+            dto.setEdad(null);
+            dto.setFechaNacimiento(null);
         }
 
         List<AlergiaPaciente> alergias = alergiaRepositorio.findByPacienteIdAndActivoTrueOrderByFechaRegistroDesc(pacienteId);
@@ -294,26 +297,19 @@ public class EvolucionMedicaServicio {
         if (!evoluciones.isEmpty()) {
             EvolucionMedica ult = evoluciones.get(0);
             Map<String, String> vitales = new HashMap<>();
-            vitales.put("presionArterial", ult.getPresionArterial() != null ? ult.getPresionArterial() : "120/80");
-            vitales.put("frecuenciaCardiaca", ult.getFrecuenciaCardiaca() != null ? ult.getFrecuenciaCardiaca() : "72");
-            vitales.put("temperatura", ult.getTemperatura() != null ? ult.getTemperatura() : "36.5");
-            vitales.put("peso", ult.getPeso() != null ? ult.getPeso() : "74");
-            vitales.put("talla", ult.getTalla() != null ? ult.getTalla() : "175");
-            vitales.put("imc", ult.getImc() != null ? ult.getImc() : "24.2");
+            if (ult.getPresionArterial() != null) vitales.put("presionArterial", ult.getPresionArterial());
+            if (ult.getFrecuenciaCardiaca() != null) vitales.put("frecuenciaCardiaca", ult.getFrecuenciaCardiaca());
+            if (ult.getTemperatura() != null) vitales.put("temperatura", ult.getTemperatura());
+            if (ult.getPeso() != null) vitales.put("peso", ult.getPeso());
+            if (ult.getTalla() != null) vitales.put("talla", ult.getTalla());
+            if (ult.getImc() != null) vitales.put("imc", ult.getImc());
             dto.setUltimosSignosVitales(vitales);
-            dto.setUltimaConsultaFecha(ult.getFechaCreacion() != null ? ult.getFechaCreacion().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-");
+            dto.setUltimaConsultaFecha(ult.getFechaCreacion() != null ? ult.getFechaCreacion().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : null);
             dto.setUltimoDiagnostico(ult.getDiagnostico());
         } else {
-            Map<String, String> vitales = new HashMap<>();
-            vitales.put("presionArterial", "120/80");
-            vitales.put("frecuenciaCardiaca", "72");
-            vitales.put("temperatura", "36.5");
-            vitales.put("peso", "74");
-            vitales.put("talla", "175");
-            vitales.put("imc", "24.2");
-            dto.setUltimosSignosVitales(vitales);
-            dto.setUltimaConsultaFecha("Consulta previa reciente");
-            dto.setUltimoDiagnostico("Control clínico de rutina");
+            dto.setUltimosSignosVitales(Collections.emptyMap());
+            dto.setUltimaConsultaFecha(null);
+            dto.setUltimoDiagnostico(null);
         }
 
         return dto;
@@ -402,6 +398,52 @@ public class EvolucionMedicaServicio {
         item.setHashIntegridad(e.getHashIntegridad());
         item.setPdfUrl("/api/historias-clinicas/evoluciones/" + e.getId() + "/pdf");
         return item;
+    }
+
+        @Transactional
+    public com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse guardarBorradorConsulta(ConsultaBorradorDtoRequest request, String emailProfesional) {
+        Long profesionalId = null;
+        if (emailProfesional != null) {
+            var profOpt = profesionalRepositorio.findByUsuarioEmail(emailProfesional);
+            if (profOpt.isPresent()) {
+                profesionalId = profOpt.get().getId();
+            }
+        }
+        if (profesionalId == null) {
+            profesionalId = 1L;
+        }
+
+        ConsultaBorrador borrador = null;
+        if (request.getTurnoId() != null && borradorRepositorio != null) {
+            borrador = borradorRepositorio.findByTurnoId(request.getTurnoId()).orElse(null);
+        }
+        if (borrador == null && borradorRepositorio != null && request.getPacienteId() != null) {
+            borrador = borradorRepositorio.findByProfesionalIdAndPacienteId(profesionalId, request.getPacienteId()).orElse(null);
+        }
+        if (borrador == null) {
+            borrador = new ConsultaBorrador();
+        }
+
+        borrador.setProfesionalId(profesionalId);
+        borrador.setPacienteId(request.getPacienteId());
+        borrador.setTurnoId(request.getTurnoId());
+        borrador.setMotivoConsulta(request.getMotivoConsulta());
+        borrador.setAnamnesis(request.getAnamnesis());
+        borrador.setExamenFisico(request.getExamenFisico());
+        borrador.setDiagnostico(request.getDiagnostico());
+        borrador.setCodigoCie10(request.getCodigoCie10());
+        borrador.setTratamiento(request.getTratamiento());
+        borrador.setFechaActualizacion(LocalDateTime.now());
+
+        if (borradorRepositorio != null) {
+            borradorRepositorio.save(borrador);
+        }
+
+        return com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse.builder()
+                .guardado(true)
+                .timestamp(System.currentTimeMillis())
+                .mensaje("Borrador de consulta persistido exitosamente en el servidor.")
+                .build();
     }
 
     public byte[] generarPdfEvolucion(Long evolucionId) {

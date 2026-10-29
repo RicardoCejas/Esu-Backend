@@ -201,4 +201,27 @@ class RecetaDigitalServicioTest {
         assertEquals("VENCIDA", receta.getEstadoReceta());
         verify(recetaRepositorio).save(receta);
     }
+    @Test
+    @DisplayName("Scheduler: Marcar recetas vencidas en lote")
+    void testMarcarRecetasVencidasBatch() {
+        RecetaDigital r1 = new RecetaDigital();
+        r1.setId(101L);
+        r1.setEstadoReceta("EMITIDA");
+        r1.setFechaVencimiento(LocalDate.now().minusDays(2));
+
+        RecetaDigital r2 = new RecetaDigital();
+        r2.setId(102L);
+        r2.setEstadoReceta("EMITIDA");
+        r2.setFechaVencimiento(LocalDate.now().minusDays(1));
+
+        when(recetaRepositorio.findByEstadoRecetaAndFechaVencimientoLessThan(eq("EMITIDA"), any(LocalDate.class)))
+                .thenReturn(List.of(r1, r2));
+
+        int marcadas = recetaServicio.marcarRecetasVencidasBatch(50);
+
+        assertEquals(2, marcadas);
+        assertEquals("VENCIDA", r1.getEstadoReceta());
+        assertEquals("VENCIDA", r2.getEstadoReceta());
+        verify(recetaRepositorio, times(2)).save(any(RecetaDigital.class));
+    }
 }

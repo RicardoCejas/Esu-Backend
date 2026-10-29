@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -102,13 +103,10 @@ public class EvolucionControlador {
     @PostMapping("/historias-clinicas/consultas/borrador")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
     @Operation(summary = "Guardar borrador de consulta médica")
-    public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(@RequestBody ConsultaBorradorDtoRequest borrador) {
-        return ResponseEntity.ok(ConsultaBorradorDtoResponse.builder()
-            .guardado(true)
-            .timestamp(System.currentTimeMillis())
-            .mensaje("Borrador de consulta resguardado exitosamente.")
-            .build()
-        );
+    public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(
+            @RequestBody ConsultaBorradorDtoRequest borrador,
+            Principal principal) {
+        return ResponseEntity.ok(evolucionServicio.guardarBorradorConsulta(borrador, principal != null ? principal.getName() : null));
     }
 
     @GetMapping("/historias-clinicas/evoluciones/{id}/pdf")
