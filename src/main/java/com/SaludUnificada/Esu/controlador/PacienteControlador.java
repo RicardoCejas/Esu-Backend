@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -112,7 +113,7 @@ public class PacienteControlador {
     }
 
     @DeleteMapping("/{titularId}/familiares/{vinculoId}")
-    @PreAuthorize("@securityPolicy.canAccessPatient(#titularId)")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#titularId) and @securityPolicy.canAccessFamiliar(#vinculoId)")
     public ResponseEntity<Void> desvincularFamiliar(@PathVariable Long titularId, @PathVariable Long vinculoId) {
         carnetYFamiliarServicio.desvincularFamiliar(titularId, vinculoId);
         return ResponseEntity.noContent().build();
@@ -146,12 +147,12 @@ public class PacienteControlador {
 
     @PostMapping("/fusionar")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<java.util.Map<String, String>> fusionarPacientes(
+    public ResponseEntity<Map<String, String>> fusionarPacientes(
             @RequestParam Long pacienteOrigenId,
             @RequestParam Long pacienteDestinoId,
             @RequestParam(required = false) String motivo,
             Principal principal) {
         pacienteServicio.fusionarPacientes(pacienteOrigenId, pacienteDestinoId, motivo, principal != null ? principal.getName() : "ADMIN");
-        return ResponseEntity.ok(java.util.Map.of("mensaje", "Pacientes fusionados correctamente"));
+        return ResponseEntity.ok(Map.of("mensaje", "Pacientes fusionados correctamente"));
     }
 }

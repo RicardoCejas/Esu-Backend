@@ -6,17 +6,18 @@ services:
     environment:
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: db_esu
-      MYSQL_USER: esu_app
+      MYSQL_USER: ${MYSQL_USER:-esu_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     networks:
       - esu-internal
     volumes:
       - esu_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "esu_app", "-p${MYSQL_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-esu_app}", "-p${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   backend:
     build: .
@@ -28,14 +29,21 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba
-      SPRING_DATASOURCE_USERNAME: esu_app
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-esu_app}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       APP_JWT_SECRET: ${APP_JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,https://cruzdeleje.gob.ar}
       SERVER_PORT: 8080
     ports:
       - "8080:8080"
     networks:
       - esu-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 networks:
   esu-internal:

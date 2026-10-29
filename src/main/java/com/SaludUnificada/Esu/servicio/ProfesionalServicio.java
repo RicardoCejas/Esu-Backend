@@ -8,7 +8,9 @@ import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,9 @@ public class ProfesionalServicio implements IProfesionalServicio {
     private final ProfesionalRepositorio profesionalRepositorio;
     private final ProfesionalMapper profesionalMapper;
     private final TurnoRepositorio turnoRepositorio;
+
+    @Autowired(required = false)
+    private UsuarioRepositorio usuarioRepositorio;
 
     @Override
     @Transactional
@@ -101,11 +106,18 @@ public class ProfesionalServicio implements IProfesionalServicio {
         return profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
     }
+
     @Override
     @Transactional
     public ProfesionalDtoResponse cambiarEstadoActivo(Long id, boolean activo) {
         Profesional profesional = obtenerEntidadProfesionalPorId(id);
         profesional.setEstadoActivo(activo);
+        if (!activo && profesional.getUsuario() != null) {
+            profesional.getUsuario().revocarSesiones();
+            if (usuarioRepositorio != null) {
+                usuarioRepositorio.save(profesional.getUsuario());
+            }
+        }
         Profesional guardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(guardado);
     }

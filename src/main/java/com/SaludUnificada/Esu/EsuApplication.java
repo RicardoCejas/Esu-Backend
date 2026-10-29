@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -8,11 +9,18 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 
+import java.util.TimeZone;
+
 @SpringBootApplication
 @EnableAsync
 @EnableScheduling
 @EnableCaching
 public class EsuApplication {
+
+	@PostConstruct
+	public void init() {
+		TimeZone.setDefault(TimeZone.getTimeZone("America/Argentina/Cordoba"));
+	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(EsuApplication.class, args);

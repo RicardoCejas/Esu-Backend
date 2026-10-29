@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -42,7 +43,7 @@ public class EvolucionControlador {
     private final EvolucionMedicaMapper evolucionMedicaMapper;
 
     @PostMapping("/historias-clinicas/evoluciones")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Registrar y firmar electrónicamente una evolución médica clínica")
     public ResponseEntity<EvolucionMedicaDtoResponse> registrarEvolucion(@Valid @RequestBody EvolucionMedicaDtoRequest request) {
         EvolucionMedica entidad = evolucionServicio.registrarEvolucion(request);
@@ -50,7 +51,7 @@ public class EvolucionControlador {
     }
 
     @PostMapping("/historias-clinicas/evoluciones/{id}/adenda")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessEvolucion(#id))")
     @Operation(summary = "Emitir Adenda médica / Fe de erratas formal sobre una evolución firmada")
     public ResponseEntity<EvolucionAdendaDtoResponse> emitirAdenda(
         @PathVariable Long id,
@@ -61,7 +62,7 @@ public class EvolucionControlador {
     }
 
     @PutMapping("/turnos/{id}/finalizar-atencion")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
     @Operation(summary = "Finalizar atención médica, asociar evolución y cerrar turno a FINALIZADO")
     public ResponseEntity<EvolucionMedicaDtoResponse> finalizarAtencion(
         @PathVariable Long id,
@@ -102,17 +103,14 @@ public class EvolucionControlador {
     @PostMapping("/historias-clinicas/consultas/borrador")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
     @Operation(summary = "Guardar borrador de consulta médica")
-    public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(@RequestBody ConsultaBorradorDtoRequest borrador) {
-        return ResponseEntity.ok(ConsultaBorradorDtoResponse.builder()
-            .guardado(true)
-            .timestamp(System.currentTimeMillis())
-            .mensaje("Borrador de consulta resguardado exitosamente.")
-            .build()
-        );
+    public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(
+            @RequestBody ConsultaBorradorDtoRequest borrador,
+            Principal principal) {
+        return ResponseEntity.ok(evolucionServicio.guardarBorradorConsulta(borrador, principal != null ? principal.getName() : null));
     }
 
     @GetMapping("/historias-clinicas/evoluciones/{id}/pdf")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'PACIENTE', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessEvolucion(#id)")
     @Operation(summary = "Descargar informe de evolución médica inalterable en PDF con QR y SHA-256")
     public ResponseEntity<byte[]> descargarEvolucionPdf(@PathVariable Long id) {
         byte[] pdfBytes = evolucionServicio.generarPdfEvolucion(id);

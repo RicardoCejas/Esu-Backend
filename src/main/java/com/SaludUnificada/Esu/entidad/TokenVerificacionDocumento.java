@@ -44,6 +44,12 @@ public class TokenVerificacionDocumento {
     @Column(nullable = false)
     private Boolean revocado = false;
 
+    @Column(nullable = false)
+    private Integer intentos = 0;
+
+    @Column(name = "max_intentos", nullable = false)
+    private Integer maxIntentos = 5;
+
     public TokenVerificacionDocumento(String token, Long pacienteId, String tipoDocumento, LocalDateTime fechaExpiracion) {
         this.token = token;
         this.pacienteId = pacienteId;
@@ -52,11 +58,15 @@ public class TokenVerificacionDocumento {
         this.fechaExpiracion = fechaExpiracion;
         this.usado = false;
         this.revocado = false;
+        this.intentos = 0;
+        this.maxIntentos = 5;
     }
 
     public boolean esValido() {
         return !Boolean.TRUE.equals(revocado) &&
+               !Boolean.TRUE.equals(usado) &&
                fechaExpiracion != null &&
-               fechaExpiracion.isAfter(LocalDateTime.now());
+               fechaExpiracion.isAfter(LocalDateTime.now()) &&
+               (intentos == null || maxIntentos == null || intentos < maxIntentos);
     }
 }

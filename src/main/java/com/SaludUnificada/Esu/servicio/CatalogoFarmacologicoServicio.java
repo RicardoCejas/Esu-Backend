@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.servicio;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
@@ -49,6 +50,7 @@ public class CatalogoFarmacologicoServicio {
                MONODROGAS_AUTORIZADAS.stream().anyMatch(normalizada::contains);
     }
 
+    @Cacheable("catalogoMonodrogas")
     public List<String> getCatalogoOficial() {
         return MONODROGAS_AUTORIZADAS.stream()
                 .sorted()

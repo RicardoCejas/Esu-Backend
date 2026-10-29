@@ -179,6 +179,18 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(message);
     }
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ErrorMessage> handleSecurityException(SecurityException exception) {
+        log.warn("Violacion de seguridad detectada: {}", exception.getMessage());
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.FORBIDDEN,
+                LocalDateTime.now(),
+                "Acceso denegado: la operacion fue bloqueada por politicas de seguridad del sistema.",
+                "Acceso restringido"
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(message);
+    }
+
     @ExceptionHandler(RecetaYaDispensadaException.class)
     public ResponseEntity<ErrorMessage> handleRecetaYaDispensada(RecetaYaDispensadaException exception) {
         ErrorMessage message = new ErrorMessage(

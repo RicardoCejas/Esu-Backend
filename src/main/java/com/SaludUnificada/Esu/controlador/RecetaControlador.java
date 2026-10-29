@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -97,6 +99,15 @@ public class RecetaControlador {
             @RequestParam(required = false) String estado) {
         List<RecetaDigital> recetas = recetaServicio.listarPorPaciente(pacienteId, estado);
         return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
+    }
+
+    @GetMapping("/recetas/paciente/{pacienteId}/paginado")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
+    @Operation(summary = "Listar recetas medicas digitales por paciente de forma paginada")
+    public ResponseEntity<Page<RecetaDigitalDtoResponse>> listarPorPacientePaginado(
+            @PathVariable Long pacienteId,
+            Pageable pageable) {
+        return ResponseEntity.ok(recetaServicio.listarPorPacientePaginado(pacienteId, pageable).map(recetaDigitalMapper::toDto));
     }
 
     @PatchMapping("/recetas/{id}/anular")

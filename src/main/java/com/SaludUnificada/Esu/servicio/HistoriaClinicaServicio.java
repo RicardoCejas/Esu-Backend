@@ -14,6 +14,7 @@ import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.LogAccesoHcRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
 import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,17 +45,21 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Autowired(required = false)
     private RequestIpUtil requestIpUtil;
 
+    @Autowired(required = false)
+    private OwnershipSecurityEvaluator ownershipSecurityEvaluator;
+
     @Override
-    public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest historiaClinicaDto) {
-        HistoriaClinica historiaClinica = historiaClinicaMapper.paraEntidad(historiaClinicaDto);
-        HistoriaClinica historiaGuardada = historiaClinicaRepositorio.save(historiaClinica);
-        return historiaClinicaMapper.paraDto(historiaGuardada);
+    @Transactional
+    public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest dto) {
+        HistoriaClinica historiaClinica = historiaClinicaMapper.paraEntidad(dto);
+        HistoriaClinica guardada = historiaClinicaRepositorio.save(historiaClinica);
+        return historiaClinicaMapper.paraDto(guardada);
     }
 
     @Override
     public HistoriaClinicaDtoResponse obtenerHistoriaClinicaPorId(Long id) {
         HistoriaClinica historiaClinica = historiaClinicaRepositorio.findById(id)
-                .orElseThrow(() -> new NoEncontradoExcepcion("Historia Clínica no encontrada con ID: " + id));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Historia clínica no encontrada con ID: " + id));
         return historiaClinicaMapper.paraDto(historiaClinica);
     }
 
@@ -66,17 +71,21 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     }
 
     @Override
+    @Transactional
     public void eliminarHistoriaClinica(Long id) {
-        if (historiaClinicaRepositorio.existsById(id)) {
-            historiaClinicaRepositorio.deleteById(id);
-        } else {
-            throw new NoEncontradoExcepcion("Historia Clínica no encontrada con ID: " + id);
+        if (!historiaClinicaRepositorio.existsById(id)) {
+            throw new NoEncontradoExcepcion("Historia clínica no encontrada con ID: " + id);
         }
+        historiaClinicaRepositorio.deleteById(id);
     }
 
     @Override
     public List<HistoriaClinicaDtoResponse> buscarPorPacienteId(Long pacienteId) {
         List<HistoriaClinica> historiasClinicas = historiaClinicaRepositorio.findByPacienteId(pacienteId);
+
+        if (historiasClinicas.isEmpty()) {
+            throw new NoEncontradoExcepcion("No se encontraron historias clínicas para el paciente con ID: " + pacienteId);
+        }
 
         return historiasClinicas.stream()
                 .map(historiaClinicaMapper::paraDto)
@@ -86,9 +95,12 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Override
     public List<HistoriaClinicaDtoResponse> buscarPorRangoFechas(LocalDateTime inicio, LocalDateTime fin) {
         return historiaClinicaRepositorio.findByFechaAtencionBetween(inicio, fin).stream()
+                .filter(hc -> hc.getPaciente() != null && 
+                        (ownershipSecurityEvaluator == null || ownershipSecurityEvaluator.canAccessPatient(hc.getPaciente().getId())))
                 .map(historiaClinicaMapper::paraDto)
                 .collect(Collectors.toList());
     }
+
     @Override
     public long contarPorPaciente(Long pacienteId) {
         return historiaClinicaRepositorio.countByPacienteId(pacienteId);

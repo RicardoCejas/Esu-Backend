@@ -228,4 +228,14 @@ class TurnoServicioTest {
         assertEquals("Paciente presenta mejoría sintomática. Tratamiento completado con éxito.", response.getObservacionesAtencion());
         assertNotNull(response.getFechaAtencion());
     }
+    @Test
+    void testListarPaginados() {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(turnos.findAll(pageable)).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(new Turno())));
+        when(mapper.paraDto(any())).thenReturn(new TurnoDtoResponse());
+
+        org.springframework.data.domain.Page<TurnoDtoResponse> page = servicio.listarPaginados(pageable);
+        assertNotNull(page);
+        assertEquals(1, page.getTotalElements());
+    }
 }

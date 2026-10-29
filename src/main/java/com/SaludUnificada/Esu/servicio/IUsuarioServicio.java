@@ -15,4 +15,6 @@ public interface IUsuarioServicio {
     List<UsuarioDtoResponse> findByActivo(boolean estado);
     Usuario obtenerEntidadUsuarioPorId(Long id);
     UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo);
+    void revocarSesiones(Long id);
+    void revocarSesionesPorEmail(String email);
 }

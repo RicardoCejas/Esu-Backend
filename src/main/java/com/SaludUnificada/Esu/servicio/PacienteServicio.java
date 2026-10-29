@@ -2,18 +2,11 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.PacienteDtoRequest;
 import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
-import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
-import com.SaludUnificada.Esu.entidad.HistoriaClinica;
-import com.SaludUnificada.Esu.entidad.RecetaDigital;
-import com.SaludUnificada.Esu.entidad.Turno;
-import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
-import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
-import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
-import org.springframework.transaction.annotation.Transactional;
+import com.SaludUnificada.Esu.repositorio.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,6 +33,21 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Autowired(required = false)
     private HistoriaClinicaRepositorio historiaClinicaRepositorio;
+
+    @Autowired(required = false)
+    private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+
+    @Autowired(required = false)
+    private EstudioAdjuntoRepositorio estudioAdjuntoRepositorio;
+
+    @Autowired(required = false)
+    private AlergiaPacienteRepositorio alergiaPacienteRepositorio;
+
+    @Autowired(required = false)
+    private ConsentimientoInformadoRepositorio consentimientoRepositorio;
+
+    @Autowired(required = false)
+    private VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
 
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
@@ -167,8 +175,49 @@ public class PacienteServicio implements IPacienteServicio {
             historiaClinicaRepositorio.saveAll(historias);
         }
 
+        if (evolucionMedicaRepositorio != null) {
+            List<EvolucionMedica> evoluciones = evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteOrigenId);
+            for (EvolucionMedica e : evoluciones) {
+                e.setPaciente(destino);
+            }
+            evolucionMedicaRepositorio.saveAll(evoluciones);
+        }
+
+        if (estudioAdjuntoRepositorio != null) {
+            List<EstudioAdjunto> estudios = estudioAdjuntoRepositorio.findByPacienteIdOrderByFechaCargaDesc(pacienteOrigenId);
+            for (EstudioAdjunto est : estudios) {
+                est.setPacienteId(destino.getId());
+            }
+            estudioAdjuntoRepositorio.saveAll(estudios);
+        }
+
+        if (alergiaPacienteRepositorio != null) {
+            List<AlergiaPaciente> alergias = alergiaPacienteRepositorio.findByPacienteIdOrderByFechaRegistroDesc(pacienteOrigenId);
+            for (AlergiaPaciente a : alergias) {
+                a.setPacienteId(destino.getId());
+            }
+            alergiaPacienteRepositorio.saveAll(alergias);
+        }
+
+        if (consentimientoRepositorio != null) {
+            List<ConsentimientoInformado> consentimientos = consentimientoRepositorio.findByPacienteIdOrderByFechaHoraFirmaDesc(pacienteOrigenId);
+            for (ConsentimientoInformado c : consentimientos) {
+                c.setPacienteId(destino.getId());
+            }
+            consentimientoRepositorio.saveAll(consentimientos);
+        }
+
+        if (vinculoFamiliarRepositorio != null) {
+            List<VinculoFamiliar> vinculos = vinculoFamiliarRepositorio.findByTitularId(pacienteOrigenId);
+            for (VinculoFamiliar v : vinculos) {
+                v.setTitular(destino);
+            }
+            vinculoFamiliarRepositorio.saveAll(vinculos);
+        }
+
         if (origen.getUsuario() != null) {
             origen.getUsuario().setEstadoActivo(false);
+            origen.getUsuario().revocarSesiones();
         }
         origen.setNombre("[FUSIONADO #" + destino.getId() + "] " + origen.getNombre());
         origen.setDni("FUSIONADO-" + origen.getId() + "-" + origen.getDni());

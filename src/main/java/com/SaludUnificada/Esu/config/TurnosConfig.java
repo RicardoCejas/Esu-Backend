@@ -17,7 +17,7 @@ public class TurnosConfig {
     }
 
     @Bean
-    public Clock applicationClock() {
-        return Clock.systemUTC();
+    public Clock applicationClock(ZoneId turnosZoneId) {
+        return Clock.system(turnosZoneId);
     }
 }

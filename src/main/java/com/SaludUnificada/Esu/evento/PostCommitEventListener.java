@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.servicio.DocumentoPdfServicio;
 import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.NotificacionUsuarioServicio;
+import com.SaludUnificada.Esu.servicio.OutboxPublicadorServicio;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class PostCommitEventListener {
     private final DocumentoPdfServicio pdfServicio;
     private final EmailNotificacionServicio emailServicio;
     private final NotificacionUsuarioServicio notificacionUsuarioServicio;
+    private final OutboxPublicadorServicio outboxPublicadorServicio;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRecetaEmitida(RecetaEmitidaEvent event) {
@@ -36,12 +38,18 @@ public class PostCommitEventListener {
                         emailServicio.enviarRecetaDigital(receta, pdfBytes);
                         log.info("Notificación por email de receta #{} enviada satisfactoriamente tras commit.", receta.getId());
                     } catch (Exception e) {
-                        log.warn("Fallo al generar PDF o despachar email de receta post-commit: {}", e.getMessage());
+                        log.warn("Fallo al generar PDF o despachar email de receta post-commit: {}. Derivando a outbox.", e.getMessage());
+                        if (outboxPublicadorServicio != null) {
+                            outboxPublicadorServicio.registrarEventoIndependiente("RECETA_EMITIDA", event.getRecetaId(), event.getQrUrl());
+                        }
                     }
                 }
             });
         } catch (Exception e) {
             log.error("Error al procesar evento RecetaEmitidaEvent: {}", e.getMessage());
+            if (outboxPublicadorServicio != null) {
+                outboxPublicadorServicio.registrarEventoIndependiente("RECETA_EMITIDA", event.getRecetaId(), event.getQrUrl());
+            }
         }
     }
 
@@ -69,12 +77,18 @@ public class PostCommitEventListener {
                         emailServicio.enviarConfirmacionTurno(turno);
                         log.info("Email de confirmación para turno #{} enviado tras commit exitoso.", turno.getId());
                     } catch (Exception e) {
-                        log.warn("Fallo al despachar email de turno post-commit: {}", e.getMessage());
+                        log.warn("Fallo al despachar email de turno post-commit: {}. Derivando a outbox.", e.getMessage());
+                        if (outboxPublicadorServicio != null) {
+                            outboxPublicadorServicio.registrarEventoIndependiente("TURNO_CREADO", event.getTurnoId(), null);
+                        }
                     }
                 }
             });
         } catch (Exception e) {
             log.error("Error al procesar evento TurnoCreadoEvent: {}", e.getMessage());
+            if (outboxPublicadorServicio != null) {
+                outboxPublicadorServicio.registrarEventoIndependiente("TURNO_CREADO", event.getTurnoId(), null);
+            }
         }
     }
 }

@@ -19,6 +19,16 @@ public class OutboxPublicadorServicio {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public OutboxEvento registrarEvento(String tipoEvento, Long aggregateId, String payload) {
+        return crearYGuardarEvento(tipoEvento, aggregateId, payload);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OutboxEvento registrarEventoIndependiente(String tipoEvento, Long aggregateId, String payload) {
+        log.info("Registrando evento outbox en transacción independiente: tipo={}, aggregateId={}", tipoEvento, aggregateId);
+        return crearYGuardarEvento(tipoEvento, aggregateId, payload);
+    }
+
+    private OutboxEvento crearYGuardarEvento(String tipoEvento, Long aggregateId, String payload) {
         OutboxEvento evento = new OutboxEvento();
         evento.setTipoEvento(tipoEvento);
         evento.setAggregateId(aggregateId);

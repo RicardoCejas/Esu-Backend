@@ -36,96 +36,69 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (usuarioRepositorio.count() > 0) {
-            return;
-        }
+        log.info("Verificando y sincronizando datos semilla de desarrollo (Perfil local/dev, ejecución idempotente por registro)...");
 
-        log.info("Iniciando DataSeeder (Perfil local/dev): Sembrando usuarios, especialidades y profesionales iniciales...");
+        crearUsuarioSiNoExiste("admin@esu.gob.ar", "Admin123!", "ADMIN");
+        crearUsuarioSiNoExiste("recepcion@esu.gob.ar", "Recepcion123!", "RECEPCIONISTA");
+        crearUsuarioSiNoExiste("farmacia@esu.gob.ar", "Farmacia123!", "FARMACIA");
 
-        Usuario admin = new Usuario();
-        admin.setEmail("admin@esu.gob.ar");
-        admin.setPassword(passwordEncoder.encode("Admin123!"));
-        admin.setRol("ADMIN");
-        admin.setEstadoActivo(true);
-        admin.setEmailVerificado(true);
-        admin.setFechaDeAlta(LocalDate.now());
-        usuarioRepositorio.save(admin);
+        Especialidad espGeneral = crearEspecialidadSiNoExiste("Medicina General");
+        Especialidad espCardio = crearEspecialidadSiNoExiste("Cardiología");
+        Especialidad espPedia = crearEspecialidadSiNoExiste("Pediatría");
+        Especialidad espTrauma = crearEspecialidadSiNoExiste("Traumatología");
 
-        Usuario recepcion = new Usuario();
-        recepcion.setEmail("recepcion@esu.gob.ar");
-        recepcion.setPassword(passwordEncoder.encode("Recepcion123!"));
-        recepcion.setRol("RECEPCIONISTA");
-        recepcion.setEstadoActivo(true);
-        recepcion.setEmailVerificado(true);
-        recepcion.setFechaDeAlta(LocalDate.now());
-        usuarioRepositorio.save(recepcion);
+        crearProfesionalSiNoExiste("Carlos", "Gómez", "MP-45210", "carlos.gomez@esu.gob.ar", "Medico123!", Set.of(espGeneral));
+        crearProfesionalSiNoExiste("María Elena", "Rossi", "MP-38914", "maria.rossi@esu.gob.ar", "Medico123!", Set.of(espCardio));
+        crearProfesionalSiNoExiste("Lucas", "Benítez", "MP-51203", "lucas.benitez@esu.gob.ar", "Medico123!", Set.of(espPedia));
 
-        Usuario farmacia = new Usuario();
-        farmacia.setEmail("farmacia@esu.gob.ar");
-        farmacia.setPassword(passwordEncoder.encode("Farmacia123!"));
-        farmacia.setRol("FARMACIA");
-        farmacia.setEstadoActivo(true);
-        farmacia.setEmailVerificado(true);
-        farmacia.setFechaDeAlta(LocalDate.now());
-        usuarioRepositorio.save(farmacia);
+        crearPacienteSiNoExiste("Juan", "Pérez", "35123456", "AF-100234", "OSECAC", "juan.perez@salud.gob.ar", "Paciente123!");
+        crearPacienteSiNoExiste("Ana", "Torres", "28987654", "AF-802341", "PAMI", "ana.torres@salud.gob.ar", "Paciente123!");
 
-        Especialidad espGeneral = new Especialidad();
-        espGeneral.setNombre("Medicina General");
-        espGeneral = especialidadRepositorio.save(espGeneral);
-
-        Especialidad espCardio = new Especialidad();
-        espCardio.setNombre("Cardiología");
-        espCardio = especialidadRepositorio.save(espCardio);
-
-        Especialidad espPedia = new Especialidad();
-        espPedia.setNombre("Pediatría");
-        espPedia = especialidadRepositorio.save(espPedia);
-
-        Especialidad espTrauma = new Especialidad();
-        espTrauma.setNombre("Traumatología");
-        espTrauma = especialidadRepositorio.save(espTrauma);
-
-        crearProfesional("Carlos", "Gómez", "MP-45210", "carlos.gomez@esu.gob.ar", "Medico123!", Set.of(espGeneral));
-        crearProfesional("María Elena", "Rossi", "MP-38914", "maria.rossi@esu.gob.ar", "Medico123!", Set.of(espCardio));
-        crearProfesional("Lucas", "Benítez", "MP-51203", "lucas.benitez@esu.gob.ar", "Medico123!", Set.of(espPedia));
-
-        crearPaciente("Juan", "Pérez", "35123456", "AF-100234", "OSECAC", "juan.perez@salud.gob.ar", "Paciente123!");
-        crearPaciente("Ana", "Torres", "28987654", "AF-802341", "PAMI", "ana.torres@salud.gob.ar", "Paciente123!");
-
-        log.info("DataSeeder completado exitosamente: usuarios listos para entorno local.");
+        log.info("Sincronización de datos semilla completada.");
     }
 
-    private void crearProfesional(String nombre, String apellido, String matricula, String email, String password, Set<Especialidad> especialidades) {
-        Usuario u = new Usuario();
-        u.setEmail(email);
-        u.setPassword(passwordEncoder.encode(password));
-        u.setRol("PROFESIONAL");
-        u.setEstadoActivo(true);
-        u.setEmailVerificado(true);
-        u.setFechaDeAlta(LocalDate.now());
-        Usuario guardado = usuarioRepositorio.save(u);
+    private Usuario crearUsuarioSiNoExiste(String email, String rawPassword, String rol) {
+        return usuarioRepositorio.findByEmail(email).orElseGet(() -> {
+            Usuario u = new Usuario();
+            u.setEmail(email);
+            u.setPassword(passwordEncoder.encode(rawPassword));
+            u.setRol(rol);
+            u.setEstadoActivo(true);
+            u.setEmailVerificado(true);
+            u.setFechaDeAlta(LocalDate.now());
+            return usuarioRepositorio.save(u);
+        });
+    }
 
+    private Especialidad crearEspecialidadSiNoExiste(String nombre) {
+        return especialidadRepositorio.findByNombreIgnoreCase(nombre).orElseGet(() -> {
+            Especialidad esp = new Especialidad();
+            esp.setNombre(nombre);
+            return especialidadRepositorio.save(esp);
+        });
+    }
+
+    private void crearProfesionalSiNoExiste(String nombre, String apellido, String matricula, String email, String password, Set<Especialidad> especialidades) {
+        if (profesionalRepositorio.findByMatricula(matricula).isPresent() || profesionalRepositorio.findByUsuarioEmail(email).isPresent()) {
+            return;
+        }
+        Usuario u = crearUsuarioSiNoExiste(email, password, "PROFESIONAL");
         Profesional p = new Profesional();
         p.setNombre(nombre);
         p.setApellido(apellido);
         p.setMatricula(matricula);
         p.setTelefono("3549-420000");
         p.setEstadoActivo(true);
-        p.setUsuario(guardado);
+        p.setUsuario(u);
         p.setEspecialidades(especialidades);
         profesionalRepositorio.save(p);
     }
 
-    private void crearPaciente(String nombre, String apellido, String dni, String nroAfiliado, String obraSocial, String email, String password) {
-        Usuario u = new Usuario();
-        u.setEmail(email);
-        u.setPassword(passwordEncoder.encode(password));
-        u.setRol("PACIENTE");
-        u.setEstadoActivo(true);
-        u.setEmailVerificado(true);
-        u.setFechaDeAlta(LocalDate.now());
-        Usuario guardado = usuarioRepositorio.save(u);
-
+    private void crearPacienteSiNoExiste(String nombre, String apellido, String dni, String nroAfiliado, String obraSocial, String email, String password) {
+        if (pacienteRepositorio.findByDni(dni).isPresent() || pacienteRepositorio.existsByUsuarioEmail(email)) {
+            return;
+        }
+        Usuario u = crearUsuarioSiNoExiste(email, password, "PACIENTE");
         Paciente pac = new Paciente();
         pac.setNombre(nombre);
         pac.setApellido(apellido);
@@ -133,7 +106,7 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         pac.setNroAfiliado(nroAfiliado);
         pac.setObraSocial(obraSocial);
         pac.setTelefono("3549-421111");
-        pac.setUsuario(guardado);
+        pac.setUsuario(u);
         pacienteRepositorio.save(pac);
     }
 }

@@ -98,6 +98,37 @@ Este proyecto se rige por los estándares del **PMI (Project Management Institut
 
 ---
 
+## Instalación, Configuración y Despliegue
+
+### 1. Variables de Entorno
+Copiar la plantilla de configuración `.env.example` como `.env`:
+```bash
+cp .env.example .env
+```
+Configurar obligatoriamente en entornos productivos:
+- `SPRING_PROFILES_ACTIVE`: `prod` (o `dev` / `local` para pruebas en estación de trabajo).
+- `MYSQL_USER`: Usuario MySQL con privilegios mínimos (por defecto `esu_app`, nunca `root` en producción).
+- `MYSQL_PASSWORD`: Contraseña segura para el usuario de base de datos.
+- `APP_JWT_SECRET`: Clave criptográfica HMAC-SHA de al menos 32 caracteres (256 bits).
+- `CORS_ALLOWED_ORIGINS`: Lista explícita de dominios autorizados sin comodín (ej: `http://localhost:5173,https://cruzdeleje.gob.ar`).
+
+### 2. Ejecución Local con Maven
+Para ejecutar la aplicación localmente en modo desarrollo con base de datos H2 o MySQL local:
+```bash
+./mvnw clean spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+### 3. Despliegue con Docker Compose
+Para levantar el ecosistema completo (MySQL + Backend) con verificaciones de salud automáticas:
+```bash
+docker compose up -d --build
+```
+Los servicios quedarán operativos con health checks:
+- Base de datos MySQL: `localhost:3306` (espera a estar saludable mediante `mysqladmin ping`).
+- Backend Spring Boot: `http://localhost:8080` (espera a estar saludable en `http://localhost:8080/actuator/health`).
+
+---
+
 ## Equipo de Desarrollo
 * **Martino Costigliolo**
 * **Braian Aguilera**
