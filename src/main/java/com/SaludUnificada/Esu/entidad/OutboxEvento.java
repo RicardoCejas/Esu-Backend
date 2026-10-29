@@ -48,6 +48,12 @@ public class OutboxEvento {
     @Column(name = "fecha_actualizacion")
     private LocalDateTime fechaActualizacion;
 
+    @Column(name = "lease_hasta")
+    private LocalDateTime leaseHasta;
+
+    @Column(name = "proximo_intento")
+    private LocalDateTime proximoIntento;
+
     public OutboxEvento(String tipoEvento, Long aggregateId, String payload) {
         this.tipoEvento = tipoEvento;
         this.aggregateId = aggregateId;
