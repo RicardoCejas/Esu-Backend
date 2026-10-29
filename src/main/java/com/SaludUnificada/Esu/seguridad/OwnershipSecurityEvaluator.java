@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.seguridad;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.repositorio.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,9 @@ public class OwnershipSecurityEvaluator {
     private final AlergiaPacienteRepositorio alergiaRepositorio;
     private final ConsentimientoInformadoRepositorio consentimientoRepositorio;
     private final LogAccesoHcRepositorio logAccesoHcRepositorio;
+
+    private final EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+    private final VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
 
     private Authentication getAuthentication() {
         return SecurityContextHolder.getContext().getAuthentication();
@@ -240,5 +244,48 @@ public class OwnershipSecurityEvaluator {
         AlergiaPaciente alergia = alergiaOpt.get();
 
         return canAccessPatient(alergia.getPacienteId());
+    }
+
+    public boolean canAccessEvolucion(Long evolucionId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+
+        if (evolucionMedicaRepositorio == null) return false;
+        Optional<EvolucionMedica> evOpt = evolucionMedicaRepositorio.findById(evolucionId);
+        if (evOpt.isEmpty()) return false;
+        EvolucionMedica ev = evOpt.get();
+
+        if (ev.getPaciente() == null) return false;
+        return canAccessPatient(ev.getPaciente().getId());
+    }
+
+    public boolean canAccessFamiliar(Long vinculoId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth) || isReceptionist(auth)) return true;
+
+        if (vinculoFamiliarRepositorio == null) return false;
+        Optional<VinculoFamiliar> vinculoOpt = vinculoFamiliarRepositorio.findById(vinculoId);
+        if (vinculoOpt.isEmpty()) return false;
+        VinculoFamiliar v = vinculoOpt.get();
+
+        if (v.getTitular() != null && isCurrentPatient(v.getTitular().getId())) {
+            return true;
+        }
+        if (v.getFamiliarDni() != null) {
+            Authentication authLocal = getAuthentication();
+            Optional<Usuario> usuarioOpt = getCurrentUser(authLocal);
+            if (usuarioOpt.isPresent()) {
+                Optional<Paciente> pacOpt = pacienteRepositorio.findByUsuarioEmail(usuarioOpt.get().getEmail());
+                if (pacOpt.isPresent() && v.getFamiliarDni().equals(pacOpt.get().getDni())) {
+                    return true;
+                }
+            }
+        }
+        if (v.getTitular() != null) {
+            return canAccessPatient(v.getTitular().getId());
+        }
+        return false;
     }
 }

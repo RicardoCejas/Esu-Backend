@@ -87,7 +87,7 @@ public class EstudioAdjuntoControlador {
     }
 
     @GetMapping("/evolucion/{evolucionId}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessEvolucion(#evolucionId)")
     @Operation(summary = "Listar estudios complementarios vinculados directamente a una evolucion clinica")
     public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorEvolucion(@PathVariable Long evolucionId) {
         return ResponseEntity.ok(estudioServicio.listarPorEvolucion(evolucionId));

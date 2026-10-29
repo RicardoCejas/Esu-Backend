@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -66,13 +69,28 @@ public class EvolucionMedicaServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin && profesional.getUsuario() != null) {
+                if (!profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
+                    throw new AccessDeniedException("No está autorizado a registrar una evolución a nombre de otro profesional.");
+                }
+            }
+        }
+
         Turno turno = null;
         if (request.getTurnoId() != null) {
-            turno = turnoRepositorio.findById(request.getTurnoId()).orElse(null);
-            if (turno != null) {
-                turno.setEstado("FINALIZADO");
-                turnoRepositorio.save(turno);
+            turno = turnoRepositorio.findById(request.getTurnoId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + request.getTurnoId()));
+            if (turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
+                throw new ReglaNegocioException("El turno indicado no corresponde al paciente atendido.");
             }
+            if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesional.getId())) {
+                throw new ReglaNegocioException("El turno indicado no corresponde al profesional actuante.");
+            }
+            turno.setEstado("FINALIZADO");
+            turnoRepositorio.save(turno);
         }
 
         EvolucionMedica evolucion = new EvolucionMedica();
@@ -136,6 +154,16 @@ public class EvolucionMedicaServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin && profesional.getUsuario() != null) {
+                if (!profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
+                    throw new AccessDeniedException("No está autorizado a emitir una adenda a nombre de otro profesional.");
+                }
+            }
+        }
+
         EvolucionAdenda adenda = new EvolucionAdenda();
         adenda.setEvolucionMedica(evolucion);
         adenda.setProfesional(profesional);
@@ -158,6 +186,20 @@ public class EvolucionMedicaServicio {
     public EvolucionMedica finalizarAtencion(Long turnoId, FinalizarAtencionDtoRequest request) {
         Turno turno = turnoRepositorio.findById(turnoId)
             .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+
+        if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("No se puede finalizar la atención de un turno cancelado.");
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin && turno.getProfesional() != null && turno.getProfesional().getUsuario() != null) {
+                if (!turno.getProfesional().getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
+                    throw new AccessDeniedException("No está autorizado a finalizar un turno asignado a otro profesional.");
+                }
+            }
+        }
 
         turno.setEstado("FINALIZADO");
         turnoRepositorio.save(turno);
@@ -368,6 +410,7 @@ public class EvolucionMedicaServicio {
         String qrUrl = frontendUrl + "/verificar-evolucion?hash=" + e.getHashIntegridad();
         return pdfServicio.generarEvolucionPdf(e, qrUrl);
     }
+
     @Transactional(readOnly = true)
     public EvolucionMedica obtenerPorId(Long id) {
         return evolucionRepositorio.findById(id)

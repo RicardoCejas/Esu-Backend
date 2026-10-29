@@ -32,6 +32,11 @@ import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.BloqueoAgendaRepositorio;
 import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
+import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -54,6 +59,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 
 import java.util.List;
+import java.util.Optional;
 
 import java.util.stream.Collectors;
 
@@ -96,6 +102,9 @@ public class TurnoServicio implements ITurnoServicio {
 
     @Autowired(required = false)
     private DocumentoPdfServicio documentoPdfServicio;
+
+    @Autowired(required = false)
+    private UsuarioRepositorio usuarioRepositorio;
 
     public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
 
@@ -165,23 +174,31 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         Paciente paciente;
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            Optional<Usuario> usuarioOpt = usuarioRepositorio != null ? usuarioRepositorio.findByEmail(emailAutenticado) : Optional.empty();
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            boolean esPaciente = (usuarioOpt.isPresent() && "PACIENTE".equalsIgnoreCase(usuarioOpt.get().getRol()))
+                    || (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PACIENTE")));
 
-        if (turnoDto.getPacienteId() != null) {
-
+            if (esPaciente) {
+                Paciente miPerfil = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
+                        .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+                if (turnoDto.getPacienteId() != null && !turnoDto.getPacienteId().equals(miPerfil.getId())) {
+                    throw new AccessDeniedException("Un paciente no puede agendar turnos para otro paciente.");
+                }
+                paciente = miPerfil;
+            } else if (turnoDto.getPacienteId() != null) {
+                paciente = pacienteRepositorio.findById(turnoDto.getPacienteId())
+                        .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + turnoDto.getPacienteId()));
+            } else {
+                paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
+                        .orElseThrow(() -> new NoEncontradoExcepcion("Debe indicarse el paciente para el turno."));
+            }
+        } else if (turnoDto.getPacienteId() != null) {
             paciente = pacienteRepositorio.findById(turnoDto.getPacienteId())
-
                     .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + turnoDto.getPacienteId()));
-
-        } else if (emailAutenticado != null && !emailAutenticado.isBlank()) {
-
-            paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado)
-
-                    .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
-
         } else {
-
             throw new IllegalArgumentException("Debe indicarse el paciente para el turno.");
-
         }
 
         Turno turno = new Turno();
@@ -666,6 +683,18 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("No se puede atender un turno cancelado.");
         }
 
+        
+        if (emailProfesional != null && !emailProfesional.isBlank()) {
+            if (turno.getProfesional() != null && turno.getProfesional().getUsuario() != null) {
+                if (!turno.getProfesional().getUsuario().getEmail().equalsIgnoreCase(emailProfesional)) {
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                    boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                    if (!isAdmin) {
+                        throw new AccessDeniedException("No posee autorización para atender un turno asignado a otro profesional.");
+                    }
+                }
+            }
+        }
         turno.setEstado("ATENDIDO");
         turno.setObservacionesAtencion(atencionDto.getObservaciones());
         turno.setFechaAtencion(LocalDateTime.now(clock.withZone(zoneId)));

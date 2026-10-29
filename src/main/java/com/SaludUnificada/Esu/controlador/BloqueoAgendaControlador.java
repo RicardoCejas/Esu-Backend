@@ -40,7 +40,7 @@ public class BloqueoAgendaControlador {
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PostMapping("/api/profesionales/{id}/bloquear-agenda")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#id))")
     public ResponseEntity<BloqueoAgendaDtoResponse> bloquearAgenda(
             @Parameter(description = "ID del profesional", example = "1")
             @PathVariable Long id,
@@ -58,6 +58,7 @@ public class BloqueoAgendaControlador {
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado")
     })
     @GetMapping("/api/profesionales/{id}/bloqueos")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<BloqueoAgendaDtoResponse>> listarBloqueosPorProfesional(
             @Parameter(description = "ID del profesional", example = "1")
             @PathVariable Long id) {
@@ -70,6 +71,7 @@ public class BloqueoAgendaControlador {
             description = "Devuelve los datos detallados de un bloqueo de agenda por ID."
     )
     @GetMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BloqueoAgendaDtoResponse> obtenerBloqueoPorId(
             @PathVariable Long profesionalId,
             @PathVariable Long bloqueoId) {
@@ -77,7 +79,7 @@ public class BloqueoAgendaControlador {
     }
 
     @DeleteMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId))")
     public ResponseEntity<Void> eliminarBloqueo(@PathVariable Long profesionalId, @PathVariable Long bloqueoId) {
         bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
         return ResponseEntity.noContent().build();

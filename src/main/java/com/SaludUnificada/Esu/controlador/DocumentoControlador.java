@@ -16,7 +16,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,7 +26,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -66,8 +67,9 @@ public class DocumentoControlador {
         List<RecetaDigital> recetas = recetaDigitalRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteId);
 
         String randomToken = UUID.randomUUID().toString();
+        String tokenHash = calcularSha256(randomToken);
         TokenVerificacionDocumento tokenDoc = new TokenVerificacionDocumento(
-                randomToken,
+                tokenHash,
                 paciente.getId(),
                 "EXPEDIENTE_CLINICO",
                 java.time.LocalDateTime.now().plusDays(7)
@@ -155,21 +157,49 @@ public class DocumentoControlador {
 
     @GetMapping("/verificar-token/{token}")
     @Operation(summary = "Verificación pública de validez de token de documento oficial")
-    public ResponseEntity<java.util.Map<String, Object>> verificarTokenPublico(@PathVariable String token) {
+    public ResponseEntity<Map<String, Object>> verificarTokenPublico(@PathVariable String token) {
         if (token == null || token.isBlank()) {
-            return ResponseEntity.badRequest().body(java.util.Map.of("valido", false, "mensaje", "Token inválido"));
+            return ResponseEntity.badRequest().body(Map.of("valido", false, "mensaje", "Token inválido"));
         }
-        var opt = tokenVerificacionDocumentoRepositorio.findByToken(token.trim());
-        if (opt.isEmpty() || !opt.get().esValido()) {
-            return ResponseEntity.ok(java.util.Map.of("valido", false, "mensaje", "Token de verificación expirado o inexistente."));
+        String tokenHash = calcularSha256(token.trim());
+        var opt = tokenVerificacionDocumentoRepositorio.findByToken(tokenHash);
+        if (opt.isEmpty()) {
+            return ResponseEntity.ok(Map.of("valido", false, "mensaje", "Token de verificación inexistente o inválido."));
         }
         var doc = opt.get();
-        return ResponseEntity.ok(java.util.Map.of(
+        doc.setIntentos((doc.getIntentos() != null ? doc.getIntentos() : 0) + 1);
+        if (doc.getMaxIntentos() != null && doc.getIntentos() > doc.getMaxIntentos()) {
+            doc.setRevocado(true);
+            tokenVerificacionDocumentoRepositorio.save(doc);
+            return ResponseEntity.ok(Map.of("valido", false, "mensaje", "Límite de intentos de verificación superado. Token revocado por seguridad."));
+        }
+        if (!doc.esValido()) {
+            tokenVerificacionDocumentoRepositorio.save(doc);
+            return ResponseEntity.ok(Map.of("valido", false, "mensaje", "Token de verificación expirado o revocado."));
+        }
+        tokenVerificacionDocumentoRepositorio.save(doc);
+        return ResponseEntity.ok(Map.of(
                 "valido", true,
                 "tipoDocumento", doc.getTipoDocumento(),
                 "fechaEmision", doc.getFechaCreacion(),
                 "fechaExpiracion", doc.getFechaExpiracion(),
                 "mensaje", "Documento oficial íntegro y verificado."
         ));
+    }
+
+    private String calcularSha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error calculando hash SHA-256", e);
+        }
     }
 }

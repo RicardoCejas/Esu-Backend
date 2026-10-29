@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,6 +49,16 @@ public class RecuperacionPasswordServicio {
         }
 
         Usuario usuario = optUsuario.get();
+
+        // Invalidar tokens previos activos del usuario
+        List<TokenRecuperacion> previos = tokenRepositorio.findByUsuarioIdAndUsadoFalse(usuario.getId());
+        for (TokenRecuperacion prev : previos) {
+            prev.setUsado(true);
+        }
+        if (!previos.isEmpty()) {
+            tokenRepositorio.saveAll(previos);
+        }
+
         String tokenStr = UUID.randomUUID().toString();
 
         TokenRecuperacion token = new TokenRecuperacion();
@@ -90,6 +101,7 @@ public class RecuperacionPasswordServicio {
 
         usuario.setPassword(passwordEncoder.encode(request.getNuevaPassword()));
         usuario.setFechaActualizacionPassword(LocalDateTime.now());
+        usuario.revocarSesiones(); // Invalida todas las sesiones previas incrementando tokenVersion
         usuarioRepositorio.save(usuario);
 
         // Invalidación inmediata del token

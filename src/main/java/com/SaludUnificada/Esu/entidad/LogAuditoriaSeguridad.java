@@ -22,7 +22,9 @@ public class LogAuditoriaSeguridad {
 
     public enum EventoSeguridad {
         LOGIN_OK,
-        LOGIN_FAIL
+        LOGIN_FAIL,
+        REENVIO_VERIFICACION,
+        SOLICITUD_RECUPERACION
     }
 
     @Id
@@ -39,7 +41,7 @@ public class LogAuditoriaSeguridad {
     private String userAgent;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 50)
     private EventoSeguridad evento;
 
     @Column(length = 250)
@@ -47,11 +49,4 @@ public class LogAuditoriaSeguridad {
 
     @Column(nullable = false)
     private LocalDateTime fecha;
-
-    @PrePersist
-    protected void onCreate() {
-        if (fecha == null) {
-            fecha = LocalDateTime.now();
-        }
-    }
 }

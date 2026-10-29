@@ -1,9 +1,6 @@
 package com.SaludUnificada.Esu.seguridad;
 
-import com.SaludUnificada.Esu.entidad.Paciente;
-import com.SaludUnificada.Esu.entidad.Profesional;
-import com.SaludUnificada.Esu.entidad.Turno;
-import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.repositorio.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +43,10 @@ class OwnershipSecurityEvaluatorTest {
     private AlergiaPacienteRepositorio alergiaRepositorio;
     @Mock
     private LogAccesoHcRepositorio logAccesoHcRepositorio;
+    @Mock
+    private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+    @Mock
+    private VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
 
     @InjectMocks
     private OwnershipSecurityEvaluator evaluator;
@@ -70,7 +71,7 @@ class OwnershipSecurityEvaluatorTest {
 
         patientUser = new Usuario();
         patientUser.setId(3L);
-        patientUser.setEmail("patient@esu.test");
+        patientUser.setEmail("paciente@esu.test");
         patientUser.setRol("PACIENTE");
 
         paciente = new Paciente();
@@ -79,13 +80,13 @@ class OwnershipSecurityEvaluatorTest {
 
         profesional = new Profesional();
         profesional.setId(20L);
-        profesional.setEstadoActivo(true);
         profesional.setUsuario(doctorUser);
+        profesional.setEstadoActivo(true);
     }
 
     private void authenticate(String email, String role) {
-        var auth = new UsernamePasswordAuthenticationToken(
-                email, "N/A", List.of(new SimpleGrantedAuthority("ROLE_" + role))
+        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                email, "pass", List.of(new SimpleGrantedAuthority("ROLE_" + role))
         );
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
@@ -93,29 +94,35 @@ class OwnershipSecurityEvaluatorTest {
     @Test
     void adminCanAccessAnyPatient() {
         authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessPatient(999L));
+    }
+
+    @Test
+    void patientCanOnlyAccessOwnData() {
+        authenticate("paciente@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));
+        when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
+
         assertTrue(evaluator.canAccessPatient(10L));
+        assertFalse(evaluator.canAccessPatient(99L));
     }
 
     @Test
-    void patientCanAccessSelf() {
-        authenticate("patient@esu.test", "PACIENTE");
-        when(usuarioRepositorio.findByEmail("patient@esu.test")).thenReturn(Optional.of(patientUser));
-        when(pacienteRepositorio.findByUsuarioEmail("patient@esu.test")).thenReturn(Optional.of(paciente));
+    void receptionistHasNoClinicalAccessToPatient() {
+        authenticate("recepcion@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recepcion@esu.test")).thenReturn(Optional.empty());
 
-        assertTrue(evaluator.canAccessPatient(10L));
+        assertFalse(evaluator.canAccessPatient(10L));
     }
 
     @Test
-    void patientCannotAccessOtherPatient() {
-        authenticate("patient@esu.test", "PACIENTE");
-        when(usuarioRepositorio.findByEmail("patient@esu.test")).thenReturn(Optional.of(patientUser));
-        when(pacienteRepositorio.findByUsuarioEmail("patient@esu.test")).thenReturn(Optional.of(paciente));
-
-        assertFalse(evaluator.canAccessPatient(999L));
+    void receptionistHasAdminAccessToPatient() {
+        authenticate("recepcion@esu.test", "RECEPCIONISTA");
+        assertTrue(evaluator.canAccessPatientAdmin(10L));
     }
 
     @Test
-    void doctorWithoutRelationshipCannotAccessPatient() {
+    void doctorWithoutCareRelationshipCannotAccessPatient() {
         authenticate("doctor@esu.test", "MEDICO");
         when(usuarioRepositorio.findByEmail("doctor@esu.test")).thenReturn(Optional.of(doctorUser));
         when(profesionalRepositorio.findByUsuarioEmail("doctor@esu.test")).thenReturn(Optional.of(profesional));
@@ -128,7 +135,7 @@ class OwnershipSecurityEvaluatorTest {
     }
 
     @Test
-    void doctorWithTurnoRelationshipCanAccessPatient() {
+    void doctorWithPreviousTurnoCanAccessPatient() {
         authenticate("doctor@esu.test", "MEDICO");
         when(usuarioRepositorio.findByEmail("doctor@esu.test")).thenReturn(Optional.of(doctorUser));
         when(profesionalRepositorio.findByUsuarioEmail("doctor@esu.test")).thenReturn(Optional.of(profesional));
@@ -138,7 +145,7 @@ class OwnershipSecurityEvaluatorTest {
     }
 
     @Test
-    void doctorWithBreakGlassEmergencyAccessCanAccessPatient() {
+    void doctorWithActiveEmergencyAccessCanAccessPatient() {
         authenticate("doctor@esu.test", "MEDICO");
         when(usuarioRepositorio.findByEmail("doctor@esu.test")).thenReturn(Optional.of(doctorUser));
         when(profesionalRepositorio.findByUsuarioEmail("doctor@esu.test")).thenReturn(Optional.of(profesional));
@@ -181,5 +188,21 @@ class OwnershipSecurityEvaluatorTest {
 
         assertTrue(evaluator.isDoctorAuthor(20L));
         assertFalse(evaluator.isDoctorAuthor(999L));
+    }
+
+    @Test
+    void canAccessEvolucionCheck() {
+        authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessEvolucion(50L));
+
+        authenticate("paciente@esu.test", "PACIENTE");
+        EvolucionMedica ev = new EvolucionMedica();
+        ev.setId(50L);
+        ev.setPaciente(paciente);
+        when(evolucionMedicaRepositorio.findById(50L)).thenReturn(Optional.of(ev));
+        when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));
+        when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
+
+        assertTrue(evaluator.canAccessEvolucion(50L));
     }
 }

@@ -14,10 +14,12 @@ import com.SaludUnificada.Esu.error.RecetaVencidaException;
 import com.SaludUnificada.Esu.error.RecetaYaDispensadaException;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.evento.RecetaEmitidaEvent;
+import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,9 @@ public class RecetaDigitalServicio {
     private final CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Autowired(required = false)
+    private EvolucionMedicaRepositorio evolucionRepositorio;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -56,6 +61,19 @@ public class RecetaDigitalServicio {
 
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+
+        if (request.getEvolucionId() != null && evolucionRepositorio != null) {
+            var evOpt = evolucionRepositorio.findById(request.getEvolucionId());
+            if (evOpt.isPresent()) {
+                var ev = evOpt.get();
+                if (ev.getPaciente() != null && !ev.getPaciente().getId().equals(paciente.getId())) {
+                    throw new ReglaNegocioException("La evolución médica especificada no corresponde al paciente de la receta.");
+                }
+                if (ev.getProfesional() != null && !ev.getProfesional().getId().equals(profesional.getId())) {
+                    throw new ReglaNegocioException("La evolución médica especificada no corresponde al profesional prescriptor.");
+                }
+            }
+        }
 
         if (request.getMedicamentos() != null) {
             Set<String> principiosActivosVistos = new HashSet<>();
@@ -281,6 +299,18 @@ public class RecetaDigitalServicio {
             String hashCalculado = calcularHashReceta(r);
             boolean integridadValida = hashCalculado != null && hashCalculado.equalsIgnoreCase(r.getHashIntegridad());
 
+            if (!integridadValida) {
+                return VerificacionRecetaPublicaDtoResponse.builder()
+                    .valido(false)
+                    .integridadValida(false)
+                    .id(r.getId())
+                    .tipoDocumento("RECETA_DIGITAL")
+                    .estado("INTEGRIDAD_INVALIDA")
+                    .hashIntegridadSha256(r.getHashIntegridad())
+                    .mensaje("Falla en la verificación de integridad: el documento ha sido alterado o la firma digital no coincide.")
+                    .build();
+            }
+
             return VerificacionRecetaPublicaDtoResponse.builder()
                 .valido(true)
                 .id(r.getId())
@@ -292,13 +322,14 @@ public class RecetaDigitalServicio {
                 .farmaciaDispensadora(r.getMatriculaFarmaciaDispensadora())
                 .matriculaProfesional(r.getProfesional() != null ? r.getProfesional().getMatricula() : null)
                 .hashIntegridadSha256(r.getHashIntegridad())
-                .integridadValida(integridadValida)
+                .integridadValida(true)
                 .mensaje("Documento oficial validado. Cumple con la normativa de firma e integridad electrónica.")
                 .build();
         }
 
         return VerificacionRecetaPublicaDtoResponse.builder()
             .valido(false)
+            .integridadValida(false)
             .mensaje("No se encontró ningún documento oficial registrado con dicho código de verificación.")
             .build();
     }

@@ -14,12 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -31,9 +27,6 @@ public class AuditoriaSeguridadServicio {
 
     private final LogAuditoriaSeguridadRepositorio auditoriaRepositorio;
     private final RequestIpUtil requestIpUtil;
-
-    private final Map<String, Instant> ultimoReenvioVerificacion = new ConcurrentHashMap<>();
-    private final Map<String, Instant> ultimaSolicitudRecuperacion = new ConcurrentHashMap<>();
 
     @Transactional
     public void registrarLoginExitoso(String email) {
@@ -134,41 +127,55 @@ public class AuditoriaSeguridadServicio {
         return "Unknown-Client";
     }
 
+    @Transactional
     public boolean puedeReenviarVerificacion(String email) {
         String ip = obtenerClientIp();
         if (email == null || email.isBlank()) {
             return false;
         }
-        String keyEmail = "EMAIL:" + email.trim().toLowerCase();
-        String keyIp = "IP:" + ip;
-        Instant ahora = Instant.now();
-
-        Instant previoEmail = ultimoReenvioVerificacion.get(keyEmail);
-        if (previoEmail != null && Duration.between(previoEmail, ahora).getSeconds() < 60) {
+        String cleanEmail = email.trim().toLowerCase();
+        LocalDateTime ventanaEmail = LocalDateTime.now().minusSeconds(60);
+        if (auditoriaRepositorio.existsByEmailAndEventoAndFechaGreaterThanEqual(cleanEmail, LogAuditoriaSeguridad.EventoSeguridad.REENVIO_VERIFICACION, ventanaEmail)) {
             return false;
         }
 
-        Instant previoIp = ultimoReenvioVerificacion.get(keyIp);
-        if (previoIp != null && Duration.between(previoIp, ahora).getSeconds() < 15) {
+        LocalDateTime ventanaIp = LocalDateTime.now().minusSeconds(15);
+        if (auditoriaRepositorio.existsByIpAddressAndEventoAndFechaGreaterThanEqual(ip, LogAuditoriaSeguridad.EventoSeguridad.REENVIO_VERIFICACION, ventanaIp)) {
             return false;
         }
 
-        ultimoReenvioVerificacion.put(keyEmail, ahora);
-        ultimoReenvioVerificacion.put(keyIp, ahora);
+        LogAuditoriaSeguridad logEntry = new LogAuditoriaSeguridad();
+        logEntry.setEmail(cleanEmail);
+        logEntry.setIpAddress(ip);
+        logEntry.setUserAgent(obtenerUserAgent());
+        logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.REENVIO_VERIFICACION);
+        logEntry.setDetalle("Reenvío de correo de verificación solicitado.");
+        logEntry.setFecha(LocalDateTime.now());
+        auditoriaRepositorio.save(logEntry);
+
         return true;
     }
 
+    @Transactional
     public boolean puedeSolicitarRecuperacion(String email) {
         if (email == null || email.isBlank()) {
             return false;
         }
-        String key = email.trim().toLowerCase();
-        Instant ahora = Instant.now();
-        Instant previo = ultimaSolicitudRecuperacion.get(key);
-        if (previo != null && Duration.between(previo, ahora).getSeconds() < 60) {
+        String cleanEmail = email.trim().toLowerCase();
+        LocalDateTime ventana = LocalDateTime.now().minusSeconds(60);
+        if (auditoriaRepositorio.existsByEmailAndEventoAndFechaGreaterThanEqual(cleanEmail, LogAuditoriaSeguridad.EventoSeguridad.SOLICITUD_RECUPERACION, ventana)) {
             return false;
         }
-        ultimaSolicitudRecuperacion.put(key, ahora);
+
+        LogAuditoriaSeguridad logEntry = new LogAuditoriaSeguridad();
+        logEntry.setEmail(cleanEmail);
+        logEntry.setIpAddress(obtenerClientIp());
+        logEntry.setUserAgent(obtenerUserAgent());
+        logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.SOLICITUD_RECUPERACION);
+        logEntry.setDetalle("Solicitud de recuperación de contraseña.");
+        logEntry.setFecha(LocalDateTime.now());
+        auditoriaRepositorio.save(logEntry);
+
         return true;
     }
 

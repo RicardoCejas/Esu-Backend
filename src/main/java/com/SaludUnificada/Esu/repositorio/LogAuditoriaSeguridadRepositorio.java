@@ -21,4 +21,8 @@ public interface LogAuditoriaSeguridadRepositorio extends JpaRepository<LogAudit
 
     @Query("SELECT l FROM LogAuditoriaSeguridad l WHERE l.email = :email AND l.fecha >= :desde ORDER BY l.fecha DESC")
     List<LogAuditoriaSeguridad> findEventosRecientesPorEmail(@Param("email") String email, @Param("desde") LocalDateTime desde);
+
+    boolean existsByEmailAndEventoAndFechaGreaterThanEqual(String email, LogAuditoriaSeguridad.EventoSeguridad evento, LocalDateTime fecha);
+
+    boolean existsByIpAddressAndEventoAndFechaGreaterThanEqual(String ipAddress, LogAuditoriaSeguridad.EventoSeguridad evento, LocalDateTime fecha);
 }

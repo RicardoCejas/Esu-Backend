@@ -77,11 +77,31 @@ public class UsuarioServicio implements IUsuarioServicio {
         return usuarioRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id));
     }
+
     @Override
     public UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo) {
         Usuario usuario = obtenerEntidadUsuarioPorId(id);
         usuario.setEstadoActivo(activo);
+        if (!activo) {
+            usuario.revocarSesiones();
+        }
         Usuario guardado = usuarioRepositorio.save(usuario);
         return usuarioMapper.paraDto(guardado);
+    }
+
+    @Override
+    public void revocarSesiones(Long id) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        usuario.revocarSesiones();
+        usuarioRepositorio.save(usuario);
+    }
+
+    @Override
+    public void revocarSesionesPorEmail(String email) {
+        if (email == null || email.isBlank()) return;
+        usuarioRepositorio.findByEmail(email.trim().toLowerCase()).ifPresent(u -> {
+            u.revocarSesiones();
+            usuarioRepositorio.save(u);
+        });
     }
 }

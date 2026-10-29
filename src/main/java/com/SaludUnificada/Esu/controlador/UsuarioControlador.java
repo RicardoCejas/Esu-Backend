@@ -80,4 +80,21 @@ public class UsuarioControlador {
             @RequestParam boolean activo) {
         return ResponseEntity.ok(usuarioServicio.cambiarEstadoActivo(id, activo));
     }
+
+    @PostMapping("/me/revocar-sesiones")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> revocarMisSesiones(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        usuarioServicio.revocarSesionesPorEmail(principal.getName());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/revocar-sesiones")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> revocarSesionesUsuario(@PathVariable Long id) {
+        usuarioServicio.revocarSesiones(id);
+        return ResponseEntity.noContent().build();
+    }
 }
