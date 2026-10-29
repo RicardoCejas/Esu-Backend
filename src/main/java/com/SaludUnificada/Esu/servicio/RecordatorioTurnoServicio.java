@@ -1,10 +1,12 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,10 +48,19 @@ public class RecordatorioTurnoServicio {
                 turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido(),
                 recordatorio.getDisponibleDesde(), recordatorio.isLeido());
     }
+
     @Transactional
     public void marcarComoLeido(Long recordatorioId, String emailAutenticado) {
         RecordatorioTurno recordatorio = recordatorioRepositorio.findById(recordatorioId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Recordatorio no encontrado con ID: " + recordatorioId));
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
+            if (paciente != null && recordatorio.getTurno() != null && recordatorio.getTurno().getPaciente() != null) {
+                if (!recordatorio.getTurno().getPaciente().getId().equals(paciente.getId())) {
+                    throw new AccessDeniedException("No posee autorizacion para modificar recordatorios de otro paciente");
+                }
+            }
+        }
         recordatorio.setLeido(true);
         recordatorioRepositorio.save(recordatorio);
     }

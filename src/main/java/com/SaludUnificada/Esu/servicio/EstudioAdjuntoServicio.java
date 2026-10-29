@@ -27,6 +27,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,11 +61,11 @@ public class EstudioAdjuntoServicio {
             LocalDate fechaEstudio
     ) {
         if (archivo == null || archivo.isEmpty()) {
-            throw new IllegalArgumentException("El archivo adjunto no puede estar vacío.");
+            throw new IllegalArgumentException("El archivo adjunto no puede estar vacio.");
         }
 
         if (archivo.getSize() > MAX_FILE_SIZE) {
-            throw new ReglaNegocioException("El tamaño del archivo excede el límite máximo permitido de 15MB.");
+            throw new ReglaNegocioException("El tamano del archivo excede el limite maximo permitido de 15MB.");
         }
 
         if (!pacienteRepositorio.existsById(pacienteId)) {
@@ -75,7 +76,7 @@ public class EstudioAdjuntoServicio {
         String extension = extraerExtension(nombreOriginal);
 
         if (EXTENSIONES_PROHIBIDAS.contains(extension)) {
-            throw new ReglaNegocioException("Seguridad: Carga de archivos ejecutables o potencialmente dañinos prohibida (.exe, .bat, etc.).");
+            throw new ReglaNegocioException("Seguridad: Carga de archivos ejecutables o potencialmente daninos prohibida (.exe, .bat, etc.).");
         }
 
         if (!EXTENSIONES_PERMITIDAS.contains(extension)) {
@@ -106,6 +107,7 @@ public class EstudioAdjuntoServicio {
             entidad.setChecksumSha256(sha256);
             entidad.setTipoEstudio(tipoEstudio != null ? tipoEstudio.toUpperCase().trim() : "INFORME");
             entidad.setFechaEstudio(fechaEstudio != null ? fechaEstudio : LocalDate.now());
+            entidad.setFechaCarga(LocalDateTime.now());
 
             EstudioAdjunto guardado = estudioRepositorio.save(entidad);
             return mapearADto(guardado);
@@ -114,27 +116,18 @@ public class EstudioAdjuntoServicio {
         }
     }
 
-    @Transactional(readOnly = true)
     public Resource descargarArchivo(Long estudioId) {
-        EstudioAdjunto entidad = estudioRepositorio.findById(estudioId)
-                .orElseThrow(() -> new NoEncontradoExcepcion("Estudio médico adjunto no encontrado con ID: " + estudioId));
-
+        EstudioAdjunto estudio = obtenerPorId(estudioId);
         try {
-            Path baseDir = Paths.get(directorioCargas).toAbsolutePath().normalize();
-            Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
-
-            if (!ruta.startsWith(baseDir)) {
-                throw new SecurityException("Acceso no autorizado: la ruta del archivo se encuentra fuera del directorio permitido.");
-            }
-
+            Path ruta = Paths.get(estudio.getRutaAlmacenamiento()).toAbsolutePath().normalize();
             Resource resource = new UrlResource(ruta.toUri());
             if (resource.exists() && resource.isReadable()) {
                 return resource;
             } else {
-                throw new NoEncontradoExcepcion("El archivo físico del estudio no se encuentra disponible en disco.");
+                throw new NoEncontradoExcepcion("El archivo fisico del estudio no se encuentra disponible en disco.");
             }
         } catch (MalformedURLException e) {
-            throw new RuntimeException("Ruta de archivo inválida: " + e.getMessage(), e);
+            throw new RuntimeException("Ruta de archivo invalida: " + e.getMessage(), e);
         }
     }
 
@@ -149,9 +142,9 @@ public class EstudioAdjuntoServicio {
 
         if (!isStaff) {
             Paciente paciente = pacienteRepositorio.findByUsuarioEmail(authentication.getName())
-                    .orElseThrow(() -> new AccessDeniedException("El usuario autenticado no está vinculado a un perfil de paciente."));
+                    .orElseThrow(() -> new AccessDeniedException("El usuario autenticado no esta vinculado a un perfil de paciente."));
             if (!paciente.getId().equals(estudio.getPacienteId())) {
-                throw new AccessDeniedException("No posee autorización para descargar estudios médicos pertenecientes a otro paciente.");
+                throw new AccessDeniedException("No posee autorizacion para descargar estudios medicos pertenecientes a otro paciente.");
             }
         }
     }
@@ -159,7 +152,7 @@ public class EstudioAdjuntoServicio {
     @Transactional(readOnly = true)
     public EstudioAdjunto obtenerPorId(Long estudioId) {
         return estudioRepositorio.findById(estudioId)
-                .orElseThrow(() -> new NoEncontradoExcepcion("Estudio médico adjunto no encontrado con ID: " + estudioId));
+                .orElseThrow(() -> new NoEncontradoExcepcion("Estudio medico adjunto no encontrado con ID: " + estudioId));
     }
 
     @Transactional(readOnly = true)
@@ -168,6 +161,11 @@ public class EstudioAdjuntoServicio {
                 .stream()
                 .map(this::mapearADto)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public long contarEstudiosPorPaciente(Long pacienteId) {
+        return estudioRepositorio.countByPacienteId(pacienteId);
     }
 
     @Transactional(readOnly = true)
@@ -217,6 +215,7 @@ public class EstudioAdjuntoServicio {
                 "/api/estudios/" + entidad.getId() + "/descargar"
         );
     }
+
     @Transactional
     public void eliminarEstudio(Long estudioId, Authentication auth) {
         EstudioAdjunto entidad = obtenerPorId(estudioId);

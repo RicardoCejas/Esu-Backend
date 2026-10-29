@@ -97,22 +97,38 @@ public class EstudioAdjuntoControlador {
         return ResponseEntity.ok(estudioServicio.listarPorPaciente(pacienteId));
     }
 
-    @GetMapping("/evolucion/{evolucionId}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
-    @Operation(summary = "Listar los estudios medicos adjuntos a una consulta clinica especifica")
-    public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorEvolucion(@PathVariable Long evolucionId) {
-        return ResponseEntity.ok(estudioServicio.listarPorEvolucion(evolucionId));
-    }
-    @DeleteMapping("/{id}")
+    @GetMapping("/paciente/{pacienteId}/conteo")
     @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
-    public ResponseEntity<Void> eliminarEstudio(@PathVariable Long id, Authentication authentication) {
-        estudioServicio.eliminarEstudio(id, authentication);
-        return ResponseEntity.noContent().build();
+    @Operation(summary = "Contar estudios medicos adjuntos de un paciente")
+    public ResponseEntity<Long> contarEstudios(
+            @PathVariable Long pacienteId,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
+        return ResponseEntity.ok(estudioServicio.contarEstudiosPorPaciente(pacienteId));
     }
 
     @GetMapping("/paciente/{pacienteId}/espacio")
     @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
-    public ResponseEntity<Map<String, Object>> obtenerEspacioOcupado(@PathVariable Long pacienteId) {
+    @Operation(summary = "Consultar volumen de almacenamiento ocupado por estudios del paciente")
+    public ResponseEntity<Map<String, Object>> obtenerEspacioOcupado(
+            @PathVariable Long pacienteId,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
         return ResponseEntity.ok(estudioServicio.obtenerEspacioOcupadoPorPaciente(pacienteId));
+    }
+
+    @GetMapping("/evolucion/{evolucionId}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Listar estudios complementarios vinculados directamente a una evolucion clinica")
+    public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorEvolucion(@PathVariable Long evolucionId) {
+        return ResponseEntity.ok(estudioServicio.listarPorEvolucion(evolucionId));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN')")
+    @Operation(summary = "Eliminar de forma permanente un archivo de estudio medico adjunto")
+    public ResponseEntity<Void> eliminarEstudio(@PathVariable Long id, Authentication authentication) {
+        estudioServicio.eliminarEstudio(id, authentication);
+        return ResponseEntity.noContent().build();
     }
 }

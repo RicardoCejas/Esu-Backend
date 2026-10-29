@@ -8,6 +8,8 @@ import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,17 @@ public class PacienteServicio implements IPacienteServicio {
     }
 
     @Override
+    public Page<PacienteDtoResponse> buscarPacientesPaginados(Pageable pageable) {
+        return pacienteRepositorio.findAll(pageable)
+                .map(pacienteMapper::paraDto);
+    }
+
+    @Override
+    public long contarPacientes() {
+        return pacienteRepositorio.count();
+    }
+
+    @Override
     public void eliminarPaciente(Long id) {
         if (pacienteRepositorio.existsById(id)) {
             pacienteRepositorio.deleteById(id);
@@ -63,7 +76,7 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     public PacienteDtoResponse buscarPorDni(String dni) {
         if (dni == null || dni.isEmpty()) {
-            throw new IllegalArgumentException("El DNI no puede ser nulo o vacío");
+            throw new IllegalArgumentException("El DNI no puede ser nulo o vacio");
         }
         Paciente paciente = pacienteRepositorio.findByDni(dni)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con DNI: " + dni));
@@ -89,6 +102,7 @@ public class PacienteServicio implements IPacienteServicio {
                 .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
         return pacienteMapper.paraDto(paciente);
     }
+
     @Override
     @Transactional
     public PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado) {

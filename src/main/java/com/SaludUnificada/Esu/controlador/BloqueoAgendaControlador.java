@@ -22,19 +22,19 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Bloqueos de Agenda", description = "Endpoints para suspender temporalmente la atención médica por licencias, feriados o vacaciones y reprogramar pacientes")
+@Tag(name = "Bloqueos de Agenda", description = "Endpoints para suspender temporalmente la atencion medica por licencias, feriados o vacaciones y reprogramar pacientes")
 public class BloqueoAgendaControlador {
 
     private final IBloqueoAgendaServicio bloqueoAgendaServicio;
 
     @Operation(
-            summary = "Bloquear agenda médica y cancelar preventivamente turnos solapados (HU-BE-90 / HU-FE-62)",
-            description = "Registra una indisponibilidad temporal para un profesional y actualiza automáticamente a CANCELADO_POR_MEDICO todos los turnos del rango, retornando la lista de pacientes a reprogramar."
+            summary = "Bloquear agenda medica y cancelar preventivamente turnos solapados",
+            description = "Registra una indisponibilidad temporal para un profesional y actualiza a CANCELADO_POR_MEDICO todos los turnos del rango, retornando la lista de pacientes a reprogramar."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Bloqueo registrado y turnos cancelados preventivamente",
                     content = @Content(schema = @Schema(implementation = BloqueoAgendaDtoResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Fechas inválidas o datos de solicitud incompletos",
+            @ApiResponse(responseCode = "400", description = "Fechas invalidas o datos de solicitud incompletos",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
@@ -51,7 +51,7 @@ public class BloqueoAgendaControlador {
 
     @Operation(
             summary = "Listar bloqueos de agenda de un profesional",
-            description = "Devuelve el historial de indisponibilidades y licencias programadas para el médico solicitado."
+            description = "Devuelve el historial de indisponibilidades y licencias programadas para el medico solicitado."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Listado de bloqueos obtenido"),
@@ -64,6 +64,18 @@ public class BloqueoAgendaControlador {
         List<BloqueoAgendaDtoResponse> bloqueos = bloqueoAgendaServicio.listarBloqueosPorProfesional(id);
         return ResponseEntity.ok(bloqueos);
     }
+
+    @Operation(
+            summary = "Obtener detalle de un bloqueo especifico",
+            description = "Devuelve los datos detallados de un bloqueo de agenda por ID."
+    )
+    @GetMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
+    public ResponseEntity<BloqueoAgendaDtoResponse> obtenerBloqueoPorId(
+            @PathVariable Long profesionalId,
+            @PathVariable Long bloqueoId) {
+        return ResponseEntity.ok(bloqueoAgendaServicio.obtenerBloqueoPorId(bloqueoId));
+    }
+
     @DeleteMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<Void> eliminarBloqueo(@PathVariable Long profesionalId, @PathVariable Long bloqueoId) {

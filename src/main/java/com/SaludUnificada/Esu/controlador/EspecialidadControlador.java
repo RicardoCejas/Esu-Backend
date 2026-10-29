@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,8 +20,17 @@ public class EspecialidadControlador {
     private IEspecialidadServicio especialidadServicio;
 
     @PostMapping("/crear")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<EspecialidadDtoResponse> crearEspecialidad(@Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
         return new ResponseEntity<>(especialidadServicio.crearEspecialidad(especialidadDto), HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<EspecialidadDtoResponse> actualizarEspecialidad(
+            @PathVariable Long id,
+            @Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
+        return ResponseEntity.ok(especialidadServicio.actualizarEspecialidad(id, especialidadDto));
     }
 
     @GetMapping("/obtener/{id}")
@@ -33,7 +43,13 @@ public class EspecialidadControlador {
         return ResponseEntity.ok(especialidadServicio.listarTodas());
     }
 
+    @GetMapping("/conteo")
+    public ResponseEntity<Long> contarEspecialidades() {
+        return ResponseEntity.ok(especialidadServicio.contarEspecialidades());
+    }
+
     @DeleteMapping("/eliminar/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<Void> eliminarEspecialidad(@PathVariable Long id) {
         especialidadServicio.eliminarEspecialidad(id);
         return ResponseEntity.noContent().build();

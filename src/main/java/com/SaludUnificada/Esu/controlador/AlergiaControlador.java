@@ -67,6 +67,22 @@ public class AlergiaControlador {
         return ResponseEntity.ok(alergiaServicio.listarAlergiasPaciente(id));
     }
 
+    @GetMapping("/alergias/{alergiaId}")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Obtener detalle de una alergia especifica por ID")
+    public ResponseEntity<AlergiaDtoResponse> obtenerAlergiaPorId(@PathVariable Long alergiaId) {
+        return ResponseEntity.ok(alergiaServicio.obtenerAlergiaPorId(alergiaId));
+    }
+
+    @PutMapping("/alergias/{alergiaId}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Actualizar los datos de una alergia existente")
+    public ResponseEntity<AlergiaDtoResponse> actualizarAlergia(
+            @PathVariable Long alergiaId,
+            @Valid @RequestBody AlergiaDtoRequest request) {
+        return ResponseEntity.ok(alergiaServicio.actualizarAlergia(alergiaId, request));
+    }
+
     @DeleteMapping("/alergias/{alergiaId}")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Dar de baja o desactivar una alergia registrada")

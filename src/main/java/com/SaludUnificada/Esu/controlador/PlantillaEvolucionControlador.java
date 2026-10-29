@@ -9,39 +9,59 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/plantillas-evolucion")
-@Tag(name = "Plantillas Clínicas", description = "CRUD y Motor de plantillas parametrizables por especialidad (HU-108)")
+@Tag(name = "Plantillas Clinicas", description = "Motor de plantillas clinicas parametrizables por especialidad")
 public class PlantillaEvolucionControlador {
 
     @Autowired
     private PlantillaEvolucionServicio plantillaServicio;
 
     @GetMapping
-    @Operation(summary = "Listar plantillas de evolución médica (filtrado opcional por especialidadId)")
+    @Operation(summary = "Listar plantillas de evolucion medica")
     public ResponseEntity<List<PlantillaEvolucionDtoResponse>> listarPlantillas(
             @RequestParam(required = false) Long especialidadId) {
         return ResponseEntity.ok(plantillaServicio.listarPlantillas(especialidadId));
     }
 
+    @GetMapping("/buscar")
+    @Operation(summary = "Buscar plantillas clinicas por palabra clave en titulo")
+    public ResponseEntity<List<PlantillaEvolucionDtoResponse>> buscarPlantillas(
+            @RequestParam String termino) {
+        return ResponseEntity.ok(plantillaServicio.buscarPorTermino(termino));
+    }
+
     @PostMapping
-    @Operation(summary = "Crear nueva plantilla clínica personalizada por especialidad")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Crear nueva plantilla clinica")
     public ResponseEntity<PlantillaEvolucionDtoResponse> crearPlantilla(
             @Valid @RequestBody PlantillaEvolucionDtoRequest request) {
         return new ResponseEntity<>(plantillaServicio.crearPlantilla(request), HttpStatus.CREATED);
     }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Actualizar plantilla clinica existente")
+    public ResponseEntity<PlantillaEvolucionDtoResponse> actualizarPlantilla(
+            @PathVariable Long id,
+            @Valid @RequestBody PlantillaEvolucionDtoRequest request) {
+        return ResponseEntity.ok(plantillaServicio.actualizarPlantilla(id, request));
+    }
+
     @GetMapping("/{id}")
-    @Operation(summary = "Obtener detalle de plantilla clínica por ID")
+    @Operation(summary = "Obtener detalle de plantilla clinica por ID")
     public ResponseEntity<PlantillaEvolucionDtoResponse> obtenerPlantilla(@PathVariable Long id) {
         return ResponseEntity.ok(plantillaServicio.obtenerPorId(id));
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Desactivar plantilla clínica por ID")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @Operation(summary = "Desactivar plantilla clinica por ID")
     public ResponseEntity<Void> desactivarPlantilla(@PathVariable Long id) {
         plantillaServicio.cambiarEstadoPlantilla(id, false);
         return ResponseEntity.noContent().build();

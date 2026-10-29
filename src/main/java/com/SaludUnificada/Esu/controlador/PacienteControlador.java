@@ -11,6 +11,8 @@ import com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio;
 import com.SaludUnificada.Esu.servicio.IPacienteServicio;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -71,6 +73,18 @@ public class PacienteControlador {
     @GetMapping({"", "/obtener/todos"})
     public ResponseEntity<List<PacienteDtoResponse>> listarTodos() {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
+    }
+
+    @GetMapping("/paginado")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
+    public ResponseEntity<Page<PacienteDtoResponse>> listarPaginado(Pageable pageable) {
+        return ResponseEntity.ok(pacienteServicio.buscarPacientesPaginados(pageable));
+    }
+
+    @GetMapping("/conteo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
+    public ResponseEntity<Long> contarPacientes() {
+        return ResponseEntity.ok(pacienteServicio.contarPacientes());
     }
 
     @DeleteMapping("/eliminar/{id}")

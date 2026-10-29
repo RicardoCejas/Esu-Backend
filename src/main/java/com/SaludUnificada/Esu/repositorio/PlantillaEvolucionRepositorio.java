@@ -10,5 +10,6 @@ import java.util.List;
 public interface PlantillaEvolucionRepositorio extends JpaRepository<PlantillaEvolucion, Long> {
     List<PlantillaEvolucion> findByActivoTrue();
     List<PlantillaEvolucion> findByEspecialidadIdAndActivoTrue(Long especialidadId);
+    List<PlantillaEvolucion> findByActivoTrueAndTituloContainingIgnoreCase(String titulo);
     boolean existsByTitulo(String titulo);
 }

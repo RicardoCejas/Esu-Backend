@@ -100,7 +100,7 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
             }
         }
 
-        log.info("Bloqueo de agenda registrado para profesional {}. Período: {} a {}. Turnos afectados: {}",
+        log.info("Bloqueo de agenda registrado para profesional {}. Periodo: {} a {}. Turnos afectados: {}",
                 profesionalId, request.getFechaInicio(), request.getFechaFin(), turnosCancelados.size());
 
         return bloqueoAgendaMapper.paraDto(guardado, turnosCancelados);
@@ -118,6 +118,15 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
                 .map(bloqueoAgendaMapper::paraDto)
                 .toList();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BloqueoAgendaDtoResponse obtenerBloqueoPorId(Long id) {
+        BloqueoAgenda bloqueo = bloqueoAgendaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Bloqueo de agenda no encontrado con ID: " + id));
+        return bloqueoAgendaMapper.paraDto(bloqueo);
+    }
+
     @Override
     @Transactional
     public void eliminarBloqueo(Long bloqueoId) {

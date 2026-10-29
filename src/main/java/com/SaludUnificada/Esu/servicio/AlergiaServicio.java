@@ -42,10 +42,38 @@ public class AlergiaServicio {
         AlergiaPaciente entidad = new AlergiaPaciente();
         entidad.setPacienteId(pacienteId);
         entidad.setSustanciaAlergeno(sustanciaLimpia);
-        entidad.setSeveridad(request.getSeveridad().toUpperCase().trim());
+        entidad.setSeveridad(severidadLimpia);
         entidad.setFechaDiagnostico(request.getFechaDiagnostico());
         entidad.setObservaciones(request.getObservaciones());
         entidad.setActivo(true);
+
+        AlergiaPaciente guardado = alergiaRepositorio.save(entidad);
+        return mapearADto(guardado);
+    }
+
+    @Transactional(readOnly = true)
+    public AlergiaDtoResponse obtenerAlergiaPorId(Long id) {
+        AlergiaPaciente entidad = alergiaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Alergia no encontrada con ID: " + id));
+        return mapearADto(entidad);
+    }
+
+    @Transactional
+    public AlergiaDtoResponse actualizarAlergia(Long id, AlergiaDtoRequest request) {
+        AlergiaPaciente entidad = alergiaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Alergia no encontrada con ID: " + id));
+
+        String severidadLimpia = request.getSeveridad().toUpperCase().trim();
+        if (!List.of("LEVE", "MODERADA", "GRAVE").contains(severidadLimpia)) {
+            throw new ReglaNegocioException("Nivel de severidad invalido. Debe ser LEVE, MODERADA o GRAVE.");
+        }
+
+        entidad.setSeveridad(severidadLimpia);
+        if (request.getSustanciaAlergeno() != null && !request.getSustanciaAlergeno().isBlank()) {
+            entidad.setSustanciaAlergeno(request.getSustanciaAlergeno().trim());
+        }
+        entidad.setFechaDiagnostico(request.getFechaDiagnostico());
+        entidad.setObservaciones(request.getObservaciones());
 
         AlergiaPaciente guardado = alergiaRepositorio.save(entidad);
         return mapearADto(guardado);
@@ -93,11 +121,11 @@ public class AlergiaServicio {
 
                 if (coincideDroga || coincideNombre) {
                     if ("GRAVE".equalsIgnoreCase(alergia.getSeveridad())) {
+                        String farmaco = med.getDroga() != null ? med.getDroga() : med.getNombreComercial();
+                        String obs = alergia.getObservaciones() != null ? alergia.getObservaciones() : "Sin observaciones adicionales";
                         throw new ReglaNegocioException(String.format(
-                                "INTERCEPTOR CLÍNICO BLOQUEANTE: El paciente registra ALERGIA GRAVE a '%s' (riesgo anafiláctico). Fármaco contraindicado: '%s' (%s). Prescripción rechazada por seguridad del paciente.",
-                                alergia.getSustanciaAlergeno(),
-                                med.getDroga() != null ? med.getDroga() : med.getNombreComercial(),
-                                alergia.getObservaciones() != null ? alergia.getObservaciones() : "Sin observaciones adicionales"
+                                "INTERCEPTOR CLINICO BLOQUEANTE: El paciente registra ALERGIA GRAVE a '%s' (riesgo anafilactico). Farmaco contraindicado: '%s' (%s). Prescripcion rechazada por seguridad del paciente.",
+                                alergia.getSustanciaAlergeno(), farmaco, obs
                         ));
                     }
                 }

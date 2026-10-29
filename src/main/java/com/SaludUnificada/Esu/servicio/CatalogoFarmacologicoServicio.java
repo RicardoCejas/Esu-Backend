@@ -3,8 +3,6 @@ package com.SaludUnificada.Esu.servicio;
 import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -63,6 +61,7 @@ public class CatalogoFarmacologicoServicio {
         String s = Normalizer.normalize(texto.trim().toLowerCase(), Normalizer.Form.NFD);
         return s.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
     }
+
     public List<String> buscarMonodrogas(String query) {
         if (query == null || query.isBlank()) {
             return getCatalogoOficial();

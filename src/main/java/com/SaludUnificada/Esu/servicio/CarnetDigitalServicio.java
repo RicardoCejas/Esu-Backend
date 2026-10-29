@@ -52,7 +52,7 @@ public class CarnetDigitalServicio {
             MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
-            throw new IllegalStateException("Error al generar el código QR de la credencial: " + e.getMessage());
+            throw new IllegalStateException("Error al generar el codigo QR de la credencial: " + e.getMessage());
         }
     }
 
@@ -88,7 +88,7 @@ public class CarnetDigitalServicio {
         return Map.of(
                 "valido", true,
                 "datos", datos,
-                "mensaje", "Credencial de paciente verificada y auténtica."
+                "mensaje", "Credencial de paciente verificada y autentica."
         );
     }
 

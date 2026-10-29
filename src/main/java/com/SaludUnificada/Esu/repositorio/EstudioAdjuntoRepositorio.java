@@ -10,4 +10,5 @@ import java.util.List;
 public interface EstudioAdjuntoRepositorio extends JpaRepository<EstudioAdjunto, Long> {
     List<EstudioAdjunto> findByPacienteIdOrderByFechaCargaDesc(Long pacienteId);
     List<EstudioAdjunto> findByEvolucionIdOrderByFechaCargaDesc(Long evolucionId);
+    long countByPacienteId(Long pacienteId);
 }
