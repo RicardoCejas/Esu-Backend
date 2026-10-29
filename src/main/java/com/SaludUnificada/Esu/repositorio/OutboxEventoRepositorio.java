@@ -19,4 +19,13 @@ public interface OutboxEventoRepositorio extends JpaRepository<OutboxEvento, Lon
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM OutboxEvento o WHERE o.estado = :estado ORDER BY o.fechaCreacion ASC")
     List<OutboxEvento> findByEstadoForUpdate(@Param("estado") String estado, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM OutboxEvento o WHERE " +
+           "(o.estado = 'PENDIENTE' AND (o.proximoIntento IS NULL OR o.proximoIntento <= :ahora)) " +
+           "OR (o.estado = 'EN_PROCESO' AND o.leaseHasta < :ahora) " +
+           "ORDER BY o.fechaCreacion ASC")
+    List<OutboxEvento> reclamarEventosDisponibles(@Param("ahora") java.time.LocalDateTime ahora, Pageable pageable);
+
+    List<OutboxEvento> findByEstadoInOrderByFechaCreacionDesc(List<String> estados, Pageable pageable);
 }

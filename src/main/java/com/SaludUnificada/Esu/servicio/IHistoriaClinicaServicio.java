@@ -14,6 +14,8 @@ public interface IHistoriaClinicaServicio {
     HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest historiaClinica);
     HistoriaClinicaDtoResponse obtenerHistoriaClinicaPorId(Long id);
     List<HistoriaClinicaDtoResponse> listarTodas();
+    Page<HistoriaClinicaDtoResponse> listarTodasPaginado(Pageable pageable);
+    Page<HistoriaClinicaDtoResponse> buscarPorRangoFechasPaginado(LocalDateTime inicio, LocalDateTime fin, Pageable pageable);
     void eliminarHistoriaClinica(Long id);
     List<HistoriaClinicaDtoResponse> buscarPorPacienteId(Long pacienteId);
     List<HistoriaClinicaDtoResponse> buscarPorRangoFechas(LocalDateTime inicio, LocalDateTime fin);

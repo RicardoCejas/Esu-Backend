@@ -39,8 +39,8 @@ public class HistoriaClinicaControlador {
 
     @GetMapping("/obtener/todos")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<HistoriaClinicaDtoResponse>> listarTodas() {
-        return ResponseEntity.ok(historiaClinicaServicio.listarTodas());
+    public ResponseEntity<Page<HistoriaClinicaDtoResponse>> listarTodas(Pageable pageable) {
+        return ResponseEntity.ok(historiaClinicaServicio.listarTodasPaginado(pageable));
     }
 
     @DeleteMapping("/eliminar/{id}")
@@ -57,11 +57,12 @@ public class HistoriaClinicaControlador {
     }
 
     @GetMapping("/rango")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
-    public ResponseEntity<List<HistoriaClinicaDtoResponse>> buscarPorRangoFechas(
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<HistoriaClinicaDtoResponse>> buscarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
-        return ResponseEntity.ok(historiaClinicaServicio.buscarPorRangoFechas(inicio, fin));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
+            Pageable pageable) {
+        return ResponseEntity.ok(historiaClinicaServicio.buscarPorRangoFechasPaginado(inicio, fin, pageable));
     }
 
     @GetMapping("/paciente/{pacienteId}/conteo")

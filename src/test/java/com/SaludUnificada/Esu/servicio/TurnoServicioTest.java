@@ -245,4 +245,35 @@ class TurnoServicioTest {
         assertNotNull(page);
         assertEquals(1, page.getTotalElements());
     }
+
+    @Test
+    void marcarAusenteFallaSiHorarioEsFuturo() {
+        Turno turno = new Turno();
+        turno.setId(77L);
+        turno.setEstado("CONFIRMADO");
+        turno.setFechaHora(LocalDateTime.of(2026, 10, 20, 10, 0)); // Futuro respecto a CLOCK (14/10)
+
+        when(turnos.findById(77L)).thenReturn(Optional.of(turno));
+
+        assertThrows(com.SaludUnificada.Esu.error.ReglaNegocioException.class, () -> {
+            servicio.marcarAusente(77L, "recepcion@clinica.com");
+        });
+    }
+
+    @Test
+    void cancelarTurnoEliminaRecordatorio() {
+        Turno turno = new Turno();
+        turno.setId(88L);
+        turno.setEstado("CONFIRMADO");
+        turno.setFechaHora(LocalDateTime.of(2026, 10, 15, 12, 0)); // Más de 2 horas en futuro
+
+        when(turnos.findById(88L)).thenReturn(Optional.of(turno));
+        when(turnos.save(any(Turno.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.paraDto(any())).thenReturn(new TurnoDtoResponse());
+
+        servicio.cancelarTurno(88L, "admin@clinica.com");
+
+        assertEquals("CANCELADO", turno.getEstado());
+        verify(recordatorios).deleteByTurnoId(88L);
+    }
 }

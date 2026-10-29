@@ -1,5 +1,9 @@
 package com.SaludUnificada.Esu.servicio;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -25,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
 
@@ -72,12 +77,25 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     }
 
     @Override
+    public Page<HistoriaClinicaDtoResponse> listarTodasPaginado(Pageable pageable) {
+        return historiaClinicaRepositorio.findAll(pageable)
+                .map(historiaClinicaMapper::paraDto);
+    }
+
+    @Override
+    public Page<HistoriaClinicaDtoResponse> buscarPorRangoFechasPaginado(LocalDateTime inicio, LocalDateTime fin, Pageable pageable) {
+        return historiaClinicaRepositorio.findByFechaAtencionBetween(inicio, fin, pageable)
+                .map(historiaClinicaMapper::paraDto);
+    }
+
+    @Override
     @Transactional
     public void eliminarHistoriaClinica(Long id) {
         if (!historiaClinicaRepositorio.existsById(id)) {
             throw new NoEncontradoExcepcion("Historia clínica no encontrada con ID: " + id);
         }
-        historiaClinicaRepositorio.deleteById(id);
+        log.warn("Intento de eliminación física bloqueado para Historia Clínica ID={}. Aplicando principio de inalterabilidad Ley 26.529.", id);
+        throw new ReglaNegocioException("Por disposición de la Ley 26.529 de Derechos del Paciente, las historias clínicas no admiten borrado físico. Cualquier rectificación debe realizarse mediante adendas o notas aclaratorias auditables.");
     }
 
     @Override
@@ -116,6 +134,9 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Override
     @Transactional
     public void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo, HttpServletRequest request) {
+        if (emailProfesional == null || emailProfesional.isBlank()) {
+            throw new AccessDeniedException("Debe autenticarse como profesional médico o administrador para registrar un acceso de emergencia.");
+        }
         if (motivo == null || motivo.trim().length() < 10) {
             throw new IllegalArgumentException("Debe especificarse un motivo clínico válido y detallado para el acceso de emergencia (mínimo 10 caracteres).");
         }
@@ -124,10 +145,19 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         }
         if (usuarioRepositorio != null && logAccesoHcRepositorio != null) {
             Usuario usuario = usuarioRepositorio.findByEmail(emailProfesional)
-                    .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado"));
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Usuario facultativo no encontrado"));
+
+            String rol = usuario.getRol();
+            if (!"MEDICO".equalsIgnoreCase(rol) && !"PROFESIONAL".equalsIgnoreCase(rol) && !"ADMIN".equalsIgnoreCase(rol)) {
+                throw new AccessDeniedException("El usuario autenticado no posee rol facultativo (médico/profesional/admin) para activar acceso de emergencia.");
+            }
+
             String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(request) : (request != null ? request.getRemoteAddr() : "127.0.0.1");
-            LogAccesoHc log = new LogAccesoHc(usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ip, usuario.getRol(), motivo.trim());
-            logAccesoHcRepositorio.save(log);
+            LogAccesoHc logAcceso = new LogAccesoHc(usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ip, rol, motivo.trim());
+            logAccesoHcRepositorio.save(logAcceso);
+
+            log.warn("ALERTA DE SEGURIDAD AUDITABLE: Acceso de emergencia/break-glass activado para paciente ID={} por usuario={} (rol={}) desde IP={}. Motivo: {}",
+                    pacienteId, emailProfesional, rol, ip, motivo.trim());
         }
     }
 }

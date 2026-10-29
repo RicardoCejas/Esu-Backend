@@ -31,11 +31,22 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ManejadorGlobalExcepciones.class);
     private static final String BASE_PROBLEM_TYPE = "https://esu.cruzdeleje.gob.ar/errores/";
 
+    private String sanitizarMensaje(String mensaje) {
+        if (mensaje == null || mensaje.isBlank()) {
+            return "Operación rechazada por validación.";
+        }
+        String s = mensaje.replaceAll("(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}", "***@***.***");
+        s = s.replaceAll("[C-Z]:\\\\[^\\s:]+", "[RUTA_RESTRINGIDA]");
+        s = s.replaceAll("/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/[^\\s:]+", "[RUTA_RESTRINGIDA]");
+        s = s.replaceAll("(?i)(token|bearer|secret|password|jwt)=?[a-z0-9._~+/-]{16,}", "$1=[REDACTED]");
+        return s;
+    }
+
     @ExceptionHandler(NoEncontradoExcepcion.class)
     public ResponseEntity<ProblemDetail> handleNoEncontrado(NoEncontradoExcepcion ex, WebRequest request) {
         log.warn("Recurso clinico no encontrado: {}", ex.getMessage());
 
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), sanitizarMensaje(ex.getMessage()));
         problem.setType(URI.create(BASE_PROBLEM_TYPE + "recurso-no-encontrado"));
         problem.setTitle("Recurso No Encontrado");
         problem.setProperty("timestamp", Instant.now());
@@ -51,7 +62,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
     public ResponseEntity<ProblemDetail> handleReglaNegocio(ReglaNegocioException ex, WebRequest request) {
         log.warn("Violacion de regla de negocio clinica: {}", ex.getMessage());
 
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), sanitizarMensaje(ex.getMessage()));
         problem.setType(URI.create(BASE_PROBLEM_TYPE + "regla-negocio-violada"));
         problem.setTitle("Regla de Negocio No Cumplida");
         problem.setProperty("timestamp", Instant.now());
@@ -140,7 +151,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         ErrorMessage message = new ErrorMessage(
                 HttpStatus.BAD_REQUEST,
                 LocalDateTime.now(),
-                exception.getMessage(),
+                sanitizarMensaje(exception.getMessage()),
                 "Solicitud invalida"
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
@@ -151,7 +162,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
         ErrorMessage message = new ErrorMessage(
                 HttpStatus.CONFLICT,
                 LocalDateTime.now(),
-                exception.getMessage(),
+                sanitizarMensaje(exception.getMessage()),
                 "Conflicto de estado"
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(message);

@@ -15,6 +15,7 @@ public interface HistoriaClinicaRepositorio extends JpaRepository<HistoriaClinic
     List<HistoriaClinica> findByPacienteId(Long pacienteId);
 
     List<HistoriaClinica> findByFechaAtencionBetween(LocalDateTime inicio, LocalDateTime fin);
+    Page<HistoriaClinica> findByFechaAtencionBetween(LocalDateTime inicio, LocalDateTime fin, Pageable pageable);
     Page<HistoriaClinica> findByPacienteId(Long pacienteId, Pageable pageable);
     long countByPacienteId(Long pacienteId);
 }
