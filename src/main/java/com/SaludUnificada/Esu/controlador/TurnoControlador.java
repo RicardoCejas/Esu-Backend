@@ -195,4 +195,10 @@ public class TurnoControlador {
         validarPropiedadPaciente(pacienteId, authentication);
         return ResponseEntity.ok(turnoServicio.obtenerHistorialTurnosPaciente(pacienteId));
     }
+    @PatchMapping("/recordatorios/{id}/leido")
+    @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<Void> marcarRecordatorioLeido(@PathVariable Long id, Principal principal) {
+        recordatorioTurnoServicio.marcarComoLeido(id, principal != null ? principal.getName() : null);
+        return ResponseEntity.noContent().build();
+    }
 }

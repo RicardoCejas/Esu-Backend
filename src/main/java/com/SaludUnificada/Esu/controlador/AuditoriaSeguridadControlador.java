@@ -10,6 +10,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,5 +32,14 @@ public class AuditoriaSeguridadControlador {
             @PageableDefault(size = 20, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ResponseEntity.ok(auditoriaSeguridadServicio.listarAuditoria(pageable));
+    }
+    @GetMapping("/auditoria/exportar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportarAuditoria() {
+        byte[] csv = auditoriaSeguridadServicio.exportarAuditoriaCsv();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"auditoria_seguridad.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csv);
     }
 }

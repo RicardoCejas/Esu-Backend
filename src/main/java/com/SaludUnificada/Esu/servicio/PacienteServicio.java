@@ -9,6 +9,7 @@ import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -87,5 +88,15 @@ public class PacienteServicio implements IPacienteServicio {
         Paciente paciente = pacienteRepositorio.findByUsuarioEmail(email)
                 .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
         return pacienteMapper.paraDto(paciente);
+    }
+    @Override
+    @Transactional
+    public PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado) {
+        Paciente paciente = obtenerEntidadPacientePorId(id);
+        if (telefono != null) paciente.setTelefono(telefono.replaceAll("[^0-9+ ]", "").trim());
+        if (obraSocial != null && !obraSocial.isBlank()) paciente.setObraSocial(obraSocial.trim());
+        if (nroAfiliado != null && !nroAfiliado.isBlank()) paciente.setNroAfiliado(nroAfiliado.trim());
+        Paciente guardado = pacienteRepositorio.save(paciente);
+        return pacienteMapper.paraDto(guardado);
     }
 }

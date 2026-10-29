@@ -95,4 +95,9 @@ public class ConsentimientoControlador {
         return ResponseEntity.ok(consentimientoServicio.revocarConsentimiento(id, motivo, ip));
     }
 
+    @GetMapping("/profesional/{profesionalId}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<List<ConsentimientoDtoResponse>> listarPorProfesional(@PathVariable Long profesionalId) {
+        return ResponseEntity.ok(consentimientoServicio.listarPorProfesional(profesionalId));
+    }
 }

@@ -157,4 +157,20 @@ public class AuditoriaSeguridadServicio {
         return true;
     }
 
+    @Transactional(readOnly = true)
+    public byte[] exportarAuditoriaCsv() {
+        List<LogAuditoriaSeguridad> logs = auditoriaRepositorio.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "fecha"));
+        StringBuilder sb = new StringBuilder();
+        sb.append("ID,Fecha,Email,Evento,IP,Detalle,UserAgent\n");
+        for (LogAuditoriaSeguridad l : logs) {
+            sb.append(l.getId()).append(",")
+                    .append(l.getFecha()).append(",")
+                    .append(l.getEmail()).append(",")
+                    .append(l.getEvento()).append(",")
+                    .append(l.getIpAddress() != null ? l.getIpAddress() : "").append(",")
+                    .append("\"").append(l.getDetalle() != null ? l.getDetalle().replace("\"", "'") : "").append("\",")
+                    .append("\"").append(l.getUserAgent() != null ? l.getUserAgent().replace("\"", "'") : "").append("\"\n");
+        }
+        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
 }

@@ -147,4 +147,12 @@ public class ConsentimientoServicio {
         return mapearADto(guardado, prof);
     }
 
+    @Transactional(readOnly = true)
+    public List<ConsentimientoDtoResponse> listarPorProfesional(Long profesionalId) {
+        Profesional prof = profesionalRepositorio.findById(profesionalId).orElse(null);
+        return consentimientoRepositorio.findByProfesionalIdOrderByFechaHoraFirmaDesc(profesionalId)
+                .stream()
+                .map(c -> mapearADto(c, prof))
+                .collect(Collectors.toList());
+    }
 }

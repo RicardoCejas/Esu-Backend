@@ -14,5 +14,6 @@ public interface IPacienteServicio {
     PacienteDtoResponse buscarPorDni(String dni);
     List<PacienteDtoResponse> buscarPorApellidoParcial(String apellido);
     Paciente obtenerEntidadPacientePorId(Long id);
+    PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado);
     PacienteDtoResponse obtenerPerfilAutenticado(String email);
 }

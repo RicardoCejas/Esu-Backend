@@ -9,6 +9,7 @@ import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.entidad.VinculoFamiliar;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.ConvenioObraSocialRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
@@ -89,6 +90,11 @@ public class CarnetYFamiliarServicio {
     public FamiliarDtoResponse vincularFamiliar(Long titularId, FamiliarDtoRequest request) {
         Paciente titular = pacienteRepositorio.findById(titularId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente titular no encontrado con ID: " + titularId));
+
+        String dniSanitizado = request.getDni() != null ? request.getDni().replaceAll("[^0-9]", "").trim() : "";
+        if (vinculoFamiliarRepositorio.existsByTitularIdAndFamiliarDni(titularId, dniSanitizado)) {
+            throw new ReglaNegocioException("El familiar con DNI " + dniSanitizado + " ya se encuentra vinculado a este titular.");
+        }
 
         VinculoFamiliar vinculo = new VinculoFamiliar();
         vinculo.setTitular(titular);

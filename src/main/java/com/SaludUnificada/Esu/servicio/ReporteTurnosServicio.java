@@ -2,6 +2,8 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -26,6 +28,8 @@ import java.util.List;
 public class ReporteTurnosServicio {
 
     private final TurnoRepositorio turnoRepositorio;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Transactional(readOnly = true)
@@ -171,5 +175,22 @@ public class ReporteTurnosServicio {
             log.error("Error al exportar turnos a CSV: {}", e.getMessage(), e);
             throw new RuntimeException("Error al generar el archivo CSV de turnos", e);
         }
+    }
+    @Transactional(readOnly = true)
+    public byte[] exportarPacientesCsv() {
+        List<Paciente> pacientes = pacienteRepositorio.findAll();
+        StringBuilder sb = new StringBuilder();
+        sb.append("ID,DNI,Nombre,Apellido,ObraSocial,NroAfiliado,Telefono,GrupoSanguineo\n");
+        for (Paciente p : pacientes) {
+            sb.append(p.getId()).append(",")
+                    .append(p.getDni()).append(",")
+                    .append("\"").append(p.getNombre()).append("\",")
+                    .append("\"").append(p.getApellido()).append("\",")
+                    .append("\"").append(p.getObraSocial() != null ? p.getObraSocial() : "").append("\",")
+                    .append("\"").append(p.getNroAfiliado() != null ? p.getNroAfiliado() : "").append("\",")
+                    .append("\"").append(p.getTelefono() != null ? p.getTelefono() : "").append("\",")
+                    .append("\"").append(p.getGrupoSanguineo() != null ? p.getGrupoSanguineo() : "").append("\"\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 }

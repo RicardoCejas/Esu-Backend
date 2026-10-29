@@ -67,7 +67,22 @@ public class CarnetDigitalServicio {
 
         String firmaEsperada = generarFirmaHmac(datos);
         if (!MessageDigest.isEqual(firmaRecibida.getBytes(StandardCharsets.UTF_8), firmaEsperada.getBytes(StandardCharsets.UTF_8))) {
-            return Map.of("valido", false, "motivo", "Firma criptográfica inválida o credencial adulterada");
+            return Map.of("valido", false, "motivo", "Firma criptografica invalida o credencial adulterada");
+        }
+
+        if (datos.contains("|VIG:")) {
+            try {
+                int vigIdx = datos.indexOf("|VIG:") + 5;
+                String vigStr = datos.substring(vigIdx);
+                if (vigStr.contains("|")) {
+                    vigStr = vigStr.substring(0, vigStr.indexOf("|"));
+                }
+                LocalDate vigencia = LocalDate.parse(vigStr);
+                if (vigencia.isBefore(LocalDate.now())) {
+                    return Map.of("valido", false, "motivo", "Credencial digital vencida el " + vigStr);
+                }
+            } catch (Exception ignored) {
+            }
         }
 
         return Map.of(

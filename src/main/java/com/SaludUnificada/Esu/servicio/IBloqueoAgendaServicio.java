@@ -10,4 +10,5 @@ public interface IBloqueoAgendaServicio {
     BloqueoAgendaDtoResponse registrarBloqueo(Long profesionalId, BloqueoAgendaDtoRequest request);
 
     List<BloqueoAgendaDtoResponse> listarBloqueosPorProfesional(Long profesionalId);
+    void eliminarBloqueo(Long bloqueoId);
 }

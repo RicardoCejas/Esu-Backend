@@ -46,4 +46,11 @@ public class RecordatorioTurnoServicio {
                 turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido(),
                 recordatorio.getDisponibleDesde(), recordatorio.isLeido());
     }
+    @Transactional
+    public void marcarComoLeido(Long recordatorioId, String emailAutenticado) {
+        RecordatorioTurno recordatorio = recordatorioRepositorio.findById(recordatorioId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Recordatorio no encontrado con ID: " + recordatorioId));
+        recordatorio.setLeido(true);
+        recordatorioRepositorio.save(recordatorio);
+    }
 }

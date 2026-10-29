@@ -75,4 +75,10 @@ public class DisponibilidadControlador {
         int slotsGenerados = disponibilidadServicio.generarSlotsProximos30Dias(id);
         return ResponseEntity.ok(slotsGenerados);
     }
+    @DeleteMapping("/api/disponibilidades/{id}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Void> eliminarDisponibilidad(@PathVariable Long id) {
+        disponibilidadServicio.eliminarDisponibilidad(id);
+        return ResponseEntity.noContent().build();
+    }
 }

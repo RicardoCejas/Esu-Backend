@@ -64,4 +64,10 @@ public class BloqueoAgendaControlador {
         List<BloqueoAgendaDtoResponse> bloqueos = bloqueoAgendaServicio.listarBloqueosPorProfesional(id);
         return ResponseEntity.ok(bloqueos);
     }
+    @DeleteMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Void> eliminarBloqueo(@PathVariable Long profesionalId, @PathVariable Long bloqueoId) {
+        bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
+        return ResponseEntity.noContent().build();
+    }
 }

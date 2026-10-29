@@ -4,6 +4,9 @@ import com.SaludUnificada.Esu.dto.response.MetricasAusentismoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TopDiagnosticoDtoResponse;
 import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
+import com.SaludUnificada.Esu.entidad.Turno;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,12 @@ public class MetricasSanitariasServicio {
 
     @Autowired
     private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+
+    @Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
+
+    @Autowired(required = false)
+    private ProfesionalRepositorio profesionalRepositorio;
 
     @Transactional(readOnly = true)
     public MetricasAusentismoDtoResponse obtenerMetricasAusentismo(LocalDate desde, LocalDate hasta, Long centroId) {
@@ -112,5 +121,54 @@ public class MetricasSanitariasServicio {
 
         log.info("Top {} diagnósticos CIE-10 consultados satisfactoriamente.", tops.size());
         return tops;
+    }
+    @Transactional(readOnly = true)
+    public Map<String, Object> obtenerResumenEjecutivo() {
+        long totalPacientes = pacienteRepositorio != null ? pacienteRepositorio.count() : 0L;
+        long totalProfesionales = profesionalRepositorio != null ? profesionalRepositorio.count() : 0L;
+        long totalTurnos = turnoRepositorio != null ? turnoRepositorio.count() : 0L;
+        LocalDate hoy = LocalDate.now();
+        LocalDateTime inicioMes = hoy.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime finMes = hoy.atTime(LocalTime.MAX);
+        long totalTurnosMes = turnoRepositorio != null ? turnoRepositorio.contarTotalTurnosEntre(inicioMes, finMes) : 0L;
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("totalPacientes", totalPacientes);
+        res.put("totalProfesionales", totalProfesionales);
+        res.put("totalTurnosHistoricos", totalTurnos);
+        res.put("totalTurnosMesActual", totalTurnosMes);
+        return res;
+    }
+
+    @Transactional(readOnly = true)
+    public MetricasAusentismoDtoResponse obtenerMetricasAusentismoPorProfesional(Long profesionalId, LocalDate desde, LocalDate hasta) {
+        LocalDate fDesde = (desde != null) ? desde : LocalDate.now().minusDays(30);
+        LocalDate fHasta = (hasta != null) ? hasta : LocalDate.now();
+        if (fDesde.isAfter(fHasta)) {
+            throw new IllegalArgumentException("La fecha desde no puede ser posterior a hasta.");
+        }
+        LocalDateTime inicio = fDesde.atStartOfDay();
+        LocalDateTime fin = fHasta.atTime(LocalTime.MAX);
+        List<Turno> turnos = turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin);
+        long total = turnos.size();
+        long atendidos = turnos.stream().filter(t -> "ATENDIDO".equalsIgnoreCase(t.getEstado()) || "FINALIZADO".equalsIgnoreCase(t.getEstado())).count();
+        long ausentes = turnos.stream().filter(t -> "AUSENTE".equalsIgnoreCase(t.getEstado())).count();
+        long cancelados = turnos.stream().filter(t -> t.getEstado() != null && t.getEstado().contains("CANCELADO")).count();
+        long pendientes = total - atendidos - ausentes - cancelados;
+        double tasaAusentismo = (total > 0) ? Math.round(((double) ausentes / total) * 10000.0) / 100.0 : 0.0;
+        double tasaAsistencia = (total > 0) ? Math.round(((double) atendidos / total) * 10000.0) / 100.0 : 0.0;
+
+        return MetricasAusentismoDtoResponse.builder()
+                .desde(fDesde)
+                .hasta(fHasta)
+                .totalTurnos(total)
+                .turnosAtendidos(atendidos)
+                .turnosAusentes(ausentes)
+                .turnosCancelados(cancelados)
+                .turnosPendientes(pendientes)
+                .tasaAusentismo(tasaAusentismo)
+                .tasaAsistencia(tasaAsistencia)
+                .mensajePeriodo("Metricas del profesional ID " + profesionalId)
+                .build();
     }
 }

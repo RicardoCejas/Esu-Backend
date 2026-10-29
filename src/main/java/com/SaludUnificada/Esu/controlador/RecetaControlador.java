@@ -29,6 +29,9 @@ public class RecetaControlador {
     @Autowired
     private RecetaDigitalServicio recetaServicio;
 
+    @Autowired
+    private com.SaludUnificada.Esu.servicio.CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
+
     private void validarPropiedadReceta(RecetaDigital receta, Authentication auth) {
         if (auth == null || !auth.isAuthenticated() || receta == null) {
             return;
@@ -110,5 +113,9 @@ public class RecetaControlador {
             Principal principal) {
         String motivo = payload != null ? payload.get("motivo") : null;
         return ResponseEntity.ok(recetaServicio.anularReceta(id, motivo, principal != null ? principal.getName() : null));
+    }
+    @GetMapping("/recetas/farmacologia/monodrogas")
+    public ResponseEntity<List<String>> listarMonodrogas(@RequestParam(required = false) String query) {
+        return ResponseEntity.ok(catalogoFarmacologicoServicio.buscarMonodrogas(query));
     }
 }

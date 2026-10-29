@@ -118,4 +118,12 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
                 .map(bloqueoAgendaMapper::paraDto)
                 .toList();
     }
+    @Override
+    @Transactional
+    public void eliminarBloqueo(Long bloqueoId) {
+        if (!bloqueoAgendaRepositorio.existsById(bloqueoId)) {
+            throw new NoEncontradoExcepcion("Bloqueo de agenda no encontrado con ID: " + bloqueoId);
+        }
+        bloqueoAgendaRepositorio.deleteById(bloqueoId);
+    }
 }

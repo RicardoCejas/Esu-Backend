@@ -10,5 +10,6 @@ import java.util.Optional;
 @Repository
 public interface ConsentimientoInformadoRepositorio extends JpaRepository<ConsentimientoInformado, Long> {
     List<ConsentimientoInformado> findByPacienteIdOrderByFechaHoraFirmaDesc(Long pacienteId);
+    List<ConsentimientoInformado> findByProfesionalIdOrderByFechaHoraFirmaDesc(Long profesionalId);
     Optional<ConsentimientoInformado> findByHashIntegridadSha256(String hashIntegridadSha256);
 }

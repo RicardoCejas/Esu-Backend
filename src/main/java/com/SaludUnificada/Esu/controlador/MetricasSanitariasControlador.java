@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/metricas")
@@ -20,9 +21,6 @@ public class MetricasSanitariasControlador {
     @Autowired
     private MetricasSanitariasServicio metricasServicio;
 
-    /**
-     * HU-98: Endpoint de cálculo de ausentismo y distribución de turnos por rango de fechas.
-     */
     @GetMapping("/ausentismo")
     public ResponseEntity<MetricasAusentismoDtoResponse> obtenerMetricasAusentismo(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
@@ -33,14 +31,23 @@ public class MetricasSanitariasControlador {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * HU-98: Endpoint de patologías y diagnósticos CIE-10 de mayor recurrencia.
-     */
     @GetMapping("/top-diagnosticos")
     public ResponseEntity<List<TopDiagnosticoDtoResponse>> obtenerTopDiagnosticos(
             @RequestParam(defaultValue = "10") int limit
     ) {
         List<TopDiagnosticoDtoResponse> top = metricasServicio.obtenerTopDiagnosticos(limit);
         return ResponseEntity.ok(top);
+    }
+    @GetMapping("/resumen-ejecutivo")
+    public ResponseEntity<Map<String, Object>> obtenerResumenEjecutivo() {
+        return ResponseEntity.ok(metricasServicio.obtenerResumenEjecutivo());
+    }
+
+    @GetMapping("/ausentismo/profesional/{profesionalId}")
+    public ResponseEntity<MetricasAusentismoDtoResponse> obtenerMetricasAusentismoPorProfesional(
+            @PathVariable Long profesionalId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        return ResponseEntity.ok(metricasServicio.obtenerMetricasAusentismoPorProfesional(profesionalId, desde, hasta));
     }
 }

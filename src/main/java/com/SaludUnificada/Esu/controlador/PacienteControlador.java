@@ -122,4 +122,20 @@ public class PacienteControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/convenios")
+    public ResponseEntity<List<com.SaludUnificada.Esu.entidad.ConvenioObraSocial>> listarConveniosActivos() {
+        return ResponseEntity.ok(carnetYFamiliarServicio.listarConveniosActivos());
+    }
+
+    @PutMapping("/{id}/contacto")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'ADMIN')")
+    public ResponseEntity<PacienteDtoResponse> actualizarContacto(
+            @PathVariable Long id,
+            @RequestParam(required = false) String telefono,
+            @RequestParam(required = false) String obraSocial,
+            @RequestParam(required = false) String nroAfiliado,
+            Authentication authentication) {
+        validarPropiedadPaciente(id, authentication);
+        return ResponseEntity.ok(pacienteServicio.actualizarDatosContacto(id, telefono, obraSocial, nroAfiliado));
+    }
 }

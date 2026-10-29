@@ -47,7 +47,6 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
-        // Validación de no solapamiento para el mismo profesional y día de atención
         List<DisponibilidadProfesional> solapadas = disponibilidadRepositorio.findSolapadas(
                 profesional.getId(),
                 request.getDiaSemana(),
@@ -62,7 +61,6 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
         DisponibilidadProfesional entidad = disponibilidadMapper.paraEntidad(request, profesional);
         DisponibilidadProfesional guardada = disponibilidadRepositorio.save(entidad);
 
-        // Generar automáticamente los cupos libres para los próximos 30 días basándose en la grilla
         int slotsGenerados = generarSlotsProximos30Dias(profesional.getId());
         log.info("Disponibilidad registrada para el profesional {}. Se generaron {} slots de turnos para los próximos 30 días.",
                 profesional.getId(), slotsGenerados);
@@ -95,7 +93,6 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
         for (int i = 1; i <= 30; i++) {
             LocalDate fecha = hoy.plusDays(i);
 
-            // Criterio de Aceptación: no generar cupos en días feriados
             if (feriadoServicio.esFeriado(fecha)) {
                 log.debug("Omitiendo generación de slots para la fecha feriado: {}", fecha);
                 continue;
@@ -111,10 +108,8 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
                 while (horaActual.plusMinutes(intervalo).compareTo(disp.getHoraFin()) <= 0) {
                     LocalDateTime fechaHoraSlot = LocalDateTime.of(fecha, horaActual);
 
-                    // Criterio de Aceptación: no generar cupos en fechas previamente bloqueadas
                     boolean estaBloqueado = !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesionalId, fechaHoraSlot).isEmpty();
 
-                    // Criterio de Aceptación: evitar duplicidades de slots
                     boolean existeSlot = turnoRepositorio.existsByProfesionalIdAndFechaHora(profesionalId, fechaHoraSlot);
 
                     if (!estaBloqueado && !existeSlot) {
@@ -136,5 +131,13 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
         }
 
         return nuevosSlots.size();
+    }
+    @Override
+    @Transactional
+    public void eliminarDisponibilidad(Long id) {
+        DisponibilidadProfesional disp = disponibilidadRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Disponibilidad no encontrada con ID: " + id));
+        disp.setActivo(false);
+        disponibilidadRepositorio.save(disp);
     }
 }
