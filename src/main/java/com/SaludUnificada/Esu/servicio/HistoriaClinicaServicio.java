@@ -1,5 +1,8 @@
 package com.SaludUnificada.Esu.servicio;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
 import com.SaludUnificada.Esu.entidad.HistoriaClinica;
@@ -66,5 +69,15 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         return historiaClinicaRepositorio.findByFechaAtencionBetween(inicio, fin).stream()
                 .map(historiaClinicaMapper::paraDto)
                 .collect(Collectors.toList());
+    }
+    @Override
+    public long contarPorPaciente(Long pacienteId) {
+        return historiaClinicaRepositorio.countByPacienteId(pacienteId);
+    }
+
+    @Override
+    public Page<HistoriaClinicaDtoResponse> listarPorPacientePaginado(Long pacienteId, Pageable pageable) {
+        return historiaClinicaRepositorio.findByPacienteId(pacienteId, pageable)
+                .map(historiaClinicaMapper::paraDto);
     }
 }

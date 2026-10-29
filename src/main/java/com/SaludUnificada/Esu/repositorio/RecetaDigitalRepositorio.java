@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface RecetaDigitalRepositorio extends JpaRepository<RecetaDigital, Long> {
     List<RecetaDigital> findByPacienteIdOrderByFechaEmisionDesc(Long pacienteId);
     Optional<RecetaDigital> findByHashIntegridad(String hashIntegridad);
+    List<RecetaDigital> findByEstadoRecetaAndFechaVencimientoLessThan(String estadoReceta, java.time.LocalDate fecha);
+    List<RecetaDigital> findByCodigoCie10(String codigoCie10);
 }

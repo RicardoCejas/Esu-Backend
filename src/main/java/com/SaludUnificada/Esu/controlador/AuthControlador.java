@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import java.security.Principal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -58,7 +59,6 @@ public class AuthControlador {
     private AuditoriaSeguridadServicio auditoriaSeguridadServicio;
     @Autowired(required = false)
     private EmailNotificacionServicio emailNotificacionServicio;
-
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
@@ -112,7 +112,6 @@ public class AuthControlador {
         usuario.setTokenVerificacion(tokenVerificacion);
         usuario.setEmailVerificado(false);
 
-
         Usuario guardado = usuarioRepositorio.save(usuario);
 
         if ("PACIENTE".equalsIgnoreCase(rol) && pacienteRepositorio != null) {
@@ -130,7 +129,6 @@ public class AuthControlador {
             }
         }
 
-        
         if (emailNotificacionServicio != null) {
             try {
                 emailNotificacionServicio.enviarEmailVerificacion(guardado.getEmail(), guardado.getEmail().split("@")[0], tokenVerificacion);
@@ -185,7 +183,6 @@ public class AuthControlador {
         ));
     }
 
-
     @PostMapping("/verify-email/resend")
     public ResponseEntity<Map<String, Object>> reenviarVerificacionEmail(@RequestBody Map<String, String> payload) {
         String email = payload.get("email");
@@ -238,7 +235,6 @@ public class AuthControlador {
                 "message", "Correo electronico verificado exitosamente."
         ));
     }
-
 
     private void asegurarCuentaDesarrollador(String password) {
         try {
@@ -308,5 +304,34 @@ public class AuthControlador {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado");
+        }
+        Usuario usuario = usuarioRepositorio.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+        return ResponseEntity.ok(Map.of(
+                "id", usuario.getId(),
+                "email", usuario.getEmail(),
+                "rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE",
+                "activo", Boolean.TRUE.equals(usuario.getEstadoActivo()),
+                "verificado", Boolean.TRUE.equals(usuario.getEmailVerificado())
+        ));
+    }
+
+    @GetMapping("/validar-token")
+    public ResponseEntity<Map<String, Object>> validarToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("valido", false));
+        }
+        String token = authHeader.substring(7);
+        boolean valido = jwtTokenProvider.validarToken(token);
+        String username = valido ? jwtTokenProvider.obtenerUsernameDelJwt(token) : null;
+        return ResponseEntity.ok(Map.of(
+                "valido", valido,
+                "username", username != null ? username : ""
+        ));
     }
 }

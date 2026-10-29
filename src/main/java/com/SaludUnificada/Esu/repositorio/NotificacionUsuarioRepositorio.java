@@ -20,4 +20,7 @@ public interface NotificacionUsuarioRepositorio extends JpaRepository<Notificaci
     @Modifying
     @Query("UPDATE NotificacionUsuario n SET n.leida = true WHERE n.usuario.email = :email AND n.leida = false")
     void marcarTodasComoLeidas(@Param("email") String email);
+    @Modifying
+    @Query("DELETE FROM NotificacionUsuario n WHERE n.usuario.email = :email AND n.leida = true")
+    void eliminarTodasLeidas(@Param("email") String email);
 }

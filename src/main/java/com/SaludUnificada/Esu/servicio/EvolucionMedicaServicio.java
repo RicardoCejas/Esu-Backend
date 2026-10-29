@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.response.ResumenClinicoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TimelineItemDto;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.*;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -126,7 +127,11 @@ public class EvolucionMedicaServicio {
     @Transactional
     public EvolucionAdenda registrarAdenda(Long evolucionId, EvolucionAdendaDtoRequest request) {
         EvolucionMedica evolucion = evolucionRepositorio.findById(evolucionId)
-            .orElseThrow(() -> new NoEncontradoExcepcion("Evolución médica no encontrada con ID: " + evolucionId));
+            .orElseThrow(() -> new NoEncontradoExcepcion("Evolucion medica no encontrada con ID: " + evolucionId));
+
+        if (!Boolean.TRUE.equals(evolucion.getFirmada())) {
+            throw new ReglaNegocioException("No se pueden emitir adendas sobre una evolucion medica que no ha sido firmada previamente.");
+        }
 
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
@@ -362,5 +367,15 @@ public class EvolucionMedicaServicio {
             .orElseThrow(() -> new NoEncontradoExcepcion("Evolución médica no encontrada con ID: " + evolucionId));
         String qrUrl = frontendUrl + "/verificar-evolucion?hash=" + e.getHashIntegridad();
         return pdfServicio.generarEvolucionPdf(e, qrUrl);
+    }
+    @Transactional(readOnly = true)
+    public EvolucionMedica obtenerPorId(Long id) {
+        return evolucionRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Evolucion medica no encontrada con ID: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<EvolucionAdenda> listarAdendasPorEvolucion(Long evolucionId) {
+        return adendaRepositorio.findByEvolucionMedicaIdOrderByFechaFirmaDesc(evolucionId);
     }
 }

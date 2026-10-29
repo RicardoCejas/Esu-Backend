@@ -106,4 +106,13 @@ public class EvolucionControlador {
 
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
+    @GetMapping("/historias-clinicas/evoluciones/{id}")
+    public ResponseEntity<EvolucionMedica> obtenerEvolucionPorId(@PathVariable Long id) {
+        return ResponseEntity.ok(evolucionServicio.obtenerPorId(id));
+    }
+
+    @GetMapping("/historias-clinicas/evoluciones/{id}/adendas")
+    public ResponseEntity<List<EvolucionAdenda>> listarAdendasPorEvolucion(@PathVariable Long id) {
+        return ResponseEntity.ok(evolucionServicio.listarAdendasPorEvolucion(id));
+    }
 }

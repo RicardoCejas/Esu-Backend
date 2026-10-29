@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -117,5 +118,17 @@ public class RecetaControlador {
     @GetMapping("/recetas/farmacologia/monodrogas")
     public ResponseEntity<List<String>> listarMonodrogas(@RequestParam(required = false) String query) {
         return ResponseEntity.ok(catalogoFarmacologicoServicio.buscarMonodrogas(query));
+    }
+    @PostMapping("/recetas/actualizar-vencimientos")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    public ResponseEntity<Map<String, Object>> marcarRecetasVencidas() {
+        int actualizadas = recetaServicio.marcarRecetasVencidas();
+        return ResponseEntity.ok(Map.of("actualizadas", actualizadas));
+    }
+
+    @GetMapping("/recetas/cie10/{codigo}")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<List<RecetaDigital>> listarPorCie10(@PathVariable String codigo) {
+        return ResponseEntity.ok(recetaServicio.listarPorCodigoCie10(codigo));
     }
 }

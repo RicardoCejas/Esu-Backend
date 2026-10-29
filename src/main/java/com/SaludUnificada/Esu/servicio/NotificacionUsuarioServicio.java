@@ -107,4 +107,8 @@ public class NotificacionUsuarioServicio {
         notificacionRepositorio.delete(notif);
     }
 
+    @Transactional
+    public void eliminarTodasLeidas(String email) {
+        notificacionRepositorio.eliminarTodasLeidas(email);
+    }
 }

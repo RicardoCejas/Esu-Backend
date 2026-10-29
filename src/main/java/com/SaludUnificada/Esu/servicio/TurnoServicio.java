@@ -664,4 +664,28 @@ public class TurnoServicio implements ITurnoServicio {
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
+    @Override
+    @Transactional
+    public TurnoDtoResponse marcarAusente(Long turnoId, String emailPersonal) {
+        Turno turno = turnoRepositorio.findById(turnoId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+        if ("ATENDIDO".equalsIgnoreCase(turno.getEstado()) || "FINALIZADO".equalsIgnoreCase(turno.getEstado())) {
+            throw new ReglaNegocioException("No se puede marcar como ausente un turno que ya ha sido atendido.");
+        }
+        turno.setEstado("AUSENTE");
+        Turno guardado = turnoRepositorio.save(turno);
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerTurnosHoyProfesional(Long profesionalId) {
+        LocalDate hoy = LocalDate.now(this.clock);
+        LocalDateTime inicio = hoy.atStartOfDay();
+        LocalDateTime fin = hoy.atTime(LocalTime.MAX);
+        return turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
+    }
 }

@@ -29,4 +29,8 @@ public class Cie10Controlador {
     public ResponseEntity<List<Cie10>> buscarCie10(@RequestParam(value = "q", required = false) String q) {
         return ResponseEntity.ok(cie10Servicio.buscar(q));
     }
+    @GetMapping("/{codigo}")
+    public ResponseEntity<Cie10> obtenerPorCodigo(@PathVariable String codigo) {
+        return ResponseEntity.ok(cie10Servicio.obtenerPorCodigo(codigo));
+    }
 }

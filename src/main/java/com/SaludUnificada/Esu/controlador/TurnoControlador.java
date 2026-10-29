@@ -201,4 +201,15 @@ public class TurnoControlador {
         recordatorioTurnoServicio.marcarComoLeido(id, principal != null ? principal.getName() : null);
         return ResponseEntity.noContent().build();
     }
+    @PutMapping("/{id}/ausente")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<TurnoDtoResponse> marcarAusente(@PathVariable Long id, Principal principal) {
+        return ResponseEntity.ok(turnoServicio.marcarAusente(id, principal != null ? principal.getName() : null));
+    }
+
+    @GetMapping("/profesional/{profesionalId}/hoy")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'RECEPCIONISTA', 'ADMIN')")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosHoyProfesional(@PathVariable Long profesionalId) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosHoyProfesional(profesionalId));
+    }
 }

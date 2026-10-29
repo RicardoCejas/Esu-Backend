@@ -291,4 +291,23 @@ public class RecetaDigitalServicio {
         }
         return lista;
     }
+    @Transactional
+    public int marcarRecetasVencidas() {
+        List<RecetaDigital> pendientesVencidas = recetaRepositorio.findByEstadoRecetaAndFechaVencimientoLessThan("PENDIENTE", LocalDate.now());
+        for (RecetaDigital r : pendientesVencidas) {
+            r.setEstadoReceta("VENCIDA");
+        }
+        if (!pendientesVencidas.isEmpty()) {
+            recetaRepositorio.saveAll(pendientesVencidas);
+        }
+        return pendientesVencidas.size();
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecetaDigital> listarPorCodigoCie10(String cie10) {
+        if (cie10 == null || cie10.isBlank()) {
+            return List.of();
+        }
+        return recetaRepositorio.findByCodigoCie10(cie10.trim().toUpperCase());
+    }
 }

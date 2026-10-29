@@ -60,4 +60,10 @@ public class NotificacionControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/leidas")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> eliminarTodasLeidas(Principal principal) {
+        notificacionUsuarioServicio.eliminarTodasLeidas(principal.getName());
+        return ResponseEntity.noContent().build();
+    }
 }

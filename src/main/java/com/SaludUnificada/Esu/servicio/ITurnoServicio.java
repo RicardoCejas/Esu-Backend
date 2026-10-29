@@ -29,4 +29,6 @@ public interface ITurnoServicio {
     TurnoDtoResponse atenderTurno(Long turnoId, AtencionTurnoDtoRequest atencionDto, String emailProfesional);
 
     byte[] generarCertificadoAsistencia(Long turnoId, String emailAutenticado);
+    TurnoDtoResponse marcarAusente(Long turnoId, String emailPersonal);
+    List<TurnoDtoResponse> obtenerTurnosHoyProfesional(Long profesionalId);
 }

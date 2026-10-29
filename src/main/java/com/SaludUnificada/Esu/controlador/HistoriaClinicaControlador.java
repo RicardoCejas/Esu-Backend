@@ -1,5 +1,8 @@
 package com.SaludUnificada.Esu.controlador;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
@@ -85,5 +88,21 @@ public class HistoriaClinicaControlador {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
         return ResponseEntity.ok(historiaClinicaServicio.buscarPorRangoFechas(inicio, fin));
+    }
+    @GetMapping("/paciente/{pacienteId}/conteo")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Long> contarPorPaciente(@PathVariable Long pacienteId, Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
+        return ResponseEntity.ok(historiaClinicaServicio.contarPorPaciente(pacienteId));
+    }
+
+    @GetMapping("/paciente/{pacienteId}/paginado")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    public ResponseEntity<Page<HistoriaClinicaDtoResponse>> listarPorPacientePaginado(
+            @PathVariable Long pacienteId,
+            Pageable pageable,
+            Authentication authentication) {
+        validarPropiedadPaciente(pacienteId, authentication);
+        return ResponseEntity.ok(historiaClinicaServicio.listarPorPacientePaginado(pacienteId, pageable));
     }
 }
