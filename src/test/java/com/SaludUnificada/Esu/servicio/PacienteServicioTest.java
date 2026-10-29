@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.*;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,6 +50,9 @@ class PacienteServicioTest {
 
     @Mock
     private VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
+
+    @Mock
+    private AuditoriaFusionPacienteRepositorio auditoriaFusionPacienteRepositorio;
 
     @InjectMocks
     private PacienteServicio pacienteServicio;
@@ -141,6 +145,16 @@ class PacienteServicioTest {
         vinculos.add(vinc);
         when(vinculoFamiliarRepositorio.findByTitularId(10L)).thenReturn(vinculos);
 
+        List<VinculoFamiliar> vinculosFamiliar = new ArrayList<>();
+        VinculoFamiliar vincFam = new VinculoFamiliar();
+        vincFam.setId(801L);
+        Paciente otroTitular = new Paciente();
+        otroTitular.setId(99L);
+        vincFam.setTitular(otroTitular);
+        vincFam.setFamiliarDni("30111222");
+        vinculosFamiliar.add(vincFam);
+        when(vinculoFamiliarRepositorio.findByFamiliarDni("30111222")).thenReturn(vinculosFamiliar);
+
         pacienteServicio.fusionarPacientes(10L, 20L, "Fusión por DNI duplicado", "admin@esu.com");
 
         assertEquals(destino, turno.getPaciente());
@@ -151,11 +165,20 @@ class PacienteServicioTest {
         assertEquals(20L, al.getPacienteId());
         assertEquals(20L, cons.getPacienteId());
         assertEquals(destino, vinc.getTitular());
+        assertEquals(destino.getDni(), vincFam.getFamiliarDni());
 
         assertFalse(usuarioOrigen.getEstadoActivo());
         assertEquals(2, usuarioOrigen.getTokenVersion());
         assertTrue(origen.getNombre().startsWith("[FUSIONADO #20]"));
 
         verify(pacienteRepositorio).save(origen);
+
+        ArgumentCaptor<AuditoriaFusionPaciente> auditCaptor = ArgumentCaptor.forClass(AuditoriaFusionPaciente.class);
+        verify(auditoriaFusionPacienteRepositorio).save(auditCaptor.capture());
+        AuditoriaFusionPaciente audit = auditCaptor.getValue();
+        assertEquals(10L, audit.getPacienteOrigenId());
+        assertEquals(20L, audit.getPacienteDestinoId());
+        assertEquals("admin@esu.com", audit.getOperadorEmail());
+        assertNotNull(audit.getDetalles());
     }
 }

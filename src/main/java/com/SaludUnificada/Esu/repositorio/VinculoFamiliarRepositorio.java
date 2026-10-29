@@ -9,4 +9,5 @@ import java.util.List;
 public interface VinculoFamiliarRepositorio extends JpaRepository<VinculoFamiliar, Long> {
     List<VinculoFamiliar> findByTitularId(Long titularId);
     boolean existsByTitularIdAndFamiliarDni(Long titularId, String familiarDni);
+    List<VinculoFamiliar> findByFamiliarDni(String familiarDni);
 }

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,6 +49,9 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Autowired(required = false)
     private VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
+
+    @Autowired(required = false)
+    private AuditoriaFusionPacienteRepositorio auditoriaFusionPacienteRepositorio;
 
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
@@ -151,68 +155,107 @@ public class PacienteServicio implements IPacienteServicio {
         Paciente destino = pacienteRepositorio.findById(pacienteDestinoId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente destino no encontrado con ID: " + pacienteDestinoId));
 
+        String dniOrigenOriginal = origen.getDni();
+
+        int turnosCount = 0;
         if (turnoRepositorio != null) {
             List<Turno> turnos = turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteOrigenId);
+            turnosCount = turnos.size();
             for (Turno t : turnos) {
                 t.setPaciente(destino);
             }
             turnoRepositorio.saveAll(turnos);
         }
 
+        int recetasCount = 0;
         if (recetaRepositorio != null) {
             List<RecetaDigital> recetas = recetaRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteOrigenId);
+            recetasCount = recetas.size();
             for (RecetaDigital r : recetas) {
                 r.setPaciente(destino);
             }
             recetaRepositorio.saveAll(recetas);
         }
 
+        int historiasCount = 0;
         if (historiaClinicaRepositorio != null) {
             List<HistoriaClinica> historias = historiaClinicaRepositorio.findByPacienteId(pacienteOrigenId);
+            historiasCount = historias.size();
             for (HistoriaClinica hc : historias) {
                 hc.setPaciente(destino);
             }
             historiaClinicaRepositorio.saveAll(historias);
         }
 
+        int evolucionesCount = 0;
         if (evolucionMedicaRepositorio != null) {
             List<EvolucionMedica> evoluciones = evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteOrigenId);
+            evolucionesCount = evoluciones.size();
             for (EvolucionMedica e : evoluciones) {
                 e.setPaciente(destino);
             }
             evolucionMedicaRepositorio.saveAll(evoluciones);
         }
 
+        int estudiosCount = 0;
         if (estudioAdjuntoRepositorio != null) {
             List<EstudioAdjunto> estudios = estudioAdjuntoRepositorio.findByPacienteIdOrderByFechaCargaDesc(pacienteOrigenId);
+            estudiosCount = estudios.size();
             for (EstudioAdjunto est : estudios) {
                 est.setPacienteId(destino.getId());
             }
             estudioAdjuntoRepositorio.saveAll(estudios);
         }
 
+        int alergiasCount = 0;
         if (alergiaPacienteRepositorio != null) {
             List<AlergiaPaciente> alergias = alergiaPacienteRepositorio.findByPacienteIdOrderByFechaRegistroDesc(pacienteOrigenId);
+            alergiasCount = alergias.size();
             for (AlergiaPaciente a : alergias) {
                 a.setPacienteId(destino.getId());
             }
             alergiaPacienteRepositorio.saveAll(alergias);
         }
 
+        int consentimientosCount = 0;
         if (consentimientoRepositorio != null) {
             List<ConsentimientoInformado> consentimientos = consentimientoRepositorio.findByPacienteIdOrderByFechaHoraFirmaDesc(pacienteOrigenId);
+            consentimientosCount = consentimientos.size();
             for (ConsentimientoInformado c : consentimientos) {
                 c.setPacienteId(destino.getId());
             }
             consentimientoRepositorio.saveAll(consentimientos);
         }
 
+        int vinculosCount = 0;
         if (vinculoFamiliarRepositorio != null) {
-            List<VinculoFamiliar> vinculos = vinculoFamiliarRepositorio.findByTitularId(pacienteOrigenId);
-            for (VinculoFamiliar v : vinculos) {
-                v.setTitular(destino);
+            // 1. Donde el paciente origen era titular
+            List<VinculoFamiliar> vinculosTitular = vinculoFamiliarRepositorio.findByTitularId(pacienteOrigenId);
+            for (VinculoFamiliar v : vinculosTitular) {
+                if (vinculoFamiliarRepositorio.existsByTitularIdAndFamiliarDni(destino.getId(), v.getFamiliarDni())) {
+                    vinculoFamiliarRepositorio.delete(v);
+                } else {
+                    v.setTitular(destino);
+                    vinculoFamiliarRepositorio.save(v);
+                    vinculosCount++;
+                }
             }
-            vinculoFamiliarRepositorio.saveAll(vinculos);
+
+            // 2. Donde el paciente origen figuraba como familiar por DNI
+            if (dniOrigenOriginal != null && !dniOrigenOriginal.isBlank()) {
+                List<VinculoFamiliar> vinculosComoFamiliar = vinculoFamiliarRepositorio.findByFamiliarDni(dniOrigenOriginal);
+                for (VinculoFamiliar v : vinculosComoFamiliar) {
+                    if (v.getTitular() != null && v.getTitular().getId().equals(destino.getId())) {
+                        vinculoFamiliarRepositorio.delete(v);
+                    } else if (v.getTitular() != null && vinculoFamiliarRepositorio.existsByTitularIdAndFamiliarDni(v.getTitular().getId(), destino.getDni())) {
+                        vinculoFamiliarRepositorio.delete(v);
+                    } else {
+                        v.setFamiliarDni(destino.getDni());
+                        vinculoFamiliarRepositorio.save(v);
+                        vinculosCount++;
+                    }
+                }
+            }
         }
 
         if (origen.getUsuario() != null) {
@@ -223,5 +266,19 @@ public class PacienteServicio implements IPacienteServicio {
         origen.setDni("FUSIONADO-" + origen.getId() + "-" + origen.getDni());
         origen.setNroAfiliado("FUSIONADO-" + origen.getId() + "-" + origen.getNroAfiliado());
         pacienteRepositorio.save(origen);
+
+        if (auditoriaFusionPacienteRepositorio != null) {
+            String detalles = String.format("Transferidos: turnos=%d, recetas=%d, historias=%d, evoluciones=%d, estudios=%d, alergias=%d, consentimientos=%d, vinculos=%d",
+                    turnosCount, recetasCount, historiasCount, evolucionesCount, estudiosCount, alergiasCount, consentimientosCount, vinculosCount);
+            AuditoriaFusionPaciente audit = AuditoriaFusionPaciente.builder()
+                    .pacienteOrigenId(pacienteOrigenId)
+                    .pacienteDestinoId(pacienteDestinoId)
+                    .operadorEmail(emailAdmin != null ? emailAdmin : "SISTEMA")
+                    .motivo(motivo != null ? motivo.trim() : "Fusión administrativa de registros clínicos duplicados")
+                    .fechaHora(LocalDateTime.now())
+                    .detalles(detalles)
+                    .build();
+            auditoriaFusionPacienteRepositorio.save(audit);
+        }
     }
 }

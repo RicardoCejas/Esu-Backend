@@ -9,7 +9,9 @@ import com.SaludUnificada.Esu.dto.response.EvolucionAdendaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.EvolucionMedicaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.ResumenClinicoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TimelineItemDto;
+import com.SaludUnificada.Esu.entidad.ConsultaBorrador;
 import com.SaludUnificada.Esu.entidad.EvolucionAdenda;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import com.SaludUnificada.Esu.entidad.EvolucionMedica;
 import com.SaludUnificada.Esu.mapper.EvolucionMedicaMapper;
 import com.SaludUnificada.Esu.servicio.EvolucionMedicaServicio;
@@ -109,17 +111,34 @@ public class EvolucionControlador {
         return ResponseEntity.ok(evolucionServicio.guardarBorradorConsulta(borrador, principal != null ? principal.getName() : null));
     }
 
+    @GetMapping("/historias-clinicas/consultas/borrador")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @Operation(summary = "Consultar borrador de consulta médica")
+    public ResponseEntity<ConsultaBorrador> obtenerBorrador(
+            @RequestParam(required = false) Long turnoId,
+            @RequestParam(required = false) Long pacienteId,
+            Principal principal) {
+        ConsultaBorrador borrador = evolucionServicio.obtenerBorradorConsulta(turnoId, pacienteId, principal != null ? principal.getName() : null);
+        if (borrador == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(borrador);
+    }
+
     @GetMapping("/historias-clinicas/evoluciones/{id}/pdf")
     @PreAuthorize("@securityPolicy.canAccessEvolucion(#id)")
     @Operation(summary = "Descargar informe de evolución médica inalterable en PDF con QR y SHA-256")
-    public ResponseEntity<byte[]> descargarEvolucionPdf(@PathVariable Long id) {
-        byte[] pdfBytes = evolucionServicio.generarPdfEvolucion(id);
-
+    public ResponseEntity<StreamingResponseBody> descargarEvolucionPdf(@PathVariable Long id) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("inline", "evolucion_clinica_" + id + ".pdf");
-        headers.setContentLength(pdfBytes.length);
 
-        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        StreamingResponseBody stream = outputStream -> {
+            byte[] pdfBytes = evolucionServicio.generarPdfEvolucion(id);
+            outputStream.write(pdfBytes);
+            outputStream.flush();
+        };
+
+        return new ResponseEntity<>(stream, headers, HttpStatus.OK);
     }
 }

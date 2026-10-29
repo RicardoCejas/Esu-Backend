@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.HistoriaClinicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.HistoriaClinicaDtoResponse;
 import com.SaludUnificada.Esu.servicio.IHistoriaClinicaServicio;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -82,9 +83,10 @@ public class HistoriaClinicaControlador {
     public ResponseEntity<java.util.Map<String, String>> habilitarAccesoEmergencia(
             @PathVariable Long pacienteId,
             @RequestBody java.util.Map<String, String> payload,
-            java.security.Principal principal) {
+            java.security.Principal principal,
+            HttpServletRequest request) {
         String motivo = payload != null ? payload.get("motivo") : null;
-        historiaClinicaServicio.registrarAccesoEmergencia(pacienteId, principal != null ? principal.getName() : null, motivo);
+        historiaClinicaServicio.registrarAccesoEmergencia(pacienteId, principal != null ? principal.getName() : null, motivo, request);
         return ResponseEntity.ok(java.util.Map.of(
                 "mensaje", "Acceso de emergencia/guardia registrado y habilitado exitosamente bajo protocolo de auditoría médica legal."
         ));

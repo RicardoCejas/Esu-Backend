@@ -29,6 +29,12 @@ public class ProductionSecurityStartupValidator {
     @Value("${app.cors.allowed-origins:}")
     private String allowedOrigins;
 
+    @Value("${app.frontend.url:}")
+    private String frontendUrl;
+
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+
     @PostConstruct
     public void validateConfiguration() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
@@ -58,9 +64,19 @@ public class ProductionSecurityStartupValidator {
                 throw new IllegalStateException("FATAL: Contraseña de base de datos MySQL vacía o insegura para producción.");
             }
 
-            // 3. Validar CORS sin comodines
-            if (allowedOrigins == null || allowedOrigins.contains("*")) {
-                throw new IllegalStateException("FATAL: Configuración CORS permisiva detectada en producción. No se permite comodín ('*').");
+            // 3. Validar CORS sin comodines ni localhost
+            if (allowedOrigins == null || allowedOrigins.trim().isEmpty() || allowedOrigins.contains("*") || allowedOrigins.contains("localhost") || allowedOrigins.contains("127.0.0.1")) {
+                throw new IllegalStateException("FATAL: Configuración CORS no permitida en producción. 'app.cors.allowed-origins' debe contener dominios HTTPS explícitos y no puede contener comodines ni referencias a localhost.");
+            }
+
+            // 4. Validar Frontend URL público
+            if (frontendUrl == null || frontendUrl.trim().isEmpty() || frontendUrl.contains("localhost") || frontendUrl.contains("127.0.0.1") || !frontendUrl.startsWith("https://")) {
+                throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar 'FRONTEND_URL' con una URL pública HTTPS válida (no localhost).");
+            }
+
+            // 5. Validar host de correo electrónico
+            if ("localhost".equalsIgnoreCase(mailHost) || "127.0.0.1".equals(mailHost)) {
+                throw new IllegalStateException("FATAL: En producción se requiere configurar un servidor SMTP externo legítimo ('spring.mail.host').");
             }
 
             log.info("Verificación de configuración productiva completada satisfactoriamente.");

@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
+import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
@@ -204,6 +205,12 @@ class TurnoServicioTest {
         Turno turno = new Turno();
         turno.setId(30L);
         turno.setEstado("EN_SALA_DE_ESPERA");
+        turno.setPaciente(new Paciente());
+        Profesional prof = new Profesional();
+        Usuario u = new Usuario();
+        u.setEmail("medico@clinica.com");
+        prof.setUsuario(u);
+        turno.setProfesional(prof);
 
         AtencionTurnoDtoRequest atencion = AtencionTurnoDtoRequest.builder()
                 .observaciones("Paciente presenta mejoría sintomática. Tratamiento completado con éxito.")

@@ -18,6 +18,7 @@ import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
 import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -114,7 +115,7 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
 
     @Override
     @Transactional
-    public void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo) {
+    public void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo, HttpServletRequest request) {
         if (motivo == null || motivo.trim().length() < 10) {
             throw new IllegalArgumentException("Debe especificarse un motivo clínico válido y detallado para el acceso de emergencia (mínimo 10 caracteres).");
         }
@@ -124,7 +125,7 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         if (usuarioRepositorio != null && logAccesoHcRepositorio != null) {
             Usuario usuario = usuarioRepositorio.findByEmail(emailProfesional)
                     .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado"));
-            String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(null) : "127.0.0.1";
+            String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(request) : (request != null ? request.getRemoteAddr() : "127.0.0.1");
             LogAccesoHc log = new LogAccesoHc(usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ip, usuario.getRol(), motivo.trim());
             logAccesoHcRepositorio.save(log);
         }

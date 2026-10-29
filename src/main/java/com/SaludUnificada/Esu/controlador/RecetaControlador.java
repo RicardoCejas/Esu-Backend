@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.security.Principal;
 import java.util.List;
@@ -74,15 +75,18 @@ public class RecetaControlador {
     @GetMapping("/recetas/{id}/pdf")
     @PreAuthorize("@securityPolicy.canAccessReceta(#id)")
     @Operation(summary = "Descargar receta medica oficial en PDF con codigo QR y Hash SHA-256")
-    public ResponseEntity<byte[]> descargarRecetaPdf(@PathVariable Long id) {
-        byte[] pdfBytes = recetaServicio.generarPdf(id);
-
+    public ResponseEntity<StreamingResponseBody> descargarRecetaPdf(@PathVariable Long id) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("attachment", "receta_digital_" + id + ".pdf");
-        headers.setContentLength(pdfBytes.length);
 
-        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        StreamingResponseBody stream = outputStream -> {
+            byte[] pdfBytes = recetaServicio.generarPdf(id);
+            outputStream.write(pdfBytes);
+            outputStream.flush();
+        };
+
+        return new ResponseEntity<>(stream, headers, HttpStatus.OK);
     }
 
     @GetMapping("/public/verificar/{hash}")
