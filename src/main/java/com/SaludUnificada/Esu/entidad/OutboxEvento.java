@@ -54,6 +54,9 @@ public class OutboxEvento {
     @Column(name = "proximo_intento")
     private LocalDateTime proximoIntento;
 
+    @Column(name = "despachado_externo", nullable = false)
+    private Boolean despachadoExterno = false;
+
     public OutboxEvento(String tipoEvento, Long aggregateId, String payload) {
         this.tipoEvento = tipoEvento;
         this.aggregateId = aggregateId;

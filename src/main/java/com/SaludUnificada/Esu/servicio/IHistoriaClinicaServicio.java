@@ -25,4 +25,5 @@ public interface IHistoriaClinicaServicio {
         registrarAccesoEmergencia(pacienteId, emailProfesional, motivo, null);
     }
     void registrarAccesoEmergencia(Long pacienteId, String emailProfesional, String motivo, HttpServletRequest request);
+    org.springframework.data.domain.Page<com.SaludUnificada.Esu.entidad.LogAccesoHc> listarAccesosEmergenciaPaginado(org.springframework.data.domain.Pageable pageable);
 }

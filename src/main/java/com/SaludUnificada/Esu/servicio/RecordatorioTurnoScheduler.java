@@ -37,5 +37,10 @@ public class RecordatorioTurnoScheduler {
                 recordatorioRepositorio.save(new RecordatorioTurno(turno));
             }
         }
+        for (RecordatorioTurno r : recordatorioRepositorio.findAll()) {
+            if (r.getTurno() == null || "CANCELADO".equalsIgnoreCase(r.getTurno().getEstado()) || "ATENDIDO".equalsIgnoreCase(r.getTurno().getEstado())) {
+                recordatorioRepositorio.delete(r);
+            }
+        }
     }
 }

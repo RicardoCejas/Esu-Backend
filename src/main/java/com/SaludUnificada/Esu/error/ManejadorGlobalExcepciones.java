@@ -36,6 +36,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
             return "Operación rechazada por validación.";
         }
         String s = mensaje.replaceAll("(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}", "***@***.***");
+        s = s.replaceAll("(?i)(dni|documento)[\\s:]+[0-9a-zA-Z]{6,10}", "$1: [RESTRINGIDO]");
         s = s.replaceAll("[C-Z]:\\\\[^\\s:]+", "[RUTA_RESTRINGIDA]");
         s = s.replaceAll("/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/[^\\s:]+", "[RUTA_RESTRINGIDA]");
         s = s.replaceAll("(?i)(token|bearer|secret|password|jwt)=?[a-z0-9._~+/-]{16,}", "$1=[REDACTED]");

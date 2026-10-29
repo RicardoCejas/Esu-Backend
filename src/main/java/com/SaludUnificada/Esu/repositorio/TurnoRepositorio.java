@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
@@ -24,6 +25,8 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
     boolean existsByProfesionalIdAndFechaHoraAndEstadoNot(Long profesionalId, LocalDateTime fechaHora, String estado);
 
     boolean existsByPacienteIdAndFechaHoraAndEstadoNot(Long pacienteId, LocalDateTime fechaHora, String estado);
+
+    Optional<Turno> findByIdempotencyKey(String idempotencyKey);
 
     List<Turno> findByProfesionalIdAndFechaHoraGreaterThanEqualAndFechaHoraLessThanAndEstadoNot(
             Long profesionalId, LocalDateTime inicio, LocalDateTime fin, String estado);
