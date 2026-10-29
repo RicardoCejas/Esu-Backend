@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.seguridad;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,17 +24,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthenticationEntryPoint authenticationEntryPoint;
+    private final JwtAuthenticationEntryPoint authenticationEntryPoint;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,https://cruzdeleje.gob.ar}")
+    private String allowedOriginsConfig;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -48,7 +51,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:[*]", "http://127.0.0.1:[*]", "https://*.cruzdeleje.gob.ar"));
+        List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
         configuration.setExposedHeaders(List.of("Authorization"));
@@ -75,9 +82,15 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/registro", "/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/solicitar-recuperacion", "/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/resetear-password", "/api/auth/reset-password").permitAll()
+                        .requestMatchers("/api/auth/verify-email", "/api/auth/verify-email/resend").permitAll()
+                        .requestMatchers("/api/auth/validar-token").permitAll()
+                        .requestMatchers("/api/auth/dev-switch-role").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/api/cie10/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -110,7 +123,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/medicos/asignar-consultorio").hasAnyRole("PROFESIONAL", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/medicos/**").permitAll()
 
-                        .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "PACIENTE")
+                        .requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "PROFESIONAL", "RECEPCIONISTA")
+                        .requestMatchers(HttpMethod.GET, "/api/pacientes", "/api/pacientes/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA", "MEDICO", "PROFESIONAL")
+                        .requestMatchers(HttpMethod.DELETE, "/api/pacientes/**").hasRole("ADMIN")
                         .requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA")
 
                         .requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("ADMIN", "RECEPCIONISTA")
@@ -120,8 +135,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").hasRole("ADMIN")
                         .requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE")
 
-                        .requestMatchers("/api/recetas/dispensar").permitAll()
-                        .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")
+                        .requestMatchers("/api/recetas/dispensar").hasAnyRole("FARMACIA", "ADMIN")
+                        .requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "FARMACIA")
                         .requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN")
 
                         .requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN")

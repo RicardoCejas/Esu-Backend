@@ -1,73 +1,68 @@
 package com.SaludUnificada.Esu.controlador;
 
-import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
-
 import com.SaludUnificada.Esu.dto.auth.JwtAuthDtoResponse;
 import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
-import com.SaludUnificada.Esu.entidad.Usuario;
-import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
+import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import java.security.Principal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.Principal;
 import java.time.LocalDate;
-import java.util.UUID;
+import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.List;
-import org.springframework.security.core.userdetails.UserDetails;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthControlador {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
-
-    @Autowired
-    private UsuarioRepositorio usuarioRepositorio;
-
-    @Autowired(required = false)
-    private PacienteRepositorio pacienteRepositorio;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-
-    @Autowired
-    private RecuperacionPasswordServicio recuperacionPasswordServicio;
-
-    @Autowired
-    private AuditoriaSeguridadServicio auditoriaSeguridadServicio;
-    @Autowired(required = false)
-    private EmailNotificacionServicio emailNotificacionServicio;
+    private final AuthenticationManager authenticationManager;
+    private final UsuarioRepositorio usuarioRepositorio;
+    private final PacienteRepositorio pacienteRepositorio;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final RecuperacionPasswordServicio recuperacionPasswordServicio;
+    private final AuditoriaSeguridadServicio auditoriaSeguridadServicio;
+    private final EmailNotificacionServicio emailNotificacionServicio;
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthDtoResponse> login(@Valid @RequestBody LoginDtoRequest loginDto) {
-        if ("dev@esu.gob.ar".equalsIgnoreCase(loginDto.getEmail())) {
-            asegurarCuentaDesarrollador(loginDto.getPassword());
-        }
-        if (auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(loginDto.getEmail())) {
+        if (auditoriaSeguridadServicio != null && auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos(loginDto.getEmail())) {
             throw new ResponseStatusException(HttpStatus.LOCKED,
                     "La cuenta se encuentra temporalmente bloqueada por superar 5 intentos fallidos consecutivos en menos de 10 minutos. Por favor aguarde o recupere su clave.");
+        }
+
+        Usuario usuario = usuarioRepositorio.findByEmail(loginDto.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
+
+        if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta se encuentra deshabilitada.");
+        }
+
+        if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Debe confirmar su dirección de correo electrónico antes de ingresar a la plataforma.");
         }
 
         Authentication authentication = authenticationManager.authenticate(
@@ -79,9 +74,6 @@ public class AuthControlador {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String token = jwtTokenProvider.generarToken(authentication);
-
-        Usuario usuario = usuarioRepositorio.findByEmail(loginDto.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
                 .accessToken(token)
@@ -108,13 +100,16 @@ public class AuthControlador {
         usuario.setRol(rol);
         usuario.setEstadoActivo(true);
         usuario.setFechaDeAlta(LocalDate.now());
+
         String tokenVerificacion = UUID.randomUUID().toString();
         usuario.setTokenVerificacion(tokenVerificacion);
         usuario.setEmailVerificado(false);
+        usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
+        usuario.setTokenVerificacionUsado(false);
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
-        if ("PACIENTE".equalsIgnoreCase(rol) && pacienteRepositorio != null) {
+        if (pacienteRepositorio != null) {
             try {
                 if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
                     Paciente nuevoPaciente = new Paciente();
@@ -136,10 +131,8 @@ public class AuthControlador {
             }
         }
 
-        String token = jwtTokenProvider.generarTokenParaUsuario(guardado.getEmail(), guardado.getRol());
-
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
-                .accessToken(token)
+                .accessToken(null)
                 .tokenType("Bearer")
                 .usuarioId(guardado.getId())
                 .email(guardado.getEmail())
@@ -169,6 +162,7 @@ public class AuthControlador {
     }
 
     @GetMapping("/test-email")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> testEmail(@RequestParam("destinatario") String destinatario) {
         if (emailNotificacionServicio != null) {
             emailNotificacionServicio.enviarBienvenida(destinatario, "Usuario de Prueba");
@@ -188,19 +182,27 @@ public class AuthControlador {
         String email = payload.get("email");
         if (email == null || email.isBlank()) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
+            if (auth != null && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
                 email = auth.getName();
             }
         }
 
         if (email != null && !email.isBlank()) {
             if (auditoriaSeguridadServicio != null && !auditoriaSeguridadServicio.puedeReenviarVerificacion(email)) {
-                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Por favor espere 60 segundos antes de solicitar otro correo de confirmacion.");
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Por favor espere 60 segundos antes de solicitar otro correo de confirmación.");
             }
             Usuario usuario = usuarioRepositorio.findByEmail(email).orElse(null);
             if (usuario != null) {
+                if (Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+                    return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "La casilla de correo ya se encuentra verificada."
+                    ));
+                }
                 String token = UUID.randomUUID().toString();
                 usuario.setTokenVerificacion(token);
+                usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
+                usuario.setTokenVerificacionUsado(false);
                 usuarioRepositorio.save(usuario);
                 if (emailNotificacionServicio != null) {
                     try {
@@ -213,98 +215,38 @@ public class AuthControlador {
 
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Se ha enviado un nuevo enlace de confirmacion a tu casilla de correo."
+                "message", "Si la cuenta existe y no está verificada, se ha enviado un nuevo enlace de confirmación."
         ));
     }
 
     @GetMapping("/verify-email")
     public ResponseEntity<Map<String, Object>> verificarEmail(@RequestParam("token") String token) {
         if (token == null || token.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token de verificacion no proporcionado");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token de verificación no proporcionado");
         }
 
         Usuario usuario = usuarioRepositorio.findByTokenVerificacion(token)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificacion ha expirado o no es valido."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificación ha expirado o no es válido."));
+
+        if (Boolean.TRUE.equals(usuario.getTokenVerificacionUsado())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificación ya ha sido utilizado.");
+        }
+
+        if (usuario.getFechaExpiracionVerificacion() != null && usuario.getFechaExpiracionVerificacion().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificación ha expirado. Solicite un nuevo correo de confirmación.");
+        }
 
         usuario.setEmailVerificado(true);
+        usuario.setTokenVerificacionUsado(true);
         usuario.setTokenVerificacion(null);
         usuarioRepositorio.save(usuario);
 
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Correo electronico verificado exitosamente."
+                "message", "Correo electrónico verificado exitosamente. Ya puede iniciar sesión."
         ));
     }
 
-    private void asegurarCuentaDesarrollador(String password) {
-        try {
-            Usuario dev = usuarioRepositorio.findByEmail("dev@esu.gob.ar").orElse(null);
-            String pwd = (password != null && !password.isBlank()) ? password : "Dev12345!";
-            if (dev == null) {
-                dev = new Usuario();
-                dev.setEmail("dev@esu.gob.ar");
-                dev.setPassword(passwordEncoder.encode(pwd));
-                dev.setRol("DESARROLLADOR");
-                dev.setEstadoActivo(true);
-                dev.setFechaDeAlta(LocalDate.now());
-                usuarioRepositorio.save(dev);
-            } else {
-                boolean modificado = false;
-                if (!Boolean.TRUE.equals(dev.getEstadoActivo())) {
-                    dev.setEstadoActivo(true);
-                    modificado = true;
-                }
-                if (!passwordEncoder.matches(pwd, dev.getPassword())) {
-                    dev.setPassword(passwordEncoder.encode(pwd));
-                    modificado = true;
-                }
-                if (modificado) {
-                    usuarioRepositorio.save(dev);
-                }
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    @PostMapping("/dev-switch-role")
-    public ResponseEntity<JwtAuthDtoResponse> devSwitchRole(@RequestBody Map<String, String> body) {
-        String nuevoRol = body.get("role");
-        if (nuevoRol == null || nuevoRol.isBlank()) {
-            throw new IllegalArgumentException("El rol es requerido");
-        }
-        Usuario dev = usuarioRepositorio.findByEmail("dev@esu.gob.ar")
-                .orElseGet(() -> {
-                    Usuario nuevoDev = new Usuario();
-                    nuevoDev.setEmail("dev@esu.gob.ar");
-                    nuevoDev.setPassword(passwordEncoder.encode("Dev12345!"));
-                    nuevoDev.setRol("DESARROLLADOR");
-                    nuevoDev.setEstadoActivo(true);
-                    nuevoDev.setFechaDeAlta(LocalDate.now());
-                    return usuarioRepositorio.save(nuevoDev);
-                });
-
-        dev.setRol(nuevoRol.toUpperCase());
-        usuarioRepositorio.save(dev);
-
-        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
-                dev.getEmail(),
-                dev.getPassword(),
-                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + nuevoRol.toUpperCase()))
-        );
-
-        Authentication auth = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-        String token = jwtTokenProvider.generarToken(auth);
-
-        JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
-                .accessToken(token)
-                .tokenType("Bearer")
-                .usuarioId(dev.getId())
-                .email(dev.getEmail())
-                .rol(dev.getRol())
-                .build();
-
-        return ResponseEntity.ok(response);
-    }
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Principal principal) {
         if (principal == null || principal.getName() == null) {

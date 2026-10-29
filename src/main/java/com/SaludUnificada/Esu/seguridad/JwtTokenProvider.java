@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.seguridad;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -16,12 +17,18 @@ import java.util.stream.Collectors;
 @Component
 public class JwtTokenProvider {
 
-    // Clave secreta de al menos 256 bits para HMAC-SHA256
-    @Value("${app.jwt.secret:MiClaveSecretaSuperSeguraParaElEcosistemaDeSaludUnificadoEsu2026}")
+    @Value("${app.jwt.secret:}")
     private String jwtSecret;
 
-    @Value("${app.jwt.expiration-ms:86400000}") // 24 horas por defecto
+    @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    @PostConstruct
+    public void validateSecret() {
+        if (jwtSecret == null || jwtSecret.trim().isEmpty() || jwtSecret.trim().length() < 32) {
+            throw new IllegalStateException("JWT secret (app.jwt.secret) must be securely configured and at least 256 bits (32 characters). Application startup aborted.");
+        }
+    }
 
     private SecretKey getSigningKey() {
         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);

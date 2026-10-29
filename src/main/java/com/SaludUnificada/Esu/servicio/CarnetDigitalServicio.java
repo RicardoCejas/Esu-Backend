@@ -7,7 +7,7 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,12 +21,12 @@ import java.util.Base64;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class CarnetDigitalServicio {
 
-    @Autowired
-    private PacienteRepositorio pacienteRepositorio;
+    private final PacienteRepositorio pacienteRepositorio;
 
-    @Value("${app.jwt.secret:MiClaveSecretaSuperSeguraParaElEcosistemaDeSaludUnificadoEsu2026}")
+    @Value("${app.jwt.secret:}")
     private String hmacKey;
 
     public byte[] generarQrCarnetDigital(Long pacienteId) {
@@ -34,10 +34,10 @@ public class CarnetDigitalServicio {
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId));
 
         String fechaVigencia = LocalDate.now().plusMonths(6).toString();
-        String datos = String.format("ESU|PAC:%d|DNI:%s|AF:%s|OS:%s|VIG:%s",
+        // Anonimizado: identificador opaco y nro afiliado sin exponer DNI en plano
+        String datos = String.format("ESU|PAC:%d|AF:%s|OS:%s|VIG:%s",
                 paciente.getId(),
-                paciente.getDni(),
-                paciente.getNroAfiliado(),
+                paciente.getNroAfiliado() != null ? paciente.getNroAfiliado() : ("AF-" + paciente.getId()),
                 paciente.getObraSocial() != null ? paciente.getObraSocial() : "PARTICULAR",
                 fechaVigencia
         );
@@ -94,8 +94,9 @@ public class CarnetDigitalServicio {
 
     private String generarFirmaHmac(String data) {
         try {
+            String key = (hmacKey != null && !hmacKey.isBlank()) ? hmacKey : "LocalDefaultHmacKeyAtLeast32BytesLength!";
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(hmacKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKeySpec);
             byte[] hmacBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hmacBytes);

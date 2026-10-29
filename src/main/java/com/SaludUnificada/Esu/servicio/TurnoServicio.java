@@ -15,6 +15,7 @@ import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 
 import com.SaludUnificada.Esu.entidad.Turno;
+import com.SaludUnificada.Esu.entidad.TurnoEstado;
 
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 
@@ -233,10 +234,17 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional
 
     public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
+        LocalDateTime ahora = LocalDateTime.now(this.clock);
+        if (request.getFechaHora().isBefore(ahora)) {
+            throw new ReglaNegocioException("No es posible solicitar sobreturnos en fechas u horarios pasados.");
+        }
 
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
-
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+
+        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), request.getFechaHora()).isEmpty()) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
+        }
 
         Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
 
@@ -491,9 +499,19 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         if (emailNotificacionServicio != null) {
-            try {
-                emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
-            } catch (Exception ignored) {
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                );
+            } else {
+                try { emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion()); } catch (Exception ignored) {}
             }
         }
 
@@ -567,14 +585,18 @@ public class TurnoServicio implements ITurnoServicio {
         Turno turno = turnoRepositorio.findById(turnoId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
 
-        if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
-            throw new IllegalStateException("No se puede realizar el check-in de un turno cancelado.");
-        }
-        if ("ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
-            throw new IllegalStateException("El turno ya fue atendido previamente.");
-        }
-        if ("EN_SALA_DE_ESPERA".equalsIgnoreCase(turno.getEstado())) {
-            throw new IllegalStateException("El paciente ya realizó el check-in y se encuentra en sala de espera.");
+        TurnoEstado estadoActual = TurnoEstado.desdeString(turno.getEstado());
+        if (!estadoActual.puedeTransicionarA(TurnoEstado.EN_SALA_DE_ESPERA)) {
+            if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
+                throw new IllegalStateException("No se puede realizar el check-in de un turno cancelado.");
+            }
+            if ("ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
+                throw new IllegalStateException("El turno ya fue atendido previamente.");
+            }
+            if ("EN_SALA_DE_ESPERA".equalsIgnoreCase(turno.getEstado())) {
+                throw new IllegalStateException("El paciente ya realizó el check-in y se encuentra en sala de espera.");
+            }
+            throw new ReglaNegocioException("Transicion de estado invalida para check-in.");
         }
 
         turno.setEstado("EN_SALA_DE_ESPERA");

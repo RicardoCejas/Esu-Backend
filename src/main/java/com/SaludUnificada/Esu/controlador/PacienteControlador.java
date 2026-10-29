@@ -3,74 +3,53 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.request.FamiliarDtoRequest;
 import com.SaludUnificada.Esu.dto.request.PacienteDtoRequest;
 import com.SaludUnificada.Esu.dto.response.CarnetDigitalDtoResponse;
+import com.SaludUnificada.Esu.dto.response.ConvenioObraSocialDtoResponse;
 import com.SaludUnificada.Esu.dto.response.FamiliarDtoResponse;
 import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
-import com.SaludUnificada.Esu.entidad.Paciente;
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio;
 import com.SaludUnificada.Esu.servicio.IPacienteServicio;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/pacientes")
+@RequiredArgsConstructor
 public class PacienteControlador {
 
-    @Autowired
-    private IPacienteServicio pacienteServicio;
-
-    @Autowired
-    private CarnetYFamiliarServicio carnetYFamiliarServicio;
-
-    @Autowired(required = false)
-    private PacienteRepositorio pacienteRepositorio;
-
-    private void validarPropiedadPaciente(Long pacienteId, Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) {
-            return;
-        }
-        boolean esPersonal = auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_MEDICO") ||
-                a.getAuthority().equals("ROLE_PROFESIONAL") ||
-                a.getAuthority().equals("ROLE_RECEPCIONISTA"));
-        if (!esPersonal && pacienteRepositorio != null) {
-            Paciente p = pacienteRepositorio.findByUsuarioEmail(auth.getName()).orElse(null);
-            if (p != null && !p.getId().equals(pacienteId)) {
-                throw new AccessDeniedException("No posee autorizacion para acceder a los datos de otro paciente");
-            }
-        }
-    }
+    private final IPacienteServicio pacienteServicio;
+    private final CarnetYFamiliarServicio carnetYFamiliarServicio;
 
     @GetMapping("/me")
+    @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<PacienteDtoResponse> obtenerMiPerfil(Principal principal) {
         return ResponseEntity.ok(pacienteServicio.obtenerPerfilAutenticado(principal.getName()));
     }
 
     @PostMapping("/crear")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> crearPaciente(@Valid @RequestBody PacienteDtoRequest pacienteDto) {
         PacienteDtoResponse nuevoPaciente = pacienteServicio.crearPaciente(pacienteDto);
         return new ResponseEntity<>(nuevoPaciente, HttpStatus.CREATED);
     }
 
     @GetMapping("/obtener/{id}")
-    public ResponseEntity<PacienteDtoResponse> obtenerPacientePorId(@PathVariable Long id, Authentication authentication) {
-        validarPropiedadPaciente(id, authentication);
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
+    public ResponseEntity<PacienteDtoResponse> obtenerPacientePorId(@PathVariable Long id) {
         return ResponseEntity.ok(pacienteServicio.obtenerPacientePorId(id));
     }
 
     @GetMapping({"", "/obtener/todos"})
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     public ResponseEntity<List<PacienteDtoResponse>> listarTodos() {
         return ResponseEntity.ok(pacienteServicio.listarTodos());
     }
@@ -88,68 +67,80 @@ public class PacienteControlador {
     }
 
     @DeleteMapping("/eliminar/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminarPaciente(@PathVariable Long id) {
         pacienteServicio.eliminarPaciente(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/buscar/dni")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
     public ResponseEntity<PacienteDtoResponse> buscarPorDni(@RequestParam String dni) {
         return ResponseEntity.ok(pacienteServicio.buscarPorDni(dni));
     }
 
     @GetMapping("/buscar/apellido")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
     public ResponseEntity<List<PacienteDtoResponse>> buscarPorApellidoParcial(@RequestParam String apellido) {
         return ResponseEntity.ok(pacienteServicio.buscarPorApellidoParcial(apellido));
     }
 
     @GetMapping("/{id}/carnet-digital")
-    public ResponseEntity<CarnetDigitalDtoResponse> emitirCarnetDigital(@PathVariable Long id, Authentication authentication) {
-        validarPropiedadPaciente(id, authentication);
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
+    public ResponseEntity<CarnetDigitalDtoResponse> emitirCarnetDigital(@PathVariable Long id) {
         return ResponseEntity.ok(carnetYFamiliarServicio.emitirCarnetDigital(id));
     }
 
     @PostMapping("/verificar-carnet")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<Boolean> verificarCarnet(@RequestParam String qrPayload) {
         return ResponseEntity.ok(carnetYFamiliarServicio.verificarCarnet(qrPayload));
     }
 
     @PostMapping("/{id}/familiares")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
     public ResponseEntity<FamiliarDtoResponse> vincularFamiliar(
             @PathVariable Long id,
-            @Valid @RequestBody FamiliarDtoRequest request,
-            Authentication authentication) {
-        validarPropiedadPaciente(id, authentication);
+            @Valid @RequestBody FamiliarDtoRequest request) {
         return new ResponseEntity<>(carnetYFamiliarServicio.vincularFamiliar(id, request), HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}/familiares")
-    public ResponseEntity<List<FamiliarDtoResponse>> listarFamiliares(@PathVariable Long id, Authentication authentication) {
-        validarPropiedadPaciente(id, authentication);
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
+    public ResponseEntity<List<FamiliarDtoResponse>> listarFamiliares(@PathVariable Long id) {
         return ResponseEntity.ok(carnetYFamiliarServicio.listarFamiliares(id));
     }
 
     @DeleteMapping("/{titularId}/familiares/{vinculoId}")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#titularId)")
     public ResponseEntity<Void> desvincularFamiliar(@PathVariable Long titularId, @PathVariable Long vinculoId) {
         carnetYFamiliarServicio.desvincularFamiliar(titularId, vinculoId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/convenios")
-    public ResponseEntity<List<com.SaludUnificada.Esu.entidad.ConvenioObraSocial>> listarConveniosActivos() {
-        return ResponseEntity.ok(carnetYFamiliarServicio.listarConveniosActivos());
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<ConvenioObraSocialDtoResponse>> listarConveniosActivos() {
+        var convenios = carnetYFamiliarServicio.listarConveniosActivos();
+        var dtos = convenios.stream().map(c -> ConvenioObraSocialDtoResponse.builder()
+                .id(c.getId())
+                .nombreObraSocial(c.getNombreObraSocial())
+                .sigla(c.getSigla())
+                .codigoRnosc(c.getCodigoRnosc())
+                .patronRegexAfiliado(c.getPatronRegexAfiliado())
+                .requiereCoseguro(c.getRequiereCoseguro())
+                .activo(c.getActivo())
+                .build()).collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     @PutMapping("/{id}/contacto")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
     public ResponseEntity<PacienteDtoResponse> actualizarContacto(
             @PathVariable Long id,
             @RequestParam(required = false) String telefono,
             @RequestParam(required = false) String obraSocial,
-            @RequestParam(required = false) String nroAfiliado,
-            Authentication authentication) {
-        validarPropiedadPaciente(id, authentication);
+            @RequestParam(required = false) String nroAfiliado) {
         return ResponseEntity.ok(pacienteServicio.actualizarDatosContacto(id, telefono, obraSocial, nroAfiliado));
     }
 }

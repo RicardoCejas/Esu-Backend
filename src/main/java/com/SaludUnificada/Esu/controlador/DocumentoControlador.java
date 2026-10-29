@@ -1,15 +1,19 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.request.PrevisualizarPdfDtoRequest;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.repositorio.*;
+import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
 import com.SaludUnificada.Esu.servicio.DocumentoPdfServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -17,50 +21,39 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/documentos")
+@RequiredArgsConstructor
 @Tag(name = "Documentos y Expedientes Oficiales", description = "Generación, previsualización y streaming de expedientes clínicos foliados (HU-107)")
 public class DocumentoControlador {
 
-    @Autowired
-    private DocumentoPdfServicio pdfServicio;
-
-    @Autowired
-    private PacienteRepositorio pacienteRepositorio;
-
-    @Autowired
-    private HistoriaClinicaRepositorio historiaClinicaRepositorio;
-
-    @Autowired
-    private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
-
-    @Autowired
-    private RecetaDigitalRepositorio recetaDigitalRepositorio;
-
-    @Autowired
-    private LogAccesoHcRepositorio logAccesoHcRepositorio;
-
-    @Autowired
-    private UsuarioRepositorio usuarioRepositorio;
+    private final DocumentoPdfServicio pdfServicio;
+    private final PacienteRepositorio pacienteRepositorio;
+    private final HistoriaClinicaRepositorio historiaClinicaRepositorio;
+    private final EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+    private final RecetaDigitalRepositorio recetaDigitalRepositorio;
+    private final LogAccesoHcRepositorio logAccesoHcRepositorio;
+    private final UsuarioRepositorio usuarioRepositorio;
+    private final RequestIpUtil requestIpUtil;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
     @GetMapping("/historia-clinica/{pacienteId}/pdf-completo")
-    @PreAuthorize("hasAnyRole('PACIENTE', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Descarga streaming del expediente clínico integral foliado (Página X de Y, QR y Hash SHA-256)")
     public ResponseEntity<StreamingResponseBody> descargarExpedienteCompletoPdf(
             @PathVariable Long pacienteId,
             HttpServletRequest httpRequest) {
-
-        validarAccesoPaciente(pacienteId);
 
         Paciente paciente = pacienteRepositorio.findById(pacienteId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId));
@@ -71,7 +64,8 @@ public class DocumentoControlador {
         List<EvolucionMedica> evoluciones = evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
         List<RecetaDigital> recetas = recetaDigitalRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteId);
 
-        String urlVerificacion = frontendUrl + "/verificar-documento?dni=" + paciente.getDni();
+        String opaqueToken = UUID.nameUUIDFromBytes(("HC-" + paciente.getId()).getBytes(StandardCharsets.UTF_8)).toString();
+        String urlVerificacion = frontendUrl + "/verificar-documento?token=" + opaqueToken;
 
         byte[] pdfBytes = pdfServicio.generarExpedienteCompletoPdf(
                 paciente, hc, evoluciones, recetas, urlVerificacion
@@ -90,7 +84,7 @@ public class DocumentoControlador {
             }
         };
 
-        String filename = String.format("expediente_clinico_completo_%s.pdf", paciente.getDni());
+        String filename = String.format("expediente_clinico_paciente_%d.pdf", paciente.getId());
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
@@ -105,15 +99,13 @@ public class DocumentoControlador {
     @PostMapping("/previsualizar-pdf")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
     @Operation(summary = "Previsualizar PDF en vivo antes de la firma digital inalterable")
-    public ResponseEntity<byte[]> previsualizarPdf(@RequestBody Map<String, Object> payload) {
-        Long pacienteId = payload.get("pacienteId") != null ? Long.valueOf(payload.get("pacienteId").toString()) : 1L;
-        Paciente paciente = pacienteRepositorio.findById(pacienteId).orElse(null);
-        if (paciente == null) {
-            paciente = new Paciente();
-            paciente.setNombre("Paciente");
-            paciente.setApellido("Consulta");
-            paciente.setDni("00000000");
+    public ResponseEntity<byte[]> previsualizarPdf(@Valid @RequestBody PrevisualizarPdfDtoRequest request) {
+        if (request == null || request.getPacienteId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Debe especificar un pacienteId válido.");
         }
+        Long pacienteId = request.getPacienteId();
+        Paciente paciente = pacienteRepositorio.findById(pacienteId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId));
 
         List<EvolucionMedica> evoluciones = evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(paciente.getId());
         List<RecetaDigital> recetas = recetaDigitalRepositorio.findByPacienteIdOrderByFechaEmisionDesc(paciente.getId());
@@ -124,29 +116,10 @@ public class DocumentoControlador {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("inline", "previsualizacion.pdf");
+        headers.setContentDispositionFormData("inline", "previsualizacion_paciente_" + pacienteId + ".pdf");
+        headers.setContentLength(pdfBytes.length);
 
         return ResponseEntity.ok().headers(headers).body(pdfBytes);
-    }
-
-    private void validarAccesoPaciente(Long pacienteId) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new AccessDeniedException("Debe autenticarse para acceder al expediente clínico.");
-        }
-
-        boolean isStaff = auth.getAuthorities().stream().anyMatch(a ->
-                a.getAuthority().equals("ROLE_ADMIN") ||
-                a.getAuthority().equals("ROLE_MEDICO") ||
-                a.getAuthority().equals("ROLE_PROFESIONAL"));
-
-        if (!isStaff) {
-            Usuario u = usuarioRepositorio.findByEmail(auth.getName())
-                    .orElseThrow(() -> new AccessDeniedException("Usuario no autenticado"));
-            if (u.getPaciente() == null || !u.getPaciente().getId().equals(pacienteId)) {
-                throw new AccessDeniedException("No posee autorización para consultar el expediente de otro paciente.");
-            }
-        }
     }
 
     private void registrarAuditoriaDescarga(Long pacienteId, HttpServletRequest request) {
@@ -160,10 +133,7 @@ public class DocumentoControlador {
             return;
         }
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
+        String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(request) : request.getRemoteAddr();
 
         LogAccesoHc log = new LogAccesoHc(
                 u.getId(),

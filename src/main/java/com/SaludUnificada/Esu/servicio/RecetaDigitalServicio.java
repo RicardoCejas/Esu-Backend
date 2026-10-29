@@ -9,14 +9,16 @@ import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
-import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.error.RecetaVencidaException;
 import com.SaludUnificada.Esu.error.RecetaYaDispensadaException;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
+import com.SaludUnificada.Esu.evento.RecetaEmitidaEvent;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,28 +27,17 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class RecetaDigitalServicio {
 
-    @Autowired
-    private RecetaDigitalRepositorio recetaRepositorio;
-
-    @Autowired
-    private PacienteRepositorio pacienteRepositorio;
-
-    @Autowired
-    private ProfesionalRepositorio profesionalRepositorio;
-
-    @Autowired
-    private DocumentoPdfServicio pdfServicio;
-
-    @Autowired
-    private EmailNotificacionServicio emailServicio;
-
-    @Autowired
-    private AlergiaServicio alergiaServicio;
-
-    @Autowired
-    private CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
+    private final RecetaDigitalRepositorio recetaRepositorio;
+    private final PacienteRepositorio pacienteRepositorio;
+    private final ProfesionalRepositorio profesionalRepositorio;
+    private final DocumentoPdfServicio pdfServicio;
+    private final EmailNotificacionServicio emailServicio;
+    private final AlergiaServicio alergiaServicio;
+    private final CatalogoFarmacologicoServicio catalogoFarmacologicoServicio;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -108,15 +99,7 @@ public class RecetaDigitalServicio {
         }
         receta.setMedicamentos(meds);
 
-        String textoParaHash = String.format("RECETA|%s|%s|%s|%s|%s|%s",
-            paciente.getDni(),
-            profesional.getMatricula(),
-            receta.getFechaEmision(),
-            receta.getDiagnostico(),
-            request.getMedicamentos() != null ? request.getMedicamentos().size() : 0,
-            System.nanoTime()
-        );
-        String hash = pdfServicio.calcularHashSha256(textoParaHash);
+        String hash = calcularHashReceta(receta);
         receta.setHashIntegridad(hash);
 
         String qrUrl = frontendUrl + "/farmacia/validar-receta?hash=" + hash;
@@ -124,14 +107,37 @@ public class RecetaDigitalServicio {
 
         RecetaDigital guardada = recetaRepositorio.save(receta);
 
-        try {
-            byte[] pdfBytes = pdfServicio.generarRecetaPdf(guardada, qrUrl);
-            emailServicio.enviarRecetaDigital(guardada, pdfBytes);
-        } catch (Exception ignored) {
-
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new RecetaEmitidaEvent(guardada.getId(), qrUrl));
         }
 
         return guardada;
+    }
+
+    public String calcularHashReceta(RecetaDigital receta) {
+        StringBuilder canonico = new StringBuilder();
+        canonico.append("RECETA|")
+                .append(receta.getPaciente() != null && receta.getPaciente().getDni() != null ? receta.getPaciente().getDni().trim() : "").append("|")
+                .append(receta.getProfesional() != null && receta.getProfesional().getMatricula() != null ? receta.getProfesional().getMatricula().trim() : "").append("|")
+                .append(receta.getFechaEmision()).append("|")
+                .append(receta.getFechaVencimiento()).append("|")
+                .append(receta.getCodigoCie10() != null ? receta.getCodigoCie10().trim() : "").append("|")
+                .append(receta.getDiagnostico() != null ? receta.getDiagnostico().trim() : "");
+
+        if (receta.getMedicamentos() != null) {
+            for (MedicamentoReceta item : receta.getMedicamentos()) {
+                canonico.append("|MED:")
+                        .append(item.getDroga() != null ? item.getDroga().trim() : "").append(";")
+                        .append(item.getNombreComercial() != null ? item.getNombreComercial().trim() : "").append(";")
+                        .append(item.getPresentacion() != null ? item.getPresentacion().trim() : "").append(";")
+                        .append(item.getDosisIndicada() != null ? item.getDosisIndicada().trim() : "").append(";")
+                        .append(item.getPosologia() != null ? item.getPosologia().trim() : "").append(";")
+                        .append(item.getViaAdministracion() != null ? item.getViaAdministracion().trim() : "").append(";")
+                        .append(item.getDuracion() != null ? item.getDuracion().trim() : "").append(";")
+                        .append(item.getCantidad() != null ? item.getCantidad() : "1");
+            }
+        }
+        return pdfServicio.calcularHashSha256(canonico.toString());
     }
 
     @Transactional
@@ -194,11 +200,19 @@ public class RecetaDigitalServicio {
         String limpia = clave.trim();
 
         if (limpia.matches("^\\d+$")) {
-            Optional<RecetaDigital> porId = recetaRepositorio.findById(Long.parseLong(limpia));
+            Long id = Long.parseLong(limpia);
+            Optional<RecetaDigital> porId = recetaRepositorio.findByIdForUpdate(id);
+            if (porId.isEmpty()) {
+                porId = recetaRepositorio.findById(id);
+            }
             if (porId.isPresent()) return porId;
         }
 
-        return recetaRepositorio.findByHashIntegridad(limpia);
+        Optional<RecetaDigital> porHash = recetaRepositorio.findByHashIntegridadForUpdate(limpia);
+        if (porHash.isEmpty()) {
+            porHash = recetaRepositorio.findByHashIntegridad(limpia);
+        }
+        return porHash;
     }
 
     private String extraerHashOId(String codigoOQr) {
@@ -266,6 +280,7 @@ public class RecetaDigitalServicio {
         res.put("mensaje", "No se encontró ningún documento oficial registrado con dicho código de verificación.");
         return res;
     }
+
     @Transactional
     public RecetaDigital anularReceta(Long id, String motivo, String emailProfesional) {
         RecetaDigital receta = obtenerPorId(id);
@@ -291,6 +306,7 @@ public class RecetaDigitalServicio {
         }
         return lista;
     }
+
     @Transactional
     public int marcarRecetasVencidas() {
         List<RecetaDigital> pendientesVencidas = recetaRepositorio.findByEstadoRecetaAndFechaVencimientoLessThan("PENDIENTE", LocalDate.now());
