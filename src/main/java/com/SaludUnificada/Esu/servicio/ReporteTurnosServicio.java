@@ -31,6 +31,16 @@ public class ReporteTurnosServicio {
     private final TurnoRepositorio turnoRepositorio;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PacienteRepositorio pacienteRepositorio;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.Clock clock;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.ZoneId turnosZoneId;
+
+    private java.time.LocalDateTime ahora() {
+        java.time.ZoneId zone = turnosZoneId != null ? turnosZoneId : java.time.ZoneId.of("America/Argentina/Cordoba");
+        java.time.Clock c = clock != null ? clock.withZone(zone) : java.time.Clock.system(zone);
+        return java.time.LocalDateTime.now(c);
+    }
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final int MAX_REGISTROS_REPORTE = 10000;
 
@@ -48,8 +58,8 @@ public class ReporteTurnosServicio {
     @Transactional(readOnly = true)
     public byte[] exportarTurnosExcel(LocalDateTime desde, LocalDateTime hasta) {
         validarRangoFechas(desde, hasta);
-        LocalDateTime fechaInicio = desde != null ? desde : LocalDateTime.now().minusMonths(1);
-        LocalDateTime fechaFin = hasta != null ? hasta : LocalDateTime.now().plusMonths(3);
+        LocalDateTime fechaInicio = desde != null ? desde : ahora().minusMonths(1);
+        LocalDateTime fechaFin = hasta != null ? hasta : ahora().plusMonths(3);
 
         List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
         if (turnos.size() > MAX_REGISTROS_REPORTE) {
@@ -137,8 +147,8 @@ public class ReporteTurnosServicio {
     @Transactional(readOnly = true)
     public byte[] exportarTurnosCsv(LocalDateTime desde, LocalDateTime hasta) {
         validarRangoFechas(desde, hasta);
-        LocalDateTime fechaInicio = desde != null ? desde : LocalDateTime.now().minusMonths(1);
-        LocalDateTime fechaFin = hasta != null ? hasta : LocalDateTime.now().plusMonths(3);
+        LocalDateTime fechaInicio = desde != null ? desde : ahora().minusMonths(1);
+        LocalDateTime fechaFin = hasta != null ? hasta : ahora().plusMonths(3);
 
         List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
         if (turnos.size() > MAX_REGISTROS_REPORTE) {
