@@ -157,10 +157,10 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
 
             String ip = requestIpUtil != null ? requestIpUtil.obtenerIpCliente(request) : (request != null ? request.getRemoteAddr() : "127.0.0.1");
             LogAccesoHc logAcceso = new LogAccesoHc(usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ip, rol, motivo.trim());
-            logAccesoHcRepositorio.save(logAcceso);
+            LogAccesoHc guardado = logAccesoHcRepositorio.save(logAcceso);
 
-            log.warn("ALERTA DE SEGURIDAD AUDITABLE: Acceso de emergencia/break-glass activado para paciente ID={} por usuario={} (rol={}) desde IP={}. Motivo: {}",
-                    pacienteId, emailProfesional, rol, ip, motivo.trim());
+            log.warn("ALERTA DE SEGURIDAD AUDITABLE: Acceso de emergencia/break-glass activado para paciente ID={} por usuario={} (rol={}) desde IP={}. EventoAuditId={}. Resultado=PERMITIDO_AUDITADO",
+                    pacienteId, emailProfesional, rol, ip, (guardado != null ? guardado.getId() : null));
         }
 
         if (pacienteRepositorio != null && notificacionUsuarioServicio != null) {
@@ -186,3 +186,4 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         return logAccesoHcRepositorio.findByAccionOrderByFechaHoraDesc("ACCESO_EMERGENCIA", pageable);
     }
 }
+

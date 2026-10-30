@@ -30,8 +30,6 @@ public class EmailNotificacionServicio {
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
-
-    @Async
     public void enviarConfirmacionTurno(Turno turno) {
         if (turno == null || turno.getPaciente() == null) {
             log.warn("No se pudo despachar el correo de confirmación: el turno o paciente es nulo.");
@@ -77,8 +75,6 @@ public class EmailNotificacionServicio {
 
         enviarCorreoHtml(destinatario, "Confirmación de Turno Médico - " + codigoCita, htmlBody, null, null);
     }
-
-    @Async
     public void enviarRecetaDigital(RecetaDigital receta, byte[] pdfAdjunto) {
         if (receta == null || receta.getPaciente() == null) {
             log.warn("No se pudo despachar la receta digital: datos insuficientes.");
@@ -157,6 +153,7 @@ public class EmailNotificacionServicio {
                 message.addHeader("X-Mailer", "ESU-Platform/1.0");
                 message.addHeader("X-Auto-Response-Suppress", "All");
                 message.addHeader("Auto-Submitted", "auto-generated");
+                message.addHeader("X-ESU-Delivery-Guarantee", "at-least-once");
                 String textoPlano = extraerTextoPlano(htmlContent);
                 helper.setText(textoPlano, htmlContent);
 
@@ -180,7 +177,8 @@ public class EmailNotificacionServicio {
         }
 
         if (!enviado) {
-            log.warn("PREVENTIVO: No se pudo entregar el correo a {} luego de {} intentos. La operación principal continúa sin bloqueos.", destinatario, maxIntentos);
+            log.error("Fallo definitivo de entrega de correo a {} luego de {} intentos.", destinatario, maxIntentos);
+            throw new RuntimeException("Fallo al entregar correo electrónico tras " + maxIntentos + " intentos a " + destinatario);
         }
     }
 
@@ -411,3 +409,4 @@ public class EmailNotificacionServicio {
     }
 
 }
+

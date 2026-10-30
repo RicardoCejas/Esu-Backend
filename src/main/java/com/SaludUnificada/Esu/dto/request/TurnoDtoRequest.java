@@ -52,6 +52,7 @@ public class TurnoDtoRequest {
 
     private Long pacienteId;
 
+    @Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
     private String idempotencyKey;
 
 

@@ -32,4 +32,8 @@ public class SobreturnoDtoRequest {
     @Size(min = 3, max = 255, message = "El motivo debe tener entre 3 y 255 caracteres")
     @Schema(description = "Motivo de la urgencia menor o demanda espontánea", example = "Demanda espontánea en sala por cuadro febril")
     private String motivoSobreturno;
+
+    @Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
+    @Schema(description = "Clave opcional de idempotencia para evitar duplicados ante reintentos de red")
+    private String idempotencyKey;
 }

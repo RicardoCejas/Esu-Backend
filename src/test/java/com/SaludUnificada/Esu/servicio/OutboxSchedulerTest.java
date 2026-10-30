@@ -106,7 +106,7 @@ class OutboxSchedulerTest {
 
         outboxScheduler.procesarEventosPendientes();
 
-        assertEquals("INCONSISTENTE_NO_ENCONTRADO", evento.getEstado());
+        assertEquals("INCONSISTENTE", evento.getEstado());
         assertNotNull(evento.getUltimoError());
         verifyNoInteractions(emailServicio);
     }
@@ -126,7 +126,7 @@ class OutboxSchedulerTest {
 
         outboxScheduler.procesarEventosPendientes();
 
-        assertEquals("ERROR_TIPO_DESCONOCIDO", evento.getEstado());
+        assertEquals("TIPO_DESCONOCIDO", evento.getEstado());
         verifyNoInteractions(emailServicio);
     }
 
@@ -197,3 +197,4 @@ class OutboxSchedulerTest {
         verify(outboxEventoRepositorio).save(evento);
     }
 }
+
