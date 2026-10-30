@@ -33,11 +33,26 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
     private final NotificacionUsuarioServicio notificacionUsuarioServicio;
     private final EmailNotificacionServicio emailNotificacionServicio;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.Clock clock;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.ZoneId turnosZoneId;
+
+    private java.time.LocalDateTime ahora() {
+        java.time.ZoneId zone = turnosZoneId != null ? turnosZoneId : java.time.ZoneId.of("America/Argentina/Cordoba");
+        java.time.Clock c = clock != null ? clock.withZone(zone) : java.time.Clock.system(zone);
+        return java.time.LocalDateTime.now(c);
+    }
+
     @Override
     @Transactional
     public BloqueoAgendaDtoResponse registrarBloqueo(Long profesionalId, BloqueoAgendaDtoRequest request) {
         if (!request.getFechaInicio().isBefore(request.getFechaFin())) {
             throw new IllegalArgumentException("La fecha y hora de inicio debe ser anterior a la fecha y hora de fin del bloqueo.");
+        }
+        if (request.getFechaFin().isBefore(ahora())) {
+            throw new IllegalArgumentException("No se pueden registrar bloqueos en fechas u horarios pasados.");
         }
 
         Profesional profesional = profesionalRepositorio.findById(profesionalId)

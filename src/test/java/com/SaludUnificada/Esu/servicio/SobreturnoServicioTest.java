@@ -19,7 +19,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,6 +32,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SobreturnoServicioTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Argentina/Cordoba");
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-14T13:00:00Z"), ZONE);
 
     @Mock
     private TurnoRepositorio turnoRepositorio;
@@ -55,7 +61,7 @@ class SobreturnoServicioTest {
     void setUp() {
         turnoServicio = new TurnoServicio(
                 turnoRepositorio, turnoMapper, pacienteRepositorio, profesionalRepositorio,
-                recordatorioRepositorio, java.time.Clock.systemDefaultZone(), java.time.ZoneId.of("America/Argentina/Cordoba"),
+                recordatorioRepositorio, CLOCK, ZONE,
                 java.time.LocalTime.of(8, 0), java.time.LocalTime.of(17, 0), 30
         );
         profesional = new Profesional();
@@ -72,7 +78,7 @@ class SobreturnoServicioTest {
         request = SobreturnoDtoRequest.builder()
                 .profesionalId(1L)
                 .pacienteId(10L)
-                .fechaHora(LocalDateTime.now().plusDays(1).withHour(11).withMinute(30))
+                .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
                 .motivoSobreturno("Urgencia menor por crisis hipertensiva leve")
                 .build();
     }

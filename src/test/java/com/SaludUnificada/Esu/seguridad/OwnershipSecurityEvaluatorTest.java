@@ -205,4 +205,90 @@ class OwnershipSecurityEvaluatorTest {
 
         assertTrue(evaluator.canAccessEvolucion(50L));
     }
+
+    @Test
+    void canAccessRecetaCheck() {
+        RecetaDigital receta = new RecetaDigital();
+        receta.setId(300L);
+        receta.setPaciente(paciente);
+        receta.setProfesional(profesional);
+
+        when(recetaRepositorio.findById(300L)).thenReturn(Optional.of(receta));
+
+        // 1. Admin
+        authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessReceta(300L));
+
+        // 2. Farmacia
+        authenticate("farmacia@esu.test", "FARMACIA");
+        assertTrue(evaluator.canAccessReceta(300L));
+
+        // 3. Paciente titular
+        authenticate("paciente@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));
+        assertTrue(evaluator.canAccessReceta(300L));
+
+        // 4. Médico autor
+        authenticate("doctor@esu.test", "MEDICO");
+        when(usuarioRepositorio.findByEmail("doctor@esu.test")).thenReturn(Optional.of(doctorUser));
+        assertTrue(evaluator.canAccessReceta(300L));
+
+        // 5. Otro paciente no autorizado
+        Usuario otroUsuario = new Usuario();
+        otroUsuario.setId(88L);
+        otroUsuario.setEmail("otro@esu.test");
+        otroUsuario.setRol("PACIENTE");
+        authenticate("otro@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("otro@esu.test")).thenReturn(Optional.of(otroUsuario));
+        assertFalse(evaluator.canAccessReceta(300L));
+    }
+
+    @Test
+    void canAccessEstudioCheck() {
+        EstudioAdjunto estudio = new EstudioAdjunto();
+        estudio.setId(400L);
+        estudio.setPacienteId(10L);
+
+        when(estudioRepositorio.findById(400L)).thenReturn(Optional.of(estudio));
+
+        // 1. Admin
+        authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessEstudio(400L));
+
+        // 2. Paciente dueño
+        authenticate("paciente@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));
+        when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
+        assertTrue(evaluator.canAccessEstudio(400L));
+
+        // 3. Otro paciente no autorizado
+        Usuario otroUsuario = new Usuario();
+        otroUsuario.setId(88L);
+        otroUsuario.setEmail("otro@esu.test");
+        otroUsuario.setRol("PACIENTE");
+        Paciente otroPaciente = new Paciente();
+        otroPaciente.setId(88L);
+
+        authenticate("otro@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("otro@esu.test")).thenReturn(Optional.of(otroUsuario));
+        when(pacienteRepositorio.findByUsuarioEmail("otro@esu.test")).thenReturn(Optional.of(otroPaciente));
+        assertFalse(evaluator.canAccessEstudio(400L));
+    }
+
+    @Test
+    void canAccessHistoriaClinicaCheck() {
+        HistoriaClinica hc = new HistoriaClinica();
+        hc.setId(500L);
+        hc.setPaciente(paciente);
+
+        when(historiaClinicaRepositorio.findById(500L)).thenReturn(Optional.of(hc));
+
+        authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessHistoriaClinica(500L));
+
+        authenticate("paciente@esu.test", "PACIENTE");
+        when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));
+        when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
+        assertTrue(evaluator.canAccessHistoriaClinica(500L));
+    }
 }

@@ -14,7 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,6 +31,18 @@ public class ProfesionalServicio implements IProfesionalServicio {
 
     @Autowired(required = false)
     private UsuarioRepositorio usuarioRepositorio;
+
+    @Autowired(required = false)
+    private Clock clock;
+
+    @Autowired(required = false)
+    private ZoneId turnosZoneId;
+
+    private LocalDateTime ahora() {
+        ZoneId zone = turnosZoneId != null ? turnosZoneId : ZoneId.of("America/Argentina/Cordoba");
+        Clock c = clock != null ? clock.withZone(zone) : Clock.system(zone);
+        return LocalDateTime.now(c);
+    }
 
     @Override
     @Transactional
@@ -83,7 +97,7 @@ public class ProfesionalServicio implements IProfesionalServicio {
     @Transactional(readOnly = true)
     public List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad) {
         List<Profesional> profesionales = profesionalRepositorio.buscarPrestadoresOptimizado(especialidadId, centroSaludId);
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = ahora();
 
         List<ProfesionalDtoResponse> resultado = new ArrayList<>();
 

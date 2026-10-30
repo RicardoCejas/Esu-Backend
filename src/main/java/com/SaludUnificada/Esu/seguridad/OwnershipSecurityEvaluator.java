@@ -29,6 +29,18 @@ public class OwnershipSecurityEvaluator {
     private final EvolucionMedicaRepositorio evolucionMedicaRepositorio;
     private final VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
 
+    @Autowired(required = false)
+    private java.time.Clock clock;
+
+    @Autowired(required = false)
+    private java.time.ZoneId turnosZoneId;
+
+    private LocalDateTime ahora() {
+        java.time.ZoneId zone = turnosZoneId != null ? turnosZoneId : java.time.ZoneId.of("America/Argentina/Cordoba");
+        java.time.Clock c = clock != null ? clock.withZone(zone) : java.time.Clock.system(zone);
+        return LocalDateTime.now(c);
+    }
+
     private Authentication getAuthentication() {
         return SecurityContextHolder.getContext().getAuthentication();
     }
@@ -89,7 +101,7 @@ public class OwnershipSecurityEvaluator {
             if (hasPrescription) return true;
 
             // 3. Acceso de emergencia auditado activo en las últimas 24 horas
-            LocalDateTime ventanaEmergencia = LocalDateTime.now().minusHours(24);
+            LocalDateTime ventanaEmergencia = ahora().minusHours(24);
             return logAccesoHcRepositorio.existsByUsuarioIdAndPacienteIdAndAccionAndFechaHoraGreaterThanEqual(
                     usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ventanaEmergencia
             );

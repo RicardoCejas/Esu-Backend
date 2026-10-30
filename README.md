@@ -127,6 +127,43 @@ Los servicios quedarán operativos con health checks:
 - Base de datos MySQL: `localhost:3306` (espera a estar saludable mediante `mysqladmin ping`).
 - Backend Spring Boot: `http://localhost:8080` (espera a estar saludable en `http://localhost:8080/actuator/health`).
 
+### 4. Verificación Posterior al Despliegue (Smoke Tests)
+Una vez iniciado el contenedor de producción, ejecutar las siguientes comprobaciones de sanidad:
+1. **Comprobar Health Check Actuator:**
+   ```bash
+   curl -s -f http://localhost:8080/actuator/health | grep '"status":"UP"'
+   ```
+2. **Monitoreo de Métricas Operacionales:**
+   ```bash
+   curl -s http://localhost:8080/actuator/metrics/jvm.memory.used
+   curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.active
+   ```
+3. **Auditoría de Eventos Outbox (Como Administrador):**
+   ```bash
+   curl -s -H "Authorization: Bearer <TOKEN_ADMIN>" http://localhost:8080/api/admin/outbox/problematicos
+   ```
+   *El resultado esperado tras el arranque debe ser una lista vacía `[]`, confirmando que no hay eventos inconsistentes ni colas bloqueadas.*
+4. **Verificación de Seguridad en Logs:**
+   Revisar los logs del contenedor para constatar que `ProductionSecurityStartupValidator` validó satisfactoriamente los secretos y que no existan trazas con DNIs, contraseñas o tokens expuestos:
+   ```bash
+   docker logs --tail 100 esu-backend | grep "ProductionSecurityStartupValidator"
+   ```
+
+### 5. Procedimiento de Reversión Controlada (Rollback)
+En caso de detectarse anomalías críticas durante la puesta en marcha:
+1. **Detener Contenedores Productivos:**
+   ```bash
+   docker compose down
+   ```
+2. **Restaurar Versión Anterior del Backend:**
+   Hacer checkout del commit o tag previo verificado y reconstruir:
+   ```bash
+   git checkout <TAG_VERSION_ANTERIOR>
+   docker compose up -d --build
+   ```
+3. **Restaurar Base de Datos (si se aplicaron cambios de datos destructivos no previstos):**
+   Seguir el procedimiento de restauración documentado abajo inyectando el snapshot previo tomado antes del despliegue.
+
 ---
 
 ## Procedimiento de Respaldo (Backup) y Restauración
