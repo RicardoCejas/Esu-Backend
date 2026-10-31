@@ -19,6 +19,10 @@ public class RecetaDigitalDtoResponse {
     private Long profesionalId;
     private String profesionalNombre;
     private String profesionalMatricula;
+    private Long centroSaludEmisorId;
+    private String centroSaludEmisorNombre;
+    private String farmaciaDispensadoraNombre;
+    private String lugarRetiroSugerido;
     private LocalDate fechaEmision;
     private LocalDate fechaVencimiento;
     private String diagnostico;

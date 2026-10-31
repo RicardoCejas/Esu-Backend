@@ -19,4 +19,6 @@ public class HistoriaClinicaDtoResponse {
     private LocalDateTime fechaAtencion;
     private PacienteDtoResponse paciente;
     private ProfesionalDtoResponse profesional; // Agregado
+    private Long centroSaludId;
+    private String centroSaludNombre;
 }

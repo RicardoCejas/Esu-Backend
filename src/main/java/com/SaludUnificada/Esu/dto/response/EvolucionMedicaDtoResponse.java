@@ -17,6 +17,8 @@ public class EvolucionMedicaDtoResponse {
     private Long profesionalId;
     private String profesionalNombre;
     private Long turnoId;
+    private Long centroSaludId;
+    private String centroSaludNombre;
     private Long historiaClinicaId;
     private String motivoConsulta;
     private String anamnesis;

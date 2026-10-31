@@ -111,7 +111,16 @@ public class OwnershipSecurityEvaluator {
 
         // Rol Paciente: solo a su propio expediente
         Optional<Paciente> pacOpt = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail());
-        return pacOpt.isPresent() && pacOpt.get().getId().equals(pacienteId);
+        if (pacOpt.isPresent()) {
+            if (pacOpt.get().getId().equals(pacienteId)) return true;
+            if (vinculoFamiliarRepositorio != null) {
+                Optional<Paciente> targetPac = pacienteRepositorio.findById(pacienteId);
+                if (targetPac.isPresent() && targetPac.get().getDni() != null) {
+                    return vinculoFamiliarRepositorio.existsByTitularIdAndFamiliarDni(pacOpt.get().getId(), targetPac.get().getDni());
+                }
+            }
+        }
+        return false;
     }
 
     /**
