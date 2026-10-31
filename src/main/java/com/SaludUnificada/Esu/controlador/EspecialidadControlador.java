@@ -20,13 +20,13 @@ public class EspecialidadControlador {
     private IEspecialidadServicio especialidadServicio;
 
     @PostMapping("/crear")
-    @PreAuthorize("hasAnyRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<EspecialidadDtoResponse> crearEspecialidad(@Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
         return new ResponseEntity<>(especialidadServicio.crearEspecialidad(especialidadDto), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<EspecialidadDtoResponse> actualizarEspecialidad(
             @PathVariable Long id,
             @Valid @RequestBody EspecialidadDtoRequest especialidadDto) {
@@ -49,7 +49,7 @@ public class EspecialidadControlador {
     }
 
     @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<Void> eliminarEspecialidad(@PathVariable Long id) {
         especialidadServicio.eliminarEspecialidad(id);
         return ResponseEntity.noContent().build();
