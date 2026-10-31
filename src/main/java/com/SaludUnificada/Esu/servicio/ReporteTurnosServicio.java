@@ -20,6 +20,9 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.SaludUnificada.Esu.seguridad.MascaraDatosUtil;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 

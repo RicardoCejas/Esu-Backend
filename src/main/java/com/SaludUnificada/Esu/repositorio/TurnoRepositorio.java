@@ -77,4 +77,16 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
             @Param("centroSaludId") Long centroSaludId,
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin);
+
+    @Query("SELECT DISTINCT t FROM Turno t LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.especialidades esp " +
+           "WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND (:centroId IS NULL OR t.centroSaludId = :centroId) " +
+           "AND (:especialidad IS NULL OR LOWER(esp.nombre) LIKE LOWER(CONCAT('%', :especialidad, '%'))) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosParaMetricas(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("centroId") Long centroId,
+            @Param("especialidad") String especialidad);
+
 }

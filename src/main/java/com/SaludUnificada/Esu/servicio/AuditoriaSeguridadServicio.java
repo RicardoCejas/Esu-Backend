@@ -1,6 +1,11 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.response.LogAuditoriaSeguridadDtoResponse;
+import com.SaludUnificada.Esu.dto.response.LogAccesoHcDtoResponse;
+import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.LogAccesoHcRepositorio;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import com.SaludUnificada.Esu.seguridad.MascaraDatosUtil;
 import com.SaludUnificada.Esu.entidad.LogAuditoriaSeguridad;
 import com.SaludUnificada.Esu.repositorio.LogAuditoriaSeguridadRepositorio;
 import com.SaludUnificada.Esu.seguridad.RequestIpUtil;
@@ -27,6 +32,8 @@ public class AuditoriaSeguridadServicio {
 
     private final LogAuditoriaSeguridadRepositorio auditoriaRepositorio;
     private final RequestIpUtil requestIpUtil;
+    private final LogAccesoHcRepositorio logAccesoHcRepositorio;
+    private final UsuarioRepositorio usuarioRepositorio;
 
     @Transactional
     public void registrarLoginExitoso(String email) {
@@ -195,4 +202,34 @@ public class AuditoriaSeguridadServicio {
         }
         return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
+
+    @Transactional(readOnly = true)
+    public Page<LogAccesoHcDtoResponse> listarAccesosClinicos(Pageable pageable) {
+        if (logAccesoHcRepositorio == null) {
+            return Page.empty(pageable);
+        }
+        return logAccesoHcRepositorio.findAll(pageable).map(logEntry -> {
+            String usuarioEmail = "Usuario #" + logEntry.getUsuarioId();
+            if (usuarioRepositorio != null && logEntry.getUsuarioId() != null) {
+                usuarioEmail = usuarioRepositorio.findById(logEntry.getUsuarioId())
+                        .map(Usuario::getEmail)
+                        .map(MascaraDatosUtil::enmascararEmail)
+                        .orElse(usuarioEmail);
+            }
+            String pacIdMasked = "PAC-#" + logEntry.getPacienteId();
+            return LogAccesoHcDtoResponse.builder()
+                    .id(logEntry.getId())
+                    .usuarioId(logEntry.getUsuarioId())
+                    .usuarioEmail(usuarioEmail)
+                    .rolUsuario(logEntry.getRolUsuario())
+                    .pacienteIdentificador(pacIdMasked)
+                    .accion(logEntry.getAccion())
+                    .motivo(logEntry.getMotivo() != null && !logEntry.getMotivo().isBlank() ? logEntry.getMotivo() : "Atención asistencial reglamentaria")
+                    .ipAddress(logEntry.getIpAddress())
+                    .fechaHora(logEntry.getFechaHora())
+                    .centroCustodia("Hospital Regional Aurelio Crespo / Red Cruz del Eje")
+                    .build();
+        });
+    }
+
 }
