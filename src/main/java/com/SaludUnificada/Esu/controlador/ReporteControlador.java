@@ -57,7 +57,7 @@ public class ReporteControlador {
                 .body(excelData);
     }
     @GetMapping("/pacientes/exportar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasRole('RECEPCIONISTA')")
     public ResponseEntity<byte[]> exportarPacientes() {
         byte[] csvData = reporteTurnosServicio.exportarPacientesCsv();
         return ResponseEntity.ok()

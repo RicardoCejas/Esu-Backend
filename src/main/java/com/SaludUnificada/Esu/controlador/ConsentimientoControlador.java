@@ -27,7 +27,7 @@ public class ConsentimientoControlador {
     private final RequestIpUtil requestIpUtil;
 
     @PostMapping("/firmar")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessPatient(#request.pacienteId)")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#request.pacienteId)")
     @Operation(summary = "Formalizar y registrar digitalmente un consentimiento informado")
     public ResponseEntity<ConsentimientoDtoResponse> firmarConsentimiento(
             @Valid @RequestBody ConsentimientoDtoRequest request,

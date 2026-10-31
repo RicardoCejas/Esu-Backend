@@ -26,7 +26,7 @@ public class HistoriaClinicaControlador {
     private final IHistoriaClinicaServicio historiaClinicaServicio;
 
     @PostMapping("/crear")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#dto.pacienteId))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#dto.pacienteId)")
     public ResponseEntity<HistoriaClinicaDtoResponse> crearHistoriaClinica(@Valid @RequestBody HistoriaClinicaDtoRequest dto) {
         HistoriaClinicaDtoResponse nuevaHistoria = historiaClinicaServicio.crearHistoriaClinica(dto);
         return new ResponseEntity<>(nuevaHistoria, HttpStatus.CREATED);
@@ -39,13 +39,13 @@ public class HistoriaClinicaControlador {
     }
 
     @GetMapping("/obtener/todos")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("denyAll()")
     public ResponseEntity<Page<HistoriaClinicaDtoResponse>> listarTodas(Pageable pageable) {
         return ResponseEntity.ok(historiaClinicaServicio.listarTodasPaginado(pageable));
     }
 
     @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("denyAll()")
     public ResponseEntity<Void> eliminarHistoriaClinica(@PathVariable Long id) {
         historiaClinicaServicio.eliminarHistoriaClinica(id);
         return ResponseEntity.noContent().build();
@@ -58,7 +58,7 @@ public class HistoriaClinicaControlador {
     }
 
     @GetMapping("/rango")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("denyAll()")
     public ResponseEntity<Page<HistoriaClinicaDtoResponse>> buscarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
@@ -81,7 +81,7 @@ public class HistoriaClinicaControlador {
     }
 
     @PostMapping("/emergencia/{pacienteId}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
     public ResponseEntity<java.util.Map<String, String>> habilitarAccesoEmergencia(
             @PathVariable Long pacienteId,
             @RequestBody java.util.Map<String, String> payload,

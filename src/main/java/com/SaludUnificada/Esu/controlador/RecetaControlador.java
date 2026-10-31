@@ -39,7 +39,7 @@ public class RecetaControlador {
     private final RecetaDigitalMapper recetaDigitalMapper;
 
     @PostMapping("/recetas")
-    @PreAuthorize("hasRole('ADMIN') or (@securityPolicy.isDoctorAuthor(#request.profesionalId) and @securityPolicy.canAccessPatient(#request.pacienteId))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#request.profesionalId) and @securityPolicy.canAccessPatient(#request.pacienteId)")
     @Operation(summary = "Emitir nueva receta medica digital")
     public ResponseEntity<RecetaDigitalDtoResponse> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         RecetaDigital receta = recetaServicio.emitirReceta(request);
@@ -47,7 +47,7 @@ public class RecetaControlador {
     }
 
     @PostMapping("/recetas/validar")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
     @Operation(summary = "Validar requisitos previos para prescripcion medica")
     public ResponseEntity<Map<String, Object>> validarPrescripcion(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         recetaServicio.validarProfesionalHabilitado(request.getProfesionalId());
@@ -58,8 +58,8 @@ public class RecetaControlador {
     }
 
     @PostMapping("/recetas/dispensar")
-    @PreAuthorize("hasAnyRole('FARMACIA', 'ADMIN')")
-    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas (Exclusivo Farmacias y Admin)")
+    @PreAuthorize("hasRole('FARMACIA')")
+    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas (Exclusivo Farmacias)")
     public ResponseEntity<DispensarRecetaDtoResponse> dispensarReceta(@Valid @RequestBody DispensarRecetaDtoRequest request) {
         return ResponseEntity.ok(recetaServicio.dispensarReceta(request));
     }
@@ -115,7 +115,7 @@ public class RecetaControlador {
     }
 
     @PatchMapping("/recetas/{id}/anular")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessReceta(#id)")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessReceta(#id)")
     public ResponseEntity<RecetaDigitalDtoResponse> anularReceta(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> payload,
@@ -138,7 +138,7 @@ public class RecetaControlador {
     }
 
     @GetMapping("/recetas/cie10/{codigo}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
     public ResponseEntity<List<RecetaDigitalDtoResponse>> listarPorCie10(@PathVariable String codigo) {
         List<RecetaDigital> recetas = recetaServicio.listarPorCodigoCie10(codigo);
         return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
