@@ -15,4 +15,10 @@ public interface IProfesionalServicio {
     List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad);
     Profesional obtenerEntidadProfesionalPorId(Long id);
     ProfesionalDtoResponse cambiarEstadoActivo(Long id, boolean activo);
+
+    java.util.Set<Long> obtenerCentrosDelProfesional(Long id);
+
+    java.util.Set<Long> vincularCentro(Long id, Long centroId);
+
+    java.util.Set<Long> desvincularCentro(Long id, Long centroId);
 }

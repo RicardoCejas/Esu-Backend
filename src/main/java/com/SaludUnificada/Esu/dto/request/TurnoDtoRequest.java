@@ -51,8 +51,10 @@ public class TurnoDtoRequest {
     // Permite a personal administrativo y de recepción agendar turnos para un paciente específico
 
     private Long pacienteId;
-
-    @Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
+    private Long centroSaludId;
+    private String centroSaludNombre;
+    private String consultorioNumero;
+@Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
     private String idempotencyKey;
 
 

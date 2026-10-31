@@ -27,6 +27,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DisponibilidadServicio implements IDisponibilidadServicio {
 
+    public static final int MARGEN_TRASLADO_MINUTOS = 30;
+
+    private String resolverNombreCentro(Long centroId) {
+        if (centroId == null) return "Hospital Regional Aurelio Crespo";
+        if (centroId == 1L) return "Hospital Regional Aurelio Crespo";
+        if (centroId == 2L) return "Clínica Privada Cabrera";
+        if (centroId == 3L) return "Centro de Diagnóstico Cruz del Eje";
+        if (centroId == 4L) return "Dispensario Municipal Santa Rosa";
+        return "Centro de Salud N° " + centroId;
+    }
+
     private static final Logger log = LoggerFactory.getLogger(DisponibilidadServicio.class);
 
     private final DisponibilidadProfesionalRepositorio disponibilidadRepositorio;
@@ -47,15 +58,49 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
         Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
-        List<DisponibilidadProfesional> solapadas = disponibilidadRepositorio.findSolapadas(
-                profesional.getId(),
-                request.getDiaSemana(),
-                request.getHoraInicio(),
-                request.getHoraFin()
-        );
+        if (request.getCentroSaludId() == null) {
+            throw new IllegalArgumentException("El ID del centro de salud es obligatorio para configurar la disponibilidad.");
+        }
 
-        if (!solapadas.isEmpty()) {
-            throw new IllegalStateException("Existe un conflicto de horarios: el profesional ya posee una disponibilidad configurada que se solapa con el rango solicitado para el día " + request.getDiaSemana());
+        // Vincular el profesional al centro si aún no lo estaba
+        if (!profesional.getCentrosSaludIds().contains(request.getCentroSaludId())) {
+            profesional.getCentrosSaludIds().add(request.getCentroSaludId());
+            profesionalRepositorio.save(profesional);
+        }
+
+        // Validar solapamientos y margen de traslado entre sedes
+        List<DisponibilidadProfesional> activasDelDia = disponibilidadRepositorio
+                .findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), request.getDiaSemana());
+
+        for (DisponibilidadProfesional existente : activasDelDia) {
+            boolean mismoCentro = request.getCentroSaludId().equals(existente.getCentroSaludId());
+
+            if (mismoCentro) {
+                boolean solapa = request.getHoraInicio().isBefore(existente.getHoraFin())
+                        && request.getHoraFin().isAfter(existente.getHoraInicio());
+                if (solapa) {
+                    throw new IllegalStateException("Existe un conflicto de horarios: el profesional ya posee una disponibilidad configurada en este centro que se solapa con el rango solicitado para el día " + request.getDiaSemana());
+                }
+            } else {
+                boolean solapaDirecto = request.getHoraInicio().isBefore(existente.getHoraFin())
+                        && request.getHoraFin().isAfter(existente.getHoraInicio());
+                if (solapaDirecto) {
+                    throw new IllegalStateException("Existe un conflicto de horarios entre sedes: el profesional no puede prestar servicios simultáneamente en centros distintos el día " + request.getDiaSemana());
+                }
+
+                // Margen de traslado configurable entre sedes distintas (30 minutos)
+                LocalTime finConTraslado = existente.getHoraFin().plusMinutes(MARGEN_TRASLADO_MINUTOS);
+                LocalTime inicioConTraslado = request.getHoraFin().plusMinutes(MARGEN_TRASLADO_MINUTOS);
+
+                if (request.getHoraInicio().isBefore(finConTraslado) && request.getHoraFin().isAfter(existente.getHoraInicio())) {
+                    throw new IllegalStateException("Existe un conflicto de traslado entre sedes: se requiere un margen mínimo de " +
+                            MARGEN_TRASLADO_MINUTOS + " minutos para desplazarse entre distintos centros de salud.");
+                }
+                if (existente.getHoraInicio().isBefore(inicioConTraslado) && existente.getHoraFin().isAfter(request.getHoraInicio())) {
+                    throw new IllegalStateException("Existe un conflicto de traslado entre sedes: se requiere un margen mínimo de " +
+                            MARGEN_TRASLADO_MINUTOS + " minutos para desplazarse entre distintos centros de salud.");
+                }
+            }
         }
 
         DisponibilidadProfesional entidad = disponibilidadMapper.paraEntidad(request, profesional);
@@ -103,7 +148,7 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
 
             for (DisponibilidadProfesional disp : disponibilidades) {
                 LocalTime horaActual = disp.getHoraInicio();
-                int intervalo = disp.getIntervaloMinutos();
+                int intervalo = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : 20;
 
                 while (horaActual.plusMinutes(intervalo).compareTo(disp.getHoraFin()) <= 0) {
                     LocalDateTime fechaHoraSlot = LocalDateTime.of(fecha, horaActual);
@@ -118,6 +163,9 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
                         slot.setEstado("DISPONIBLE");
                         slot.setProfesional(profesional);
                         slot.setPaciente(null);
+                        slot.setCentroSaludId(disp.getCentroSaludId());
+                        slot.setCentroSaludNombre(resolverNombreCentro(disp.getCentroSaludId()));
+                        slot.setConsultorioNumero("Consultorio " + (disp.getCentroSaludId() != null ? disp.getCentroSaludId() : "1"));
                         nuevosSlots.add(slot);
                     }
 

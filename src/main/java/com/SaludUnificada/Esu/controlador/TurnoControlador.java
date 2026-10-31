@@ -202,4 +202,24 @@ public class TurnoControlador {
     public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosHoyProfesional(@PathVariable Long profesionalId) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosHoyProfesional(profesionalId));
     }
+
+    @Operation(summary = "Obtener agenda de turnos de un profesional con filtros opcionales de centro y fecha (HU-BE-89 / Fase 2)")
+    @GetMapping("/profesional/{profesionalId}")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isDoctorAuthor(#profesionalId)")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerAgendaProfesional(
+            @PathVariable Long profesionalId,
+            @RequestParam(required = false) Long centroSaludId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerAgendaProfesional(profesionalId, centroSaludId, fecha));
+    }
+
+    @Operation(summary = "Obtener agenda de turnos del médico autenticado filtrada opcionalmente por sede y fecha")
+    @GetMapping("/mi-agenda")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerMiAgenda(
+            @RequestParam(required = false) Long centroSaludId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            Principal principal) {
+        return ResponseEntity.ok(turnoServicio.obtenerMiAgenda(principal != null ? principal.getName() : null, centroSaludId, fecha));
+    }
 }

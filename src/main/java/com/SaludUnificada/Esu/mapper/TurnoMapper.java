@@ -36,8 +36,10 @@ public class TurnoMapper {
         dto.setFechaAtencion(turno.getFechaAtencion());
         dto.setFechaCancelacion(turno.getFechaCancelacion());
         dto.setMotivoCancelacion(turno.getMotivoCancelacion());
-
-        if (turno.getPaciente() != null) {
+        dto.setCentroSaludId(turno.getCentroSaludId());
+        dto.setCentroSaludNombre(turno.getCentroSaludNombre());
+        dto.setConsultorioNumero(turno.getConsultorioNumero());
+if (turno.getPaciente() != null) {
             dto.setPaciente(pacienteMapper.paraDto(turno.getPaciente()));
         }
 

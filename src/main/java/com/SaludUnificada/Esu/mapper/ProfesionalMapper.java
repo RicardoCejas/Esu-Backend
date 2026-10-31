@@ -52,8 +52,10 @@ public class ProfesionalMapper {
         dto.setMatricula(profesional.getMatricula());
         dto.setTelefono(profesional.getTelefono());
         dto.setProximoTurnoLibre(proximoTurnoLibre);
-
-        if (!profesional.getEspecialidades().isEmpty()) {
+        if (profesional.getCentrosSaludIds() != null) {
+            dto.setCentrosSaludIds(new java.util.HashSet<>(profesional.getCentrosSaludIds()));
+        }
+if (!profesional.getEspecialidades().isEmpty()) {
             Especialidad especialidad = profesional.getEspecialidades().iterator().next();
             dto.setEspecialidad(especialidadMapper.paraDto(especialidad));
         }

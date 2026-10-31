@@ -21,4 +21,6 @@ public class ProfesionalDtoResponse {
 
     @Schema(description = "Fecha y hora del primer turno libre disponible", example = "2026-10-27T08:30:00")
     private LocalDateTime proximoTurnoLibre;
+    @Builder.Default
+    private java.util.Set<Long> centrosSaludIds = new java.util.HashSet<>();
 }
