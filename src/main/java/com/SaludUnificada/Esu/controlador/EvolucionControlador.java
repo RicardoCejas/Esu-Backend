@@ -45,7 +45,7 @@ public class EvolucionControlador {
     private final EvolucionMedicaMapper evolucionMedicaMapper;
 
     @PostMapping("/historias-clinicas/evoluciones")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#request.pacienteId))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#request.pacienteId)")
     @Operation(summary = "Registrar y firmar electrónicamente una evolución médica clínica")
     public ResponseEntity<EvolucionMedicaDtoResponse> registrarEvolucion(@Valid @RequestBody EvolucionMedicaDtoRequest request) {
         EvolucionMedica entidad = evolucionServicio.registrarEvolucion(request);
@@ -53,7 +53,7 @@ public class EvolucionControlador {
     }
 
     @PostMapping("/historias-clinicas/evoluciones/{id}/adenda")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessEvolucion(#id))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessEvolucion(#id)")
     @Operation(summary = "Emitir Adenda mÃ©dica / Fe de erratas formal sobre una evoluciÃ³n firmada")
     public ResponseEntity<EvolucionAdendaDtoResponse> emitirAdenda(
         @PathVariable Long id,
@@ -64,7 +64,7 @@ public class EvolucionControlador {
     }
 
     @PutMapping("/turnos/{id}/finalizar-atencion")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isTurnoDoctor(#id)")
     @Operation(summary = "Finalizar atenciÃ³n mÃ©dica, asociar evoluciÃ³n y cerrar turno a FINALIZADO")
     public ResponseEntity<EvolucionMedicaDtoResponse> finalizarAtencion(
         @PathVariable Long id,

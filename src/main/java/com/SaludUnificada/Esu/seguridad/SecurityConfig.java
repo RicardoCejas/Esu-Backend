@@ -139,16 +139,16 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/turnos/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN");
 
-                        auth.requestMatchers("/api/historias-clinicas/obtener/todos").hasRole("ADMIN");
-                        auth.requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").hasRole("ADMIN");
-                        auth.requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN", "PACIENTE");
+                        auth.requestMatchers("/api/historias-clinicas/obtener/todos").denyAll();
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").denyAll();
+                        auth.requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "PACIENTE");
 
-                        auth.requestMatchers("/api/recetas/dispensar").hasAnyRole("FARMACIA", "ADMIN");
-                        auth.requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "FARMACIA");
-                        auth.requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO", "ADMIN");
+                        auth.requestMatchers("/api/recetas/dispensar").hasRole("FARMACIA");
+                        auth.requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "FARMACIA");
+                        auth.requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO");
 
-                        auth.requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN");
-                        auth.requestMatchers("/api/consentimientos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN");
+                        auth.requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO");
+                        auth.requestMatchers("/api/consentimientos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO");
 
                         auth.requestMatchers("/api/documentos/verificar/**", "/api/documentos/verificar-token/**").permitAll();
                         auth.requestMatchers("/api/documentos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN");

@@ -92,9 +92,15 @@ class OwnershipSecurityEvaluatorTest {
     }
 
     @Test
-    void adminCanAccessAnyPatient() {
+    void adminCannotAccessPatientClinically() {
         authenticate("admin@esu.test", "ADMIN");
-        assertTrue(evaluator.canAccessPatient(999L));
+        assertFalse(evaluator.canAccessPatient(999L));
+    }
+
+    @Test
+    void adminCanAccessPatientAdmin() {
+        authenticate("admin@esu.test", "ADMIN");
+        assertTrue(evaluator.canAccessPatientAdmin(10L));
     }
 
     @Test
@@ -193,7 +199,7 @@ class OwnershipSecurityEvaluatorTest {
     @Test
     void canAccessEvolucionCheck() {
         authenticate("admin@esu.test", "ADMIN");
-        assertTrue(evaluator.canAccessEvolucion(50L));
+        assertFalse(evaluator.canAccessEvolucion(50L));
 
         authenticate("paciente@esu.test", "PACIENTE");
         EvolucionMedica ev = new EvolucionMedica();
@@ -217,7 +223,7 @@ class OwnershipSecurityEvaluatorTest {
 
         // 1. Admin
         authenticate("admin@esu.test", "ADMIN");
-        assertTrue(evaluator.canAccessReceta(300L));
+        assertFalse(evaluator.canAccessReceta(300L));
 
         // 2. Farmacia
         authenticate("farmacia@esu.test", "FARMACIA");
@@ -253,7 +259,7 @@ class OwnershipSecurityEvaluatorTest {
 
         // 1. Admin
         authenticate("admin@esu.test", "ADMIN");
-        assertTrue(evaluator.canAccessEstudio(400L));
+        assertFalse(evaluator.canAccessEstudio(400L));
 
         // 2. Paciente dueño
         authenticate("paciente@esu.test", "PACIENTE");
@@ -284,7 +290,7 @@ class OwnershipSecurityEvaluatorTest {
         when(historiaClinicaRepositorio.findById(500L)).thenReturn(Optional.of(hc));
 
         authenticate("admin@esu.test", "ADMIN");
-        assertTrue(evaluator.canAccessHistoriaClinica(500L));
+        assertFalse(evaluator.canAccessHistoriaClinica(500L));
 
         authenticate("paciente@esu.test", "PACIENTE");
         when(usuarioRepositorio.findByEmail("paciente@esu.test")).thenReturn(Optional.of(patientUser));

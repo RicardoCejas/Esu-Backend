@@ -31,7 +31,7 @@ public class EstudioAdjuntoControlador {
     private final EstudioAdjuntoServicio estudioServicio;
 
     @PostMapping(value = "/subir", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessPatient(#pacienteId)")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Carga de archivo binario de estudio complementario")
     public ResponseEntity<EstudioAdjuntoDtoResponse> subirEstudio(
             @RequestParam("archivo") MultipartFile archivo,
@@ -87,7 +87,7 @@ public class EstudioAdjuntoControlador {
     }
 
     @GetMapping("/evolucion/{evolucionId}")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessEvolucion(#evolucionId)")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessEvolucion(#evolucionId)")
     @Operation(summary = "Listar estudios complementarios vinculados directamente a una evolucion clinica")
     public ResponseEntity<List<EstudioAdjuntoDtoResponse>> listarPorEvolucion(@PathVariable Long evolucionId) {
         return ResponseEntity.ok(estudioServicio.listarPorEvolucion(evolucionId));

@@ -23,7 +23,7 @@ public class AlergiaControlador {
     private final AlergiaServicio alergiaServicio;
 
     @PostMapping("/{id}/alergias")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#id))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#id)")
     @Operation(summary = "Registrar nueva alergia o factor de riesgo clinico para un paciente")
     public ResponseEntity<AlergiaDtoResponse> registrarAlergia(
             @PathVariable Long id,
@@ -49,7 +49,7 @@ public class AlergiaControlador {
     }
 
     @PutMapping("/alergias/{alergiaId}")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessAlergia(#alergiaId))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessAlergia(#alergiaId)")
     @Operation(summary = "Actualizar los datos de una alergia existente")
     public ResponseEntity<AlergiaDtoResponse> actualizarAlergia(
             @PathVariable Long alergiaId,
@@ -58,7 +58,7 @@ public class AlergiaControlador {
     }
 
     @DeleteMapping("/alergias/{alergiaId}")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessAlergia(#alergiaId))")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessAlergia(#alergiaId)")
     @Operation(summary = "Dar de baja o desactivar una alergia registrada")
     public ResponseEntity<Void> eliminarAlergia(@PathVariable Long alergiaId) {
         alergiaServicio.eliminarAlergia(alergiaId);

@@ -80,7 +80,8 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessPatient(Long pacienteId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        // Fase 1: El administrador general NO tiene acceso a datos clínicos confidenciales de pacientes (Ley 25.326 y 26.529)
+        if (isAdmin(auth)) return false;
 
         Optional<Usuario> usuarioOpt = getCurrentUser(auth);
         if (usuarioOpt.isEmpty()) return false;
@@ -179,9 +180,10 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessReceta(Long recetaId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth) || auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_FARMACIA"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_FARMACIA"))) {
             return true;
         }
+        if (isAdmin(auth)) return false;
 
         Optional<RecetaDigital> recetaOpt = recetaRepositorio.findById(recetaId);
         if (recetaOpt.isEmpty()) return false;
@@ -205,7 +207,7 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessEstudio(Long estudioId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        if (isAdmin(auth)) return false;
 
         Optional<EstudioAdjunto> estudioOpt = estudioRepositorio.findById(estudioId);
         if (estudioOpt.isEmpty()) return false;
@@ -217,7 +219,7 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessHistoriaClinica(Long hcId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        if (isAdmin(auth)) return false;
 
         Optional<HistoriaClinica> hcOpt = historiaClinicaRepositorio.findById(hcId);
         if (hcOpt.isEmpty()) return false;
@@ -230,7 +232,7 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessConsentimiento(Long consentimientoId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        if (isAdmin(auth)) return false;
 
         Optional<ConsentimientoInformado> consentOpt = consentimientoRepositorio.findById(consentimientoId);
         if (consentOpt.isEmpty()) return false;
@@ -249,7 +251,7 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessAlergia(Long alergiaId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        if (isAdmin(auth)) return false;
 
         Optional<AlergiaPaciente> alergiaOpt = alergiaRepositorio.findById(alergiaId);
         if (alergiaOpt.isEmpty()) return false;
@@ -261,7 +263,7 @@ public class OwnershipSecurityEvaluator {
     public boolean canAccessEvolucion(Long evolucionId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isAdmin(auth)) return true;
+        if (isAdmin(auth)) return false;
 
         if (evolucionMedicaRepositorio == null) return false;
         Optional<EvolucionMedica> evOpt = evolucionMedicaRepositorio.findById(evolucionId);
