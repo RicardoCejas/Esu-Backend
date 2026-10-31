@@ -48,7 +48,7 @@ public class ProfesionalControlador {
     }
 
     @PostMapping("/crear")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<ProfesionalDtoResponse> crearProfesional(@Valid @RequestBody ProfesionalDtoRequest profesionalDto) {
         ProfesionalDtoResponse nuevoProfesional = profesionalServicio.crearProfesional(profesionalDto);
         return new ResponseEntity<>(nuevoProfesional, HttpStatus.CREATED);
@@ -65,7 +65,7 @@ public class ProfesionalControlador {
     }
 
     @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<Void> eliminarProfesional(@PathVariable Long id) {
         profesionalServicio.eliminarProfesional(id);
         return ResponseEntity.noContent().build();
@@ -76,7 +76,7 @@ public class ProfesionalControlador {
         return ResponseEntity.ok(profesionalServicio.filtrarPorEspecialidad(especialidadId));
     }
     @PatchMapping("/{id}/estado")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     public ResponseEntity<ProfesionalDtoResponse> cambiarEstado(
             @PathVariable Long id,
             @RequestParam boolean activo) {

@@ -108,12 +108,14 @@ public class SecurityConfig {
                         auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
                         auth.requestMatchers(HttpMethod.GET, "/api/especialidades/**").permitAll();
-                        auth.requestMatchers(HttpMethod.POST, "/api/especialidades/**").hasRole("ADMIN");
-                        auth.requestMatchers(HttpMethod.DELETE, "/api/especialidades/**").hasRole("ADMIN");
+                        auth.requestMatchers(HttpMethod.POST, "/api/especialidades/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PUT, "/api/especialidades/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/especialidades/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/profesionales/**").permitAll();
-                        auth.requestMatchers(HttpMethod.POST, "/api/profesionales/**").hasAnyRole("ADMIN", "PROFESIONAL", "MEDICO");
-                        auth.requestMatchers(HttpMethod.DELETE, "/api/profesionales/**").hasRole("ADMIN");
+                        auth.requestMatchers(HttpMethod.POST, "/api/profesionales/**").hasAnyRole("ADMIN", "PROFESIONAL", "MEDICO", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PUT, "/api/profesionales/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/profesionales/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/disponibilidades/**").permitAll();
                         auth.requestMatchers("/api/disponibilidades/**").hasAnyRole("MEDICO", "PROFESIONAL", "ADMIN");
