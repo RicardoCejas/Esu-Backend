@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.*;
+import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,6 +62,9 @@ public class EvolucionMedicaServicio {
     @Autowired(required = false)
     private ConsultaBorradorRepositorio borradorRepositorio;
 
+    @Autowired(required = false)
+    private OwnershipSecurityEvaluator ownershipSecurityEvaluator;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -75,13 +79,29 @@ public class EvolucionMedicaServicio {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
             boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-            if (!isAdmin && profesional.getUsuario() != null) {
-                if (!profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
+            if (!isAdmin) {
+                var profOpt = profesionalRepositorio.findByUsuarioEmail(auth.getName());
+                if (profOpt.isEmpty()) {
+                    throw new AccessDeniedException("El usuario autenticado no posee un perfil profesional activo vinculado.");
+                }
+                Profesional profAutenticado = profOpt.get();
+                if (!Boolean.TRUE.equals(profAutenticado.getEstadoActivo())) {
+                    throw new AccessDeniedException("El perfil del profesional autenticado se encuentra inactivo.");
+                }
+                if (!profesional.getId().equals(profAutenticado.getId()) || profesional.getUsuario() == null
+                        || !profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
                     throw new AccessDeniedException("No está autorizado a registrar una evolución a nombre de otro profesional.");
                 }
-            }
-        }
 
+                if (request.getTurnoId() == null) {
+                    if (ownershipSecurityEvaluator != null && !ownershipSecurityEvaluator.canAccessPatient(paciente.getId())) {
+                        throw new AccessDeniedException("No posee una relación asistencial autorizada ni acceso de emergencia activo para registrar una evolución sin turno para este paciente.");
+                    }
+                }
+            }
+        } else {
+            throw new AccessDeniedException("Debe autenticarse como profesional médico o administrador para registrar una evolución.");
+        }
         Turno turno = null;
         if (request.getTurnoId() != null) {
             turno = turnoRepositorio.findById(request.getTurnoId())
@@ -162,7 +182,7 @@ public class EvolucionMedicaServicio {
             boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin && profesional.getUsuario() != null) {
                 if (!profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
-                    throw new AccessDeniedException("No está autorizado a emitir una adenda a nombre de otro profesional.");
+                    throw new AccessDeniedException("No estÃ¡ autorizado a emitir una adenda a nombre de otro profesional.");
                 }
             }
         }
@@ -191,7 +211,7 @@ public class EvolucionMedicaServicio {
             .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
 
         if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
-            throw new IllegalStateException("No se puede finalizar la atención de un turno cancelado.");
+            throw new IllegalStateException("No se puede finalizar la atenciÃ³n de un turno cancelado.");
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -199,7 +219,7 @@ public class EvolucionMedicaServicio {
             boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin && turno.getProfesional() != null && turno.getProfesional().getUsuario() != null) {
                 if (!turno.getProfesional().getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
-                    throw new AccessDeniedException("No está autorizado a finalizar un turno asignado a otro profesional.");
+                    throw new AccessDeniedException("No estÃ¡ autorizado a finalizar un turno asignado a otro profesional.");
                 }
             }
         }
@@ -265,7 +285,7 @@ public class EvolucionMedicaServicio {
             dto.setAlertasCriticas(alertas);
         } else {
             dto.setAlertasCriticas(List.of(
-                "Sin alergias críticas registradas actualmente"
+                "Sin alergias crÃ­ticas registradas actualmente"
             ));
         }
 
@@ -388,7 +408,7 @@ public class EvolucionMedicaServicio {
         item.setTieneAdendas(!adendas.isEmpty());
         List<String> adendaStrings = new ArrayList<>();
         for (EvolucionAdenda ad : adendas) {
-            adendaStrings.add(String.format("[%s] Justificación: %s | Contenido: %s",
+            adendaStrings.add(String.format("[%s] JustificaciÃ³n: %s | Contenido: %s",
                 ad.getFechaFirma().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                 ad.getJustificacionClinica(),
                 ad.getContenidoAdicional()
@@ -403,7 +423,7 @@ public class EvolucionMedicaServicio {
     @Transactional
     public com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse guardarBorradorConsulta(ConsultaBorradorDtoRequest request, String emailProfesional) {
         if (emailProfesional == null || emailProfesional.isBlank()) {
-            throw new AccessDeniedException("Debe identificarse un profesional autenticado para guardar un borrador clínico.");
+            throw new AccessDeniedException("Debe identificarse un profesional autenticado para guardar un borrador clÃ­nico.");
         }
         Profesional profesional = profesionalRepositorio.findByUsuarioEmail(emailProfesional)
                 .orElseThrow(() -> new AccessDeniedException("El usuario autenticado (" + emailProfesional + ") no tiene un perfil de profesional asociado."));
@@ -413,7 +433,7 @@ public class EvolucionMedicaServicio {
             Turno turno = turnoRepositorio.findById(request.getTurnoId())
                     .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + request.getTurnoId()));
             if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesionalId)) {
-                throw new AccessDeniedException("No posee autorización para redactar un borrador sobre un turno asignado a otro profesional.");
+                throw new AccessDeniedException("No posee autorizaciÃ³n para redactar un borrador sobre un turno asignado a otro profesional.");
             }
             if (turno.getPaciente() != null) {
                 if (request.getPacienteId() != null && !request.getPacienteId().equals(turno.getPaciente().getId())) {
@@ -424,7 +444,7 @@ public class EvolucionMedicaServicio {
         }
 
         if (request.getPacienteId() == null) {
-            throw new ReglaNegocioException("Debe indicarse un paciente válido para asociar el borrador.");
+            throw new ReglaNegocioException("Debe indicarse un paciente vÃ¡lido para asociar el borrador.");
         }
 
         if (!pacienteRepositorio.existsById(request.getPacienteId())) {
@@ -435,7 +455,7 @@ public class EvolucionMedicaServicio {
         if (request.getTurnoId() != null && borradorRepositorio != null) {
             borrador = borradorRepositorio.findByTurnoId(request.getTurnoId()).orElse(null);
             if (borrador != null && !borrador.getProfesionalId().equals(profesionalId)) {
-                throw new AccessDeniedException("No posee autorización para sobrescribir el borrador de otro profesional.");
+                throw new AccessDeniedException("No posee autorizaciÃ³n para sobrescribir el borrador de otro profesional.");
             }
         }
         if (borrador == null && borradorRepositorio != null) {
@@ -470,7 +490,7 @@ public class EvolucionMedicaServicio {
     @Transactional(readOnly = true)
     public ConsultaBorrador obtenerBorradorConsulta(Long turnoId, Long pacienteId, String emailProfesional) {
         if (emailProfesional == null || emailProfesional.isBlank()) {
-            throw new AccessDeniedException("Debe autenticarse como profesional para consultar borradores clínicos.");
+            throw new AccessDeniedException("Debe autenticarse como profesional para consultar borradores clÃ­nicos.");
         }
         Profesional profesional = profesionalRepositorio.findByUsuarioEmail(emailProfesional)
                 .orElseThrow(() -> new AccessDeniedException("El usuario autenticado (" + emailProfesional + ") no tiene un perfil de profesional asociado."));
@@ -480,7 +500,7 @@ public class EvolucionMedicaServicio {
             Turno turno = turnoRepositorio.findById(turnoId)
                     .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
             if (turno.getProfesional() != null && !turno.getProfesional().getId().equals(profesionalId)) {
-                throw new AccessDeniedException("No posee autorización para consultar el borrador de un turno asignado a otro profesional.");
+                throw new AccessDeniedException("No posee autorizaciÃ³n para consultar el borrador de un turno asignado a otro profesional.");
             }
             ConsultaBorrador b = borradorRepositorio.findByTurnoId(turnoId).orElse(null);
             if (b != null && !b.getProfesionalId().equals(profesionalId)) {
@@ -498,7 +518,7 @@ public class EvolucionMedicaServicio {
 
     public byte[] generarPdfEvolucion(Long evolucionId) {
         EvolucionMedica e = evolucionRepositorio.findById(evolucionId)
-            .orElseThrow(() -> new NoEncontradoExcepcion("Evolución médica no encontrada con ID: " + evolucionId));
+            .orElseThrow(() -> new NoEncontradoExcepcion("EvoluciÃ³n mÃ©dica no encontrada con ID: " + evolucionId));
         String qrUrl = frontendUrl + "/verificar-evolucion?hash=" + e.getHashIntegridad();
         return pdfServicio.generarEvolucionPdf(e, qrUrl);
     }

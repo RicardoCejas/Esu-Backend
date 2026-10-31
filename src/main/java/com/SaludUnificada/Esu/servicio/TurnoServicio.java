@@ -1,4 +1,4 @@
-﻿package com.SaludUnificada.Esu.servicio;
+package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
@@ -37,6 +37,8 @@ import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
+import com.SaludUnificada.Esu.seguridad.MascaraDatosUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -166,10 +168,12 @@ public class TurnoServicio implements ITurnoServicio {
 
     public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto, String emailAutenticado) {
         if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
-            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(turnoDto.getIdempotencyKey().trim());
+            String key = turnoDto.getIdempotencyKey().trim();
+            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(key);
             if (previo.isPresent()) {
+                validarCoincidenciaYAutorizacionIdempotencia(previo.get(), turnoDto.getPacienteId(), turnoDto.getProfesionalId(), turnoDto.getFechaHora(), false, emailAutenticado, key);
                 log.info("Turno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
-                        turnoDto.getIdempotencyKey(), previo.get().getId());
+                        key, previo.get().getId());
                 return turnoMapper.paraDto(previo.get());
             }
         }
@@ -192,7 +196,7 @@ public class TurnoServicio implements ITurnoServicio {
         if (disponibilidadRepositorio != null) {
             List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
             if (disponibilidades.isEmpty()) {
-                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el dÃ­a seleccionado (agenda cerrada).");
+                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el día seleccionado (agenda cerrada).");
             }
             boolean calza = disponibilidades.stream().anyMatch(disp -> {
                 LocalTime t = fechaHora.toLocalTime();
@@ -210,7 +214,7 @@ public class TurnoServicio implements ITurnoServicio {
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
 
-            throw new IllegalStateException("El horario solicitado ya no estÃ¡ disponible.");
+            throw new IllegalStateException("El horario solicitado ya no está disponible.");
 
         }
 
@@ -243,7 +247,7 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         if (turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(paciente.getId(), fechaHora, CANCELADO)) {
-            throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo dÃ­a y horario.");
+            throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo día y horario.");
         }
 
         Turno turno = new Turno();
@@ -261,21 +265,36 @@ public class TurnoServicio implements ITurnoServicio {
 
         turno.setProfesional(profesional);
 
-        Turno guardado = turnoRepositorio.save(turno);
+        Turno guardado;
+        try {
+            guardado = turnoRepositorio.save(turno);
+            if (guardado != null) turnoRepositorio.flush();
+        } catch (DataIntegrityViolationException dive) {
+            if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
+                String key = turnoDto.getIdempotencyKey().trim();
+                Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
+                if (recuperado.isPresent()) {
+                    validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, false, emailAutenticado, key);
+                    log.info("ColisiÃ³n simultÃ¡nea resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    return turnoMapper.paraDto(recuperado.get());
+                }
+            }
+            throw dive;
+        }
 
         if (recordatorioRepositorio != null) {
             try {
                 recordatorioRepositorio.deleteByTurnoId(guardado.getId());
                 recordatorioRepositorio.save(new RecordatorioTurno(guardado));
             } catch (Exception ex) {
-                log.error("Fallo al persistir recordatorio para el turno ID={}: {}. El reconciliador programado lo recuperarÃ¡.", guardado.getId(), ex.getMessage());
+                log.error("Fallo al persistir recordatorio para el turno ID={}: {}. El reconciliador programado lo recuperarÃƒÂ¡.", guardado.getId(), ex.getMessage());
             }
         }
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Solicitado",
-                "Su turno mÃ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado y se encuentra pendiente de confirmaciÃ³n.",
+                "Su turno mÃƒÂ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado y se encuentra pendiente de confirmaciÃƒÂ³n.",
                 "TURNO",
                 "/mis-turnos"
             );
@@ -290,14 +309,22 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional
 
     public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
+        String emailAut = null;
+        Authentication authSob = SecurityContextHolder.getContext().getAuthentication();
+        if (authSob != null && authSob.isAuthenticated() && !"anonymousUser".equals(authSob.getName())) {
+            emailAut = authSob.getName();
+        }
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
-            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(request.getIdempotencyKey().trim());
+            String key = request.getIdempotencyKey().trim();
+            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(key);
             if (previo.isPresent()) {
+                validarCoincidenciaYAutorizacionIdempotencia(previo.get(), request.getPacienteId(), request.getProfesionalId(), request.getFechaHora().withSecond(0).withNano(0), true, emailAut, key);
                 log.info("Sobreturno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
-                        request.getIdempotencyKey(), previo.get().getId());
+                        key, previo.get().getId());
                 return turnoMapper.paraDto(previo.get());
             }
         }
+
         LocalDateTime ahora = ahora();
         LocalDateTime fechaHora = request.getFechaHora().withSecond(0).withNano(0);
         if (fechaHora.isBefore(ahora)) {
@@ -325,7 +352,7 @@ public class TurnoServicio implements ITurnoServicio {
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
 
         if (turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(paciente.getId(), fechaHora, CANCELADO)) {
-            throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo dÃ­a y horario.");
+            throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo día y horario.");
         }
 
         LocalDateTime inicioDia = fechaHora.toLocalDate().atStartOfDay();
@@ -333,8 +360,8 @@ public class TurnoServicio implements ITurnoServicio {
 
         long sobreturnosHoy = turnoRepositorio.contarSobreturnosEnDia(request.getProfesionalId(), inicioDia, finDia);
         if (sobreturnosHoy >= LIMITE_SOBRETURNOS_DIARIOS) {
-            throw new ReglaNegocioException("Se ha superado el cupo mÃ¡ximo de sobreturnos (" +
-                    LIMITE_SOBRETURNOS_DIARIOS + " por dÃ­a) para el profesional en la jornada indicada.");
+            throw new ReglaNegocioException("Se ha superado el cupo máximo de sobreturnos (" +
+                    LIMITE_SOBRETURNOS_DIARIOS + " por día) para el profesional en la jornada indicada.");
         }
 
         Turno sobreturno = new Turno();
@@ -349,7 +376,22 @@ public class TurnoServicio implements ITurnoServicio {
             sobreturno.setIdempotencyKey(request.getIdempotencyKey().trim());
         }
 
-        Turno guardado = turnoRepositorio.save(sobreturno);
+        Turno guardado;
+        try {
+            guardado = turnoRepositorio.save(sobreturno);
+            if (guardado != null) turnoRepositorio.flush();
+        } catch (DataIntegrityViolationException dive) {
+            if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+                String key = request.getIdempotencyKey().trim();
+                Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
+                if (recuperado.isPresent()) {
+                    validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, true, emailAut, key);
+                    log.info("ColisiÃ³n simultÃ¡nea de sobreturno resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    return turnoMapper.paraDto(recuperado.get());
+                }
+            }
+            throw dive;
+        }
 
         if (recordatorioRepositorio != null) {
             try {
@@ -364,7 +406,7 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Sobreturno Solicitado",
-                "Su sobreturno mÃ©dico de urgencia para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado exitosamente.",
+                "Su sobreturno mÃƒÂ©dico de urgencia para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado exitosamente.",
                 "TURNO",
                 "/mis-turnos"
             );
@@ -415,7 +457,7 @@ public class TurnoServicio implements ITurnoServicio {
                 : List.of();
 
         if (disponibilidadRepositorio != null) {
-            // Regla explÃ­cita y segura: si no posee franjas configuradas para este dÃ­a de la semana, la agenda se considera cerrada.
+            // Regla explÃƒÂ­cita y segura: si no posee franjas configuradas para este día de la semana, la agenda se considera cerrada.
             if (disponibilidades.isEmpty()) {
                 return List.of();
             }
@@ -478,7 +520,7 @@ public class TurnoServicio implements ITurnoServicio {
 
         if (!fechaHora.isAfter(ahora) || !diaHabil || !dentroDeJornada) {
 
-            throw new IllegalArgumentException("El turno debe ser futuro, en dÃ­a hÃ¡bil y respetar la jornada y duraciÃ³n de slots configuradas.");
+            throw new IllegalArgumentException("El turno debe ser futuro, en día hÃƒÂ¡bil y respetar la jornada y duraciÃƒÂ³n de slots configuradas.");
 
         }
 
@@ -572,7 +614,7 @@ public class TurnoServicio implements ITurnoServicio {
 
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
 
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃ³n para cancelar el turno de otro paciente.");
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para cancelar el turno de otro paciente.");
 
             }
 
@@ -595,7 +637,7 @@ public class TurnoServicio implements ITurnoServicio {
 
         if (turno.getFechaHora().isBefore(ahora.plusHours(2))) {
 
-            throw new IllegalArgumentException("La cancelaciÃ³n debe realizarse con un mÃ­nimo de 2 horas de anticipaciÃ³n al horario del turno.");
+            throw new IllegalArgumentException("La cancelaciÃƒÂ³n debe realizarse con un mÃƒÂ­nimo de 2 horas de anticipaciÃƒÂ³n al horario del turno.");
 
         }
 
@@ -630,7 +672,7 @@ public class TurnoServicio implements ITurnoServicio {
                             try {
                                 emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
                             } catch (Exception ex) {
-                                log.warn("Fallo al despachar email de cancelaciÃ³n post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                                log.warn("Fallo al despachar email de cancelaciÃƒÂ³n post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
                             }
                         }
                     }
@@ -639,7 +681,7 @@ public class TurnoServicio implements ITurnoServicio {
                 try {
                     emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
                 } catch (Exception ex) {
-                    log.warn("Fallo al despachar email de cancelaciÃ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                    log.warn("Fallo al despachar email de cancelaciÃƒÂ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
                 }
             }
         }
@@ -668,7 +710,7 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Confirmado",
-                "Su turno mÃ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido confirmado.",
+                "Su turno mÃƒÂ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido confirmado.",
                 "TURNO",
                 "/mis-turnos"
             );
@@ -683,7 +725,7 @@ public class TurnoServicio implements ITurnoServicio {
                             try {
                                 emailNotificacionServicio.enviarConfirmacionTurno(guardado);
                             } catch (Exception ex) {
-                                log.warn("Fallo al despachar email de confirmación post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                                log.warn("Fallo al despachar email de confirmaciÃ³n post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
                             }
                         }
                     }
@@ -692,7 +734,7 @@ public class TurnoServicio implements ITurnoServicio {
                 try {
                     emailNotificacionServicio.enviarConfirmacionTurno(guardado);
                 } catch (Exception ex) {
-                    log.warn("Fallo al despachar email de confirmaciÃ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                    log.warn("Fallo al despachar email de confirmaciÃƒÂ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
                 }
             }
         }
@@ -716,7 +758,7 @@ public class TurnoServicio implements ITurnoServicio {
 
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
 
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃ³n para reprogramar el turno de otro paciente.");
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para reprogramar el turno de otro paciente.");
 
             }
 
@@ -734,7 +776,7 @@ public class TurnoServicio implements ITurnoServicio {
         if (disponibilidadRepositorio != null && turno.getProfesional() != null) {
             List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(turno.getProfesional().getId(), nuevaFechaHora.getDayOfWeek());
             if (disponibilidades.isEmpty()) {
-                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el nuevo dÃ­a seleccionado (agenda cerrada).");
+                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el nuevo día seleccionado (agenda cerrada).");
             }
             boolean calza = disponibilidades.stream().anyMatch(disp -> {
                 LocalTime t = nuevaFechaHora.toLocalTime();
@@ -751,11 +793,11 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO)) {
-            throw new IllegalStateException("El nuevo horario solicitado ya no estÃ¡ disponible.");
+            throw new IllegalStateException("El nuevo horario solicitado ya no está disponible.");
         }
 
         if (turno.getPaciente() != null && turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(turno.getPaciente().getId(), nuevaFechaHora, CANCELADO)) {
-            throw new ReglaNegocioException("El paciente ya cuenta con otro turno registrado en el mismo dÃ­a y horario.");
+            throw new ReglaNegocioException("El paciente ya cuenta con otro turno registrado en el mismo día y horario.");
         }
 
         turno.setFechaHora(nuevaFechaHora);
@@ -775,7 +817,7 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Confirmado",
-                "Su turno mÃ©dico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                "Su turno mÃƒÂ©dico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                 "TURNO",
                 "/mis-turnos"
             );
@@ -800,7 +842,7 @@ public class TurnoServicio implements ITurnoServicio {
                 throw new IllegalStateException("El turno ya fue atendido previamente.");
             }
             if ("EN_SALA_DE_ESPERA".equalsIgnoreCase(turno.getEstado())) {
-                throw new IllegalStateException("El paciente ya realizÃ³ el check-in y se encuentra en sala de espera.");
+                throw new IllegalStateException("El paciente ya realizÃƒÂ³ el check-in y se encuentra en sala de espera.");
             }
             throw new ReglaNegocioException("Transicion de estado invalida para check-in.");
         }
@@ -858,7 +900,7 @@ public class TurnoServicio implements ITurnoServicio {
                     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                     boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
                     if (!isAdmin) {
-                        throw new AccessDeniedException("No posee autorizaciÃ³n para atender un turno asignado a otro profesional.");
+                        throw new AccessDeniedException("No posee autorizaciÃƒÂ³n para atender un turno asignado a otro profesional.");
                     }
                 }
             }
@@ -884,12 +926,12 @@ public class TurnoServicio implements ITurnoServicio {
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {
             Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃ³n para descargar certificados de otro paciente.");
+                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para descargar certificados de otro paciente.");
             }
         }
 
         if (documentoPdfServicio == null) {
-            throw new IllegalStateException("Servicio de generaciÃ³n PDF no disponible.");
+            throw new IllegalStateException("Servicio de generaciÃƒÂ³n PDF no disponible.");
         }
 
         String baseFrontend = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.replaceAll("/+$", "") : "http://localhost:5173";
@@ -941,6 +983,36 @@ public class TurnoServicio implements ITurnoServicio {
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
+
+    private void validarCoincidenciaYAutorizacionIdempotencia(Turno previo, Long pacienteId, Long profesionalId, LocalDateTime fechaHora, boolean esSobreturno, String emailAutenticado, String key) {
+        if (emailAutenticado != null && !emailAutenticado.isBlank()) {
+            boolean esDuenoPaciente = previo.getPaciente() != null && previo.getPaciente().getUsuario() != null
+                    && emailAutenticado.equalsIgnoreCase(previo.getPaciente().getUsuario().getEmail());
+            boolean esDuenoMedico = previo.getProfesional() != null && previo.getProfesional().getUsuario() != null
+                    && emailAutenticado.equalsIgnoreCase(previo.getProfesional().getUsuario().getEmail());
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            boolean esAdminORecepcion = auth != null && auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+
+            if (!esDuenoPaciente && !esDuenoMedico && !esAdminORecepcion) {
+                log.warn("Intento de acceso no autorizado a turno preexistente vía idempotencyKey '{}' por usuario '{}'", key, MascaraDatosUtil.enmascararEmail(emailAutenticado));
+                throw new AccessDeniedException("No está autorizado a consultar o recuperar el turno asociado a esta clave de idempotencia.");
+            }
+        }
+
+        boolean previoEsSobreturno = Boolean.TRUE.equals(previo.getEsSobreturno());
+        if (previoEsSobreturno != esSobreturno) {
+            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + key + "' fue utilizada previamente para un tipo de operación distinto.");
+        }
+
+        boolean coincidePaciente = (pacienteId != null && previo.getPaciente() != null && previo.getPaciente().getId().equals(pacienteId))
+                || (pacienteId == null && previo.getPaciente() != null && previo.getPaciente().getUsuario() != null && emailAutenticado != null && emailAutenticado.equalsIgnoreCase(previo.getPaciente().getUsuario().getEmail()));
+        boolean coincideProfesional = previo.getProfesional() != null && previo.getProfesional().getId().equals(profesionalId);
+        boolean coincideFecha = previo.getFechaHora() != null && previo.getFechaHora().isEqual(fechaHora);
+
+        if (!coincidePaciente || !coincideProfesional || !coincideFecha) {
+            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + key + "' ya fue utilizada previamente con parámetros de reserva diferentes.");
+        }
+    }
 }
-
-

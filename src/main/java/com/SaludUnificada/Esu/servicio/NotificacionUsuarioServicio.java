@@ -23,7 +23,7 @@ public class NotificacionUsuarioServicio {
     @Transactional
     public void crearNotificacion(Usuario usuario, String titulo, String mensaje, String tipo, String linkAccion) {
         if (usuario == null) {
-            log.warn("No se puede registrar notificación: el usuario destinatario es nulo.");
+            log.warn("No se puede registrar notificaciÃ³n: el usuario destinatario es nulo.");
             return;
         }
 
@@ -37,7 +37,7 @@ public class NotificacionUsuarioServicio {
                 .build();
 
         notificacionRepositorio.save(notif);
-        log.info("Notificación registrada para el usuario {}: {}", usuario.getEmail(), titulo);
+        log.info("NotificaciÃ³n registrada para el usuario {}: {}", usuario.getEmail(), titulo);
     }
 
     @Transactional(readOnly = true)
@@ -67,10 +67,10 @@ public class NotificacionUsuarioServicio {
     @Transactional
     public void marcarComoLeida(Long notificacionId, String email) {
         NotificacionUsuario notif = notificacionRepositorio.findById(notificacionId)
-                .orElseThrow(() -> new NoEncontradoExcepcion("Notificación no encontrada con ID: " + notificacionId));
+                .orElseThrow(() -> new NoEncontradoExcepcion("NotificaciÃ³n no encontrada con ID: " + notificacionId));
 
         if (notif.getUsuario() != null && !notif.getUsuario().getEmail().equalsIgnoreCase(email)) {
-            throw new org.springframework.security.access.AccessDeniedException("No posee autorización para modificar notificaciones de otro usuario.");
+            throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃ³n para modificar notificaciones de otro usuario.");
         }
 
         notif.setLeida(true);
@@ -80,7 +80,7 @@ public class NotificacionUsuarioServicio {
     @Transactional
     public void marcarTodasComoLeidas(String email) {
         notificacionRepositorio.marcarTodasComoLeidas(email);
-        log.info("Todas las notificaciones marcadas como leídas para el usuario: {}", email);
+        log.info("Todas las notificaciones marcadas como leÃ­das para el usuario: {}", email);
     }
 
     private NotificacionDtoResponse paraDto(NotificacionUsuario notif) {

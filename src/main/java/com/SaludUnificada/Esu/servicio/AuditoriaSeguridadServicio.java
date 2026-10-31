@@ -38,11 +38,11 @@ public class AuditoriaSeguridadServicio {
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(userAgent);
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.LOGIN_OK);
-        logEntry.setDetalle("Inicio de sesión completado satisfactoriamente.");
+        logEntry.setDetalle("Inicio de sesiÃ³n completado satisfactoriamente.");
         logEntry.setFecha(LocalDateTime.now());
 
         auditoriaRepositorio.save(logEntry);
-        log.info("LOGIN_OK: Usuario '{}' desde IP '{}'", email, ip);
+        log.info("LOGIN_OK: Usuario '{}' desde IP '{}'", com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(email), ip);
     }
 
     @Transactional
@@ -55,11 +55,11 @@ public class AuditoriaSeguridadServicio {
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(userAgent);
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.LOGIN_FAIL);
-        logEntry.setDetalle(motivo != null ? motivo : "Credenciales inválidas.");
+        logEntry.setDetalle(motivo != null ? motivo : "Credenciales invÃ¡lidas.");
         logEntry.setFecha(LocalDateTime.now());
 
         auditoriaRepositorio.save(logEntry);
-        log.warn("LOGIN_FAIL: Intento fallido para '{}' desde IP '{}'. Motivo: {}", email, ip, motivo);
+        log.warn("LOGIN_FAIL: Intento fallido para '{}' desde IP '{}'. Motivo: {}", com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(email), ip, motivo);
     }
 
     public boolean estaBloqueadoPorIntentosFallidos(String email) {
@@ -149,7 +149,7 @@ public class AuditoriaSeguridadServicio {
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(obtenerUserAgent());
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.REENVIO_VERIFICACION);
-        logEntry.setDetalle("Reenvío de correo de verificación solicitado.");
+        logEntry.setDetalle("ReenvÃ­o de correo de verificaciÃ³n solicitado.");
         logEntry.setFecha(LocalDateTime.now());
         auditoriaRepositorio.save(logEntry);
 
@@ -172,7 +172,7 @@ public class AuditoriaSeguridadServicio {
         logEntry.setIpAddress(obtenerClientIp());
         logEntry.setUserAgent(obtenerUserAgent());
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.SOLICITUD_RECUPERACION);
-        logEntry.setDetalle("Solicitud de recuperación de contraseña.");
+        logEntry.setDetalle("Solicitud de recuperaciÃ³n de contraseÃ±a.");
         logEntry.setFecha(LocalDateTime.now());
         auditoriaRepositorio.save(logEntry);
 

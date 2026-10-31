@@ -1,6 +1,6 @@
 package com.SaludUnificada.Esu.controlador;
 
-import com.SaludUnificada.Esu.entidad.OutboxEvento;
+import com.SaludUnificada.Esu.dto.response.OutboxEventoDtoResponse;
 import com.SaludUnificada.Esu.servicio.OutboxScheduler;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,15 +16,15 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin/outbox")
 @RequiredArgsConstructor
-@Tag(name = "Outbox Administrativo", description = "Monitoreo y reintento manual de eventos asíncronos y notificaciones")
+@Tag(name = "Outbox Administrativo", description = "Monitoreo y reintento manual de eventos asÃ­ncronos y notificaciones")
 public class OutboxControlador {
 
     private final OutboxScheduler outboxScheduler;
 
-    @GetMapping("/fallidos")
+    @GetMapping({"/fallidos", "/problematicos"})
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Listar eventos outbox fallidos o con inconsistencias")
-    public ResponseEntity<List<OutboxEvento>> listarFallidos(
+    public ResponseEntity<List<OutboxEventoDtoResponse>> listarFallidos(
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int tamano) {
         int limite = Math.min(Math.max(tamano, 1), 100);

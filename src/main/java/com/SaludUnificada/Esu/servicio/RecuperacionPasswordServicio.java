@@ -43,8 +43,8 @@ public class RecuperacionPasswordServicio {
         Optional<Usuario> optUsuario = usuarioRepositorio.findByEmail(email);
 
         if (optUsuario.isEmpty()) {
-            // Mitigación de user enumeration: respondemos sin revelar si el usuario existe o no
-            log.info("Solicitud de recuperación para correo inexistente: {}", email);
+            // MitigaciÃ³n de user enumeration: respondemos sin revelar si el usuario existe o no
+            log.info("Solicitud de recuperaciÃ³n para correo inexistente: {}", email);
             return;
         }
 
@@ -74,7 +74,7 @@ public class RecuperacionPasswordServicio {
                 : (usuario.getProfesional() != null ? usuario.getProfesional().getNombre() : usuario.getEmail());
 
         emailServicio.enviarTokenRecuperacion(usuario.getEmail(), nombre, tokenStr);
-        log.info("Token de recuperación generado exitosamente para {}", usuario.getEmail());
+        log.info("Token de recuperaciÃ³n generado exitosamente para {}", usuario.getEmail());
     }
 
     @Transactional
@@ -82,21 +82,21 @@ public class RecuperacionPasswordServicio {
         String tokenStr = request.getToken().trim();
 
         TokenRecuperacion token = tokenRepositorio.findByToken(tokenStr)
-                .orElseThrow(() -> new IllegalArgumentException("El token de recuperación ingresado no es válido o no existe."));
+                .orElseThrow(() -> new IllegalArgumentException("El token de recuperaciÃ³n ingresado no es vÃ¡lido o no existe."));
 
         if (Boolean.TRUE.equals(token.getUsado())) {
-            throw new IllegalStateException("El token de recuperación ya fue utilizado previamente.");
+            throw new IllegalStateException("El token de recuperaciÃ³n ya fue utilizado previamente.");
         }
 
         if (token.estaVencido()) {
             token.setUsado(true);
             tokenRepositorio.save(token);
-            throw new IllegalStateException("El enlace de recuperación ha expirado (validez máxima 15 minutos). Por favor solicite uno nuevo.");
+            throw new IllegalStateException("El enlace de recuperaciÃ³n ha expirado (validez mÃ¡xima 15 minutos). Por favor solicite uno nuevo.");
         }
 
         Usuario usuario = token.getUsuario();
         if (usuario == null) {
-            throw new NoEncontradoExcepcion("Usuario no asociado al token de recuperación.");
+            throw new NoEncontradoExcepcion("Usuario no asociado al token de recuperaciÃ³n.");
         }
 
         usuario.setPassword(passwordEncoder.encode(request.getNuevaPassword()));
@@ -104,10 +104,10 @@ public class RecuperacionPasswordServicio {
         usuario.revocarSesiones(); // Invalida todas las sesiones previas incrementando tokenVersion
         usuarioRepositorio.save(usuario);
 
-        // Invalidación inmediata del token
+        // InvalidaciÃ³n inmediata del token
         token.setUsado(true);
         tokenRepositorio.save(token);
 
-        log.info("Contraseña actualizada exitosamente para el usuario {}", usuario.getEmail());
+        log.info("ContraseÃ±a actualizada exitosamente para el usuario {}", usuario.getEmail());
     }
 }

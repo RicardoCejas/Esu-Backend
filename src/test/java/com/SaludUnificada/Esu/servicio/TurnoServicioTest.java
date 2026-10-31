@@ -276,4 +276,83 @@ class TurnoServicioTest {
         assertEquals("CANCELADO", turno.getEstado());
         verify(recordatorios).deleteByTurnoId(88L);
     }
+
+    @Test
+    void crearTurnoConIdempotenciaRetornaTurnoExistenteSiCoincide() {
+        var paciente = new Paciente(); paciente.setId(21L);
+        Usuario u = new Usuario(); u.setEmail("patient@example.test");
+        paciente.setUsuario(u);
+        var profesional = new Profesional(); profesional.setId(12L);
+        LocalDateTime fechaHora = LocalDateTime.of(2026, 10, 15, 9, 30);
+
+        Turno existente = new Turno();
+        existente.setId(99L);
+        existente.setIdempotencyKey("idem-key-1");
+        existente.setPaciente(paciente);
+        existente.setProfesional(profesional);
+        existente.setFechaHora(fechaHora);
+
+        var request = new TurnoDtoRequest(fechaHora, 12L, "Consulta");
+        request.setIdempotencyKey("idem-key-1");
+
+        when(turnos.findByIdempotencyKey("idem-key-1")).thenReturn(Optional.of(existente));
+        when(mapper.paraDto(existente)).thenReturn(TurnoDtoResponse.builder().id(99L).build());
+
+        TurnoDtoResponse res = servicio.crearTurno(request, "patient@example.test");
+
+        assertNotNull(res);
+        assertEquals(99L, res.getId());
+        verify(turnos, never()).save(any());
+    }
+
+    @Test
+    void crearTurnoConIdempotenciaRechazaClaveConDiferentesParametros() {
+        var paciente = new Paciente(); paciente.setId(21L);
+        Usuario u = new Usuario(); u.setEmail("patient@example.test");
+        paciente.setUsuario(u);
+        var profesional = new Profesional(); profesional.setId(12L);
+        LocalDateTime fechaHora = LocalDateTime.of(2026, 10, 15, 9, 30);
+
+        Turno existente = new Turno();
+        existente.setId(99L);
+        existente.setIdempotencyKey("idem-key-dup");
+        existente.setPaciente(paciente);
+        existente.setProfesional(profesional);
+        existente.setFechaHora(fechaHora);
+
+        // Payload diferente (distinto profesional 99L != 12L)
+        var request = new TurnoDtoRequest(fechaHora, 99L, "Consulta");
+        request.setIdempotencyKey("idem-key-dup");
+
+        when(turnos.findByIdempotencyKey("idem-key-dup")).thenReturn(Optional.of(existente));
+
+        assertThrows(IllegalStateException.class, () -> servicio.crearTurno(request, "patient@example.test"));
+        verify(turnos, never()).save(any());
+    }
+
+    @Test
+    void crearTurnoConIdempotenciaRechazaAccesoPorOtroUsuario() {
+        var paciente = new Paciente(); paciente.setId(21L);
+        Usuario u = new Usuario(); u.setEmail("otro_paciente@example.test");
+        paciente.setUsuario(u);
+        var profesional = new Profesional(); profesional.setId(12L);
+        LocalDateTime fechaHora = LocalDateTime.of(2026, 10, 15, 9, 30);
+
+        Turno existente = new Turno();
+        existente.setId(99L);
+        existente.setIdempotencyKey("idem-key-sec");
+        existente.setPaciente(paciente);
+        existente.setProfesional(profesional);
+        existente.setFechaHora(fechaHora);
+
+        var request = new TurnoDtoRequest(fechaHora, 12L, "Consulta");
+        request.setIdempotencyKey("idem-key-sec");
+
+        when(turnos.findByIdempotencyKey("idem-key-sec")).thenReturn(Optional.of(existente));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> 
+            servicio.crearTurno(request, "intruso@example.test")
+        );
+        verify(turnos, never()).save(any());
+    }
 }

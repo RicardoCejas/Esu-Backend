@@ -2,6 +2,9 @@ package com.SaludUnificada.Esu.servicio;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 
 import org.springframework.data.domain.Page;
@@ -57,9 +60,40 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     @Autowired(required = false)
     private NotificacionUsuarioServicio notificacionUsuarioServicio;
 
+    @Autowired(required = false)
+    private ProfesionalRepositorio profesionalRepositorio;
+
     @Override
     @Transactional
     public HistoriaClinicaDtoResponse crearHistoriaClinica(HistoriaClinicaDtoRequest dto) {
+        if (dto == null || dto.getPacienteId() == null) {
+            throw new IllegalArgumentException("El ID del paciente es obligatorio para crear la historia clínica.");
+        }
+        if (pacienteRepositorio != null && !pacienteRepositorio.existsById(dto.getPacienteId())) {
+            throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + dto.getPacienteId());
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin) {
+                if (profesionalRepositorio != null) {
+                    var profOpt = profesionalRepositorio.findByUsuarioEmail(auth.getName());
+                    if (profOpt.isEmpty()) {
+                        throw new AccessDeniedException("El usuario autenticado no posee un perfil profesional activo vinculado.");
+                    }
+                    if (!Boolean.TRUE.equals(profOpt.get().getEstadoActivo())) {
+                        throw new AccessDeniedException("El perfil del profesional autenticado se encuentra inactivo.");
+                    }
+                }
+                if (ownershipSecurityEvaluator != null && !ownershipSecurityEvaluator.canAccessPatient(dto.getPacienteId())) {
+                    throw new AccessDeniedException("No posee relación asistencial autorizada con el paciente para registrar historias clínicas.");
+                }
+            }
+        } else {
+            throw new AccessDeniedException("Debe autenticarse para crear una historia clínica.");
+        }
+
         HistoriaClinica historiaClinica = historiaClinicaMapper.paraEntidad(dto);
         HistoriaClinica guardada = historiaClinicaRepositorio.save(historiaClinica);
         return historiaClinicaMapper.paraDto(guardada);

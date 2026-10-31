@@ -30,6 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
+import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
 
 @Service
 @RequiredArgsConstructor
@@ -69,10 +73,10 @@ public class RecetaDigitalServicio {
             if (evOpt.isPresent()) {
                 var ev = evOpt.get();
                 if (ev.getPaciente() != null && !ev.getPaciente().getId().equals(paciente.getId())) {
-                    throw new ReglaNegocioException("La evolución médica especificada no corresponde al paciente de la receta.");
+                    throw new ReglaNegocioException("La evoluciÃ³n mÃ©dica especificada no corresponde al paciente de la receta.");
                 }
                 if (ev.getProfesional() != null && !ev.getProfesional().getId().equals(profesional.getId())) {
-                    throw new ReglaNegocioException("La evolución médica especificada no corresponde al profesional prescriptor.");
+                    throw new ReglaNegocioException("La evoluciÃ³n mÃ©dica especificada no corresponde al profesional prescriptor.");
                 }
             }
         }
@@ -81,7 +85,7 @@ public class RecetaDigitalServicio {
             Set<String> principiosActivosVistos = new HashSet<>();
             for (MedicamentoItemDto item : request.getMedicamentos()) {
                 if (item.getDroga() == null || item.getDroga().trim().isEmpty()) {
-                    throw new IllegalArgumentException("Cada renglón debe contener un principio activo o monodroga obligatorio según Ley 27.553");
+                    throw new IllegalArgumentException("Cada renglÃ³n debe contener un principio activo o monodroga obligatorio segÃºn Ley 27.553");
                 }
                 String normalizada = catalogoFarmacologicoServicio.normalizar(item.getDroga());
                 if (!principiosActivosVistos.add(normalizada)) {
@@ -167,14 +171,14 @@ public class RecetaDigitalServicio {
         String claveBusqueda = extraerHashOId(request.getCodigoOQr());
 
         RecetaDigital receta = buscarRecetaPorCodigoOHash(claveBusqueda)
-            .orElseThrow(() -> new NoEncontradoExcepcion("No se encontró ninguna receta médica registrada con el identificador o QR: " + request.getCodigoOQr()));
+            .orElseThrow(() -> new NoEncontradoExcepcion("No se encontrÃ³ ninguna receta mÃ©dica registrada con el identificador o QR: " + request.getCodigoOQr()));
 
         if ("ANULADA".equalsIgnoreCase(receta.getEstadoReceta())) {
             throw new ReglaNegocioException(String.format("La receta oficial #%d fue ANULADA y no puede ser dispensada.", receta.getId()));
         }
         if ("DISPENSADA".equalsIgnoreCase(receta.getEstadoReceta()) || receta.getFechaDispensacion() != null) {
             throw new RecetaYaDispensadaException(
-                String.format("La receta oficial #%d (Hash: %s) ya fue DISPENSADA el %s por la farmacia matrícula %s.",
+                String.format("La receta oficial #%d (Hash: %s) ya fue DISPENSADA el %s por la farmacia matrÃ­cula %s.",
                     receta.getId(),
                     receta.getHashIntegridad(),
                     receta.getFechaDispensacion(),
@@ -188,7 +192,7 @@ public class RecetaDigitalServicio {
             receta.setEstadoReceta("VENCIDA");
             recetaRepositorio.save(receta);
             throw new RecetaVencidaException(
-                String.format("La receta oficial #%d venció el %s superando los 30 días corridos de vigencia legal reglamentaria. No puede dispensarse.",
+                String.format("La receta oficial #%d venciÃ³ el %s superando los 30 dÃ­as corridos de vigencia legal reglamentaria. No puede dispensarse.",
                     receta.getId(),
                     receta.getFechaVencimiento()
                 )
@@ -201,7 +205,7 @@ public class RecetaDigitalServicio {
 
         RecetaDigital actualizada = recetaRepositorio.save(receta);
         if (!"DISPENSADA".equalsIgnoreCase(actualizada.getEstadoReceta())) {
-            throw new ReglaNegocioException("Error de consistencia al registrar la dispensación de la receta.");
+            throw new ReglaNegocioException("Error de consistencia al registrar la dispensaciÃ³n de la receta.");
         }
 
         return DispensarRecetaDtoResponse.builder()
@@ -256,11 +260,11 @@ public class RecetaDigitalServicio {
             .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId));
 
         if (Boolean.FALSE.equals(profesional.getEstadoActivo())) {
-            throw new IllegalStateException("El profesional se encuentra inactivo y no tiene matrícula habilitada para emitir recetas.");
+            throw new IllegalStateException("El profesional se encuentra inactivo y no tiene matrÃ­cula habilitada para emitir recetas.");
         }
 
         if (profesional.getMatricula() == null || profesional.getMatricula().trim().isEmpty()) {
-            throw new IllegalStateException("El profesional no registra matrícula médica válida para emitir prescripciones oficiales.");
+            throw new IllegalStateException("El profesional no registra matrÃ­cula mÃ©dica vÃ¡lida para emitir prescripciones oficiales.");
         }
     }
 
@@ -312,7 +316,7 @@ public class RecetaDigitalServicio {
                     .tipoDocumento("RECETA_DIGITAL")
                     .estado("INTEGRIDAD_INVALIDA")
                     .hashIntegridadSha256(r.getHashIntegridad())
-                    .mensaje("Falla en la verificación de integridad: el documento ha sido alterado o la firma digital no coincide.")
+                    .mensaje("Falla en la verificaciÃ³n de integridad: el documento ha sido alterado o la firma digital no coincide.")
                     .build();
             }
 
@@ -328,14 +332,14 @@ public class RecetaDigitalServicio {
                 .matriculaProfesional(r.getProfesional() != null ? r.getProfesional().getMatricula() : null)
                 .hashIntegridadSha256(r.getHashIntegridad())
                 .integridadValida(true)
-                .mensaje("Documento oficial validado. Cumple con la normativa de firma e integridad electrónica.")
+                .mensaje("Documento oficial validado. Cumple con la normativa de firma e integridad electrÃ³nica.")
                 .build();
         }
 
         return VerificacionRecetaPublicaDtoResponse.builder()
             .valido(false)
             .integridadValida(false)
-            .mensaje("No se encontró ningún documento oficial registrado con dicho código de verificación.")
+            .mensaje("No se encontrÃ³ ningÃºn documento oficial registrado con dicho cÃ³digo de verificaciÃ³n.")
             .build();
     }
 

@@ -38,14 +38,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
-@Tag(name = "Evoluciones Clínicas", description = "Gestión inalterable de evoluciones, adendas, resumen clínico y cierre de atención")
+@Tag(name = "Evoluciones ClÃ­nicas", description = "GestiÃ³n inalterable de evoluciones, adendas, resumen clÃ­nico y cierre de atenciÃ³n")
 public class EvolucionControlador {
 
     private final EvolucionMedicaServicio evolucionServicio;
     private final EvolucionMedicaMapper evolucionMedicaMapper;
 
     @PostMapping("/historias-clinicas/evoluciones")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#request.pacienteId))")
     @Operation(summary = "Registrar y firmar electrónicamente una evolución médica clínica")
     public ResponseEntity<EvolucionMedicaDtoResponse> registrarEvolucion(@Valid @RequestBody EvolucionMedicaDtoRequest request) {
         EvolucionMedica entidad = evolucionServicio.registrarEvolucion(request);
@@ -54,7 +54,7 @@ public class EvolucionControlador {
 
     @PostMapping("/historias-clinicas/evoluciones/{id}/adenda")
     @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessEvolucion(#id))")
-    @Operation(summary = "Emitir Adenda médica / Fe de erratas formal sobre una evolución firmada")
+    @Operation(summary = "Emitir Adenda mÃ©dica / Fe de erratas formal sobre una evoluciÃ³n firmada")
     public ResponseEntity<EvolucionAdendaDtoResponse> emitirAdenda(
         @PathVariable Long id,
         @Valid @RequestBody EvolucionAdendaDtoRequest request
@@ -65,7 +65,7 @@ public class EvolucionControlador {
 
     @PutMapping("/turnos/{id}/finalizar-atencion")
     @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
-    @Operation(summary = "Finalizar atención médica, asociar evolución y cerrar turno a FINALIZADO")
+    @Operation(summary = "Finalizar atenciÃ³n mÃ©dica, asociar evoluciÃ³n y cerrar turno a FINALIZADO")
     public ResponseEntity<EvolucionMedicaDtoResponse> finalizarAtencion(
         @PathVariable Long id,
         @Valid @RequestBody FinalizarAtencionDtoRequest request
@@ -76,21 +76,21 @@ public class EvolucionControlador {
 
     @GetMapping("/pacientes/{id}/resumen-clinico")
     @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
-    @Operation(summary = "Obtener resumen clínico, panel de alertas médicas críticas fijas y signos vitales")
+    @Operation(summary = "Obtener resumen clÃ­nico, panel de alertas mÃ©dicas crÃ­ticas fijas y signos vitales")
     public ResponseEntity<ResumenClinicoDtoResponse> obtenerResumenClinico(@PathVariable Long id) {
         return ResponseEntity.ok(evolucionServicio.obtenerResumenClinico(id));
     }
 
     @GetMapping("/historias-clinicas/paciente/{id}/timeline")
     @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
-    @Operation(summary = "Obtener línea de tiempo cronológica completa de atenciones del paciente")
+    @Operation(summary = "Obtener lÃ­nea de tiempo cronolÃ³gica completa de atenciones del paciente")
     public ResponseEntity<List<TimelineItemDto>> obtenerTimeline(@PathVariable Long id) {
         return ResponseEntity.ok(evolucionServicio.obtenerTimelinePaciente(id));
     }
 
     @GetMapping("/historias-clinicas/{pacienteId}/timeline")
     @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
-    @Operation(summary = "Búsqueda parametrizada y paginación optimizada del timeline clínico (HU-102)")
+    @Operation(summary = "BÃºsqueda parametrizada y paginaciÃ³n optimizada del timeline clÃ­nico (HU-102)")
     public ResponseEntity<Page<TimelineItemDto>> obtenerTimelineParametrizado(
             @PathVariable Long pacienteId,
             @RequestParam(required = false) String q,
@@ -104,7 +104,7 @@ public class EvolucionControlador {
 
     @PostMapping("/historias-clinicas/consultas/borrador")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
-    @Operation(summary = "Guardar borrador de consulta médica")
+    @Operation(summary = "Guardar borrador de consulta mÃ©dica")
     public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(
             @RequestBody ConsultaBorradorDtoRequest borrador,
             Principal principal) {
@@ -113,7 +113,7 @@ public class EvolucionControlador {
 
     @GetMapping("/historias-clinicas/consultas/borrador")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
-    @Operation(summary = "Consultar borrador de consulta médica")
+    @Operation(summary = "Consultar borrador de consulta mÃ©dica")
     public ResponseEntity<ConsultaBorrador> obtenerBorrador(
             @RequestParam(required = false) Long turnoId,
             @RequestParam(required = false) Long pacienteId,
@@ -127,7 +127,7 @@ public class EvolucionControlador {
 
     @GetMapping("/historias-clinicas/evoluciones/{id}/pdf")
     @PreAuthorize("@securityPolicy.canAccessEvolucion(#id)")
-    @Operation(summary = "Descargar informe de evolución médica inalterable en PDF con QR y SHA-256")
+    @Operation(summary = "Descargar informe de evoluciÃ³n mÃ©dica inalterable en PDF con QR y SHA-256")
     public ResponseEntity<StreamingResponseBody> descargarEvolucionPdf(@PathVariable Long id) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);

@@ -35,6 +35,9 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.mail.host:}")
     private String mailHost;
 
+    @Value("${spring.mail.password:}")
+    private String mailPassword;
+
     @PostConstruct
     public void validateConfiguration() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
@@ -52,16 +55,23 @@ public class ProductionSecurityStartupValidator {
             if (jwtSecret == null || jwtSecret.trim().isEmpty() || jwtSecret.length() < 32) {
                 throw new IllegalStateException("FATAL: En entorno de producción se requiere definir 'APP_JWT_SECRET' con una clave de al menos 32 caracteres (256 bits).");
             }
-            if (jwtSecret.contains("MiClaveSecretaSuperSegura") || jwtSecret.contains("secret") || jwtSecret.contains("123456")) {
-                throw new IllegalStateException("FATAL: 'APP_JWT_SECRET' no puede contener valores predeterminados o predecibles en producción.");
+            String jwtLower = jwtSecret.toLowerCase();
+            if (jwtLower.contains("miclavesecretasupersegura") || jwtLower.contains("secret") || jwtLower.contains("123456")
+                    || jwtLower.contains("cambiar") || jwtLower.contains("definir") || jwtLower.contains("placeholder") || jwtLower.contains("ejemplo")) {
+                throw new IllegalStateException("FATAL: 'APP_JWT_SECRET' no puede contener valores predeterminados, placeholders ni contraseñas de ejemplo en producción.");
             }
 
-            // 2. Validar que la base de datos no use usuario 'root' ni contraseña vacía
+            // 2. Validar que la base de datos no use usuario 'root' ni contraseña vacía o placeholder
             if ("root".equalsIgnoreCase(datasourceUsername)) {
                 throw new IllegalStateException("FATAL: Violación de mínimos privilegios: La aplicación no puede conectarse a MySQL como usuario 'root' en producción.");
             }
             if (datasourcePassword == null || datasourcePassword.trim().isEmpty() || "root".equalsIgnoreCase(datasourcePassword)) {
                 throw new IllegalStateException("FATAL: Contraseña de base de datos MySQL vacía o insegura para producción.");
+            }
+            String dbPassLower = datasourcePassword.toLowerCase();
+            if (dbPassLower.contains("definir") || dbPassLower.contains("cambiar") || dbPassLower.contains("placeholder")
+                    || dbPassLower.contains("password") || dbPassLower.contains("123456") || "admin".equalsIgnoreCase(datasourcePassword)) {
+                throw new IllegalStateException("FATAL: Contraseña de base de datos MySQL contiene placeholders o valores predecibles de ejemplo para producción.");
             }
 
             // 3. Validar CORS sin comodines ni localhost
@@ -74,9 +84,15 @@ public class ProductionSecurityStartupValidator {
                 throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar 'FRONTEND_URL' con una URL pública HTTPS válida (no localhost).");
             }
 
-            // 5. Validar host de correo electrónico
-            if ("localhost".equalsIgnoreCase(mailHost) || "127.0.0.1".equals(mailHost)) {
-                throw new IllegalStateException("FATAL: En producción se requiere configurar un servidor SMTP externo legítimo ('spring.mail.host').");
+            // 5. Validar host y password de correo electrónico
+            if (mailHost == null || mailHost.trim().isEmpty() || "localhost".equalsIgnoreCase(mailHost) || "127.0.0.1".equals(mailHost)
+                    || mailHost.contains("ejemplo.gob.ar") || mailHost.contains("example.com") || mailHost.toLowerCase().contains("cambiar")) {
+                throw new IllegalStateException("FATAL: En producción se requiere configurar un servidor SMTP externo legítimo y no un placeholder ('spring.mail.host').");
+            }
+            if (mailPassword == null || mailPassword.trim().isEmpty()
+                    || mailPassword.toLowerCase().contains("definir") || mailPassword.toLowerCase().contains("cambiar")
+                    || mailPassword.toLowerCase().contains("password") || mailPassword.contains("123456")) {
+                throw new IllegalStateException("FATAL: Contraseña de servidor SMTP vacía o placeholder para entorno productivo ('spring.mail.password').");
             }
 
             log.info("Verificación de configuración productiva completada satisfactoriamente.");
