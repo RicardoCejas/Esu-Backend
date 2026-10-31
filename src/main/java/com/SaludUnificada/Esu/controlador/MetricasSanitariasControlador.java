@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.response.MetricasAusentismoDtoResponse;
+import com.SaludUnificada.Esu.dto.response.DashboardMetricasDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TopDiagnosticoDtoResponse;
 import com.SaludUnificada.Esu.servicio.MetricasSanitariasServicio;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,4 +51,15 @@ public class MetricasSanitariasControlador {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
         return ResponseEntity.ok(metricasServicio.obtenerMetricasAusentismoPorProfesional(profesionalId, desde, hasta));
     }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<DashboardMetricasDtoResponse> obtenerDashboardMetricas(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long centroId,
+            @RequestParam(required = false) String especialidad
+    ) {
+        return ResponseEntity.ok(metricasServicio.obtenerDashboardMetricas(desde, hasta, centroId, especialidad));
+    }
+
 }

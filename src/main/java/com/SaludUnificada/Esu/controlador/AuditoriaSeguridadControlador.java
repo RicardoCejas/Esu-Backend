@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.response.LogAuditoriaSeguridadDtoResponse;
+import com.SaludUnificada.Esu.dto.response.LogAccesoHcDtoResponse;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,4 +44,14 @@ public class AuditoriaSeguridadControlador {
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .body(csv);
     }
+
+    @GetMapping("/auditoria/accesos-clinicos")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Obtener el registro de auditoría de accesos clínicos sin revelar contenido médico (Exclusivo ADMIN)")
+    public ResponseEntity<Page<LogAccesoHcDtoResponse>> listarAccesosClinicos(
+            @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return ResponseEntity.ok(auditoriaSeguridadServicio.listarAccesosClinicos(pageable));
+    }
+
 }
