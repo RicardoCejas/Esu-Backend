@@ -1,6 +1,6 @@
 package com.SaludUnificada.Esu.controlador;
 
-import com.SaludUnificada.Esu.entidad.OutboxEvento;
+import com.SaludUnificada.Esu.dto.response.OutboxEventoDtoResponse;
 import com.SaludUnificada.Esu.servicio.OutboxScheduler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,14 +31,17 @@ class OutboxControladorTest {
 
     @Test
     void testListarFallidos() {
-        OutboxEvento ev = new OutboxEvento();
-        ev.setId(10L);
-        ev.setEstado("FALLIDO");
+        OutboxEventoDtoResponse ev = OutboxEventoDtoResponse.builder()
+                .id(10L)
+                .estado("FALLIDO")
+                .tipoEvento("TURNO_CONFIRMADO")
+                .aggregateId(100L)
+                .build();
 
         when(outboxScheduler.listarEventosConProblemas(any(PageRequest.class)))
                 .thenReturn(List.of(ev));
 
-        ResponseEntity<List<OutboxEvento>> response = outboxControlador.listarFallidos(0, 10);
+        ResponseEntity<List<OutboxEventoDtoResponse>> response = outboxControlador.listarFallidos(0, 10);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());

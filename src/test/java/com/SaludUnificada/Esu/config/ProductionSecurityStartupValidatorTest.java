@@ -46,6 +46,16 @@ class ProductionSecurityStartupValidatorTest {
     }
 
     @Test
+    void testValidateConfiguration_ProdConJwtPlaceholder_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "CAMBIAR_EN_PRODUCCION_CLAVE_JWT_MINIMO_32_CARACTERES_HEX_O_BASE64");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
+
+    @Test
     void testValidateConfiguration_ProdConUsuarioRoot_Falla() {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
 
@@ -57,13 +67,25 @@ class ProductionSecurityStartupValidatorTest {
     }
 
     @Test
+    void testValidateConfiguration_ProdConDbPasswordPlaceholder_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "CAMBIAR_EN_PRODUCCION_PASSWORD_MYSQL_ESU_APP");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
+
+    @Test
     void testValidateConfiguration_ProdConCorsLocalhost_Falla() {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
-        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongPassword123!");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "http://localhost:5173");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
@@ -76,9 +98,24 @@ class ProductionSecurityStartupValidatorTest {
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
-        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongPassword123!");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "frontendUrl", "http://localhost:5173");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
+
+    @Test
+    void testValidateConfiguration_ProdConSmtpPlaceholder_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
+        ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailHost", "smtp.ejemplo.gob.ar");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
     }
@@ -90,10 +127,11 @@ class ProductionSecurityStartupValidatorTest {
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
-        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongPassword123!");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
+        ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
 
         assertDoesNotThrow(validator::validateConfiguration);
     }

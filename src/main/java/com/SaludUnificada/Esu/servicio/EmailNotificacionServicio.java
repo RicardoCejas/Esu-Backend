@@ -127,58 +127,45 @@ public class EmailNotificacionServicio {
         return null;
     }
 
+    /**
+     * Despacha un correo electrónico HTML de forma síncrona.
+     * El reintento y backoff es gestionado exclusivamente por el patrón Outbox en OutboxTransaccionServicio,
+     * evitando reintentos anidados. La garantía de entrega con SMTP es at-least-once.
+     */
     private void enviarCorreoHtml(String destinatario, String asunto, String htmlContent, byte[] adjuntoBytes, String nombreAdjunto) {
-        if (mailSender == null) {
-            log.warn("JavaMailSender no está configurado. Simulación preventiva de envío de correo a: {}", destinatario);
+        if (destinatario == null || destinatario.isBlank()) {
+            log.warn("Destinatario de correo vacío. Omitiendo envío.");
             return;
         }
 
-        int intentos = 0;
-        int maxIntentos = 3;
-        boolean enviado = false;
+        String emailEnmascarado = com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(destinatario);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-        while (intentos < maxIntentos && !enviado) {
-            intentos++;
             try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-                try {
-                    helper.setFrom(mailFrom, "ESU - Salud Unificada");
-                } catch (Exception e) {
-                    helper.setFrom(mailFrom);
-                }
-                helper.setTo(destinatario);
-                helper.setSubject(asunto);
-                message.addHeader("X-Mailer", "ESU-Platform/1.0");
-                message.addHeader("X-Auto-Response-Suppress", "All");
-                message.addHeader("Auto-Submitted", "auto-generated");
-                message.addHeader("X-ESU-Delivery-Guarantee", "at-least-once");
-                String textoPlano = extraerTextoPlano(htmlContent);
-                helper.setText(textoPlano, htmlContent);
-
-                if (adjuntoBytes != null && nombreAdjunto != null) {
-                    helper.addAttachment(nombreAdjunto, new ByteArrayResource(adjuntoBytes));
-                }
-
-                mailSender.send(message);
-                enviado = true;
-                log.info("Notificación por correo despachada exitosamente a {} en intento {}", destinatario, intentos);
-            } catch (Exception ex) {
-                log.error("Fallo al enviar correo a {} en intento {}/{}: {}", destinatario, intentos, maxIntentos, ex.getMessage());
-                if (intentos < maxIntentos) {
-                    try {
-                        Thread.sleep(1000L * intentos);
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
+                helper.setFrom(mailFrom, "ESU - Salud Unificada");
+            } catch (Exception e) {
+                helper.setFrom(mailFrom);
             }
-        }
+            helper.setTo(destinatario);
+            helper.setSubject(asunto);
+            message.addHeader("X-Mailer", "ESU-Platform/1.0");
+            message.addHeader("X-Auto-Response-Suppress", "All");
+            message.addHeader("Auto-Submitted", "auto-generated");
+            message.addHeader("X-ESU-Delivery-Guarantee", "at-least-once");
+            String textoPlano = extraerTextoPlano(htmlContent);
+            helper.setText(textoPlano, htmlContent);
 
-        if (!enviado) {
-            log.error("Fallo definitivo de entrega de correo a {} luego de {} intentos.", destinatario, maxIntentos);
-            throw new RuntimeException("Fallo al entregar correo electrónico tras " + maxIntentos + " intentos a " + destinatario);
+            if (adjuntoBytes != null && nombreAdjunto != null) {
+                helper.addAttachment(nombreAdjunto, new ByteArrayResource(adjuntoBytes));
+            }
+
+            mailSender.send(message);
+            log.info("Notificación por correo despachada exitosamente a {}", emailEnmascarado);
+        } catch (Exception ex) {
+            log.error("Fallo al enviar correo a {}: {}", emailEnmascarado, ex.getMessage());
+            throw new RuntimeException("Fallo al entregar correo electrónico a " + emailEnmascarado + ": " + ex.getMessage(), ex);
         }
     }
 

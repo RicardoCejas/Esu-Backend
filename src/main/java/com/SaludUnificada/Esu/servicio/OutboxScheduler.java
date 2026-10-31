@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.response.OutboxEventoDtoResponse;
 import com.SaludUnificada.Esu.entidad.OutboxEvento;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -70,8 +71,8 @@ public class OutboxScheduler {
     }
 
     /**
-     * Tarea programada que ejecuta el ciclo de Outbox SIN mantener una transacción abierta
-     * durante la generación de PDFs o llamadas de red SMTP.
+     * Tarea programada que ejecuta el ciclo de Outbox SIN mantener una transacciÃ³n abierta
+     * durante la generaciÃ³n de PDFs o llamadas de red SMTP.
      */
     @Scheduled(fixedDelayString = "${esu.outbox.fixed-delay-ms:10000}")
     public void procesarEventosPendientes() {
@@ -80,7 +81,7 @@ public class OutboxScheduler {
             return;
         }
 
-        log.debug("Procesando {} eventos de outbox reclamados de forma atómica", claimed.size());
+        log.debug("Procesando {} eventos de outbox reclamados de forma atÃ³mica", claimed.size());
         for (OutboxEvento ev : claimed) {
             procesarEventoIndividual(ev);
         }
@@ -88,14 +89,14 @@ public class OutboxScheduler {
 
     /**
      * Procesamiento de evento individual:
-     * - Generación de PDF y envío de correo se ejecutan fuera de cualquier transacción de BD.
+     * - GeneraciÃ³n de PDF y envÃ­o de correo se ejecutan fuera de cualquier transacciÃ³n de BD.
      * - Las actualizaciones de estado y lease se realizan mediante OutboxTransaccionServicio en transacciones dedicadas.
      */
     public void procesarEventoIndividual(OutboxEvento ev) {
         try {
             // Idempotencia externa: si el efecto ya fue emitido y solo faltaba confirmar en BD
             if (Boolean.TRUE.equals(ev.getDespachadoExterno())) {
-                log.info("Evento outbox ID={} ya fue despachado externamente. Omitiendo reenvío de correo y confirmando estado ENVIADO.", ev.getId());
+                log.info("Evento outbox ID={} ya fue despachado externamente. Omitiendo reenvÃ­o de correo y confirmando estado ENVIADO.", ev.getId());
                 outboxTransaccionServicio.marcarExito(ev.getId());
                 return;
             }
@@ -112,7 +113,7 @@ public class OutboxScheduler {
                     return;
                 }
 
-                // Generación de PDF y envío SMTP fuera de transacción de base de datos
+                // GeneraciÃ³n de PDF y envÃ­o SMTP fuera de transacciÃ³n de base de datos
                 byte[] pdfBytes = pdfServicio.generarRecetaPdf(receta, ev.getPayload());
                 emailServicio.enviarRecetaDigital(receta, pdfBytes);
                 outboxTransaccionServicio.marcarDespachoExterno(ev.getId());
@@ -130,7 +131,7 @@ public class OutboxScheduler {
                     return;
                 }
 
-                // Despacho de email fuera de transacción de base de datos
+                // Despacho de email fuera de transacciÃ³n de base de datos
                 emailServicio.enviarConfirmacionTurno(turno);
                 outboxTransaccionServicio.marcarDespachoExterno(ev.getId());
                 outboxTransaccionServicio.marcarExito(ev.getId());
@@ -173,7 +174,7 @@ public class OutboxScheduler {
         return outboxTransaccionServicio.reintentarEventoManual(eventoId);
     }
 
-    public List<OutboxEvento> listarEventosConProblemas(PageRequest pageRequest) {
+    public List<OutboxEventoDtoResponse> listarEventosConProblemas(PageRequest pageRequest) {
         return outboxTransaccionServicio.listarEventosConProblemas(pageRequest);
     }
 }

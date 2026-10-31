@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.response.OutboxEventoDtoResponse;
 import com.SaludUnificada.Esu.entidad.OutboxEvento;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.repositorio.OutboxEventoRepositorio;
@@ -29,7 +30,7 @@ public class OutboxTransaccionServicio {
     }
 
     /**
-     * Reclama un lote de eventos con bloqueo pesimista y actualiza el lease_hasta en una transacción atómica breve.
+     * Reclama un lote de eventos con bloqueo pesimista y actualiza el lease_hasta en una transacciÃ³n atÃ³mica breve.
      */
     @Transactional
     public List<OutboxEvento> reclamarEventosParaProcesar(int batchSize) {
@@ -48,7 +49,7 @@ public class OutboxTransaccionServicio {
 
     /**
      * Registra que el efecto externo (ej: email) ya fue despachado.
-     * Ejecuta en transacción nueva e independiente (REQUIRES_NEW).
+     * Ejecuta en transacciÃ³n nueva e independiente (REQUIRES_NEW).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void marcarDespachoExterno(Long eventoId) {
@@ -61,7 +62,7 @@ public class OutboxTransaccionServicio {
 
     /**
      * Confirma la entrega exitosa del evento en BD.
-     * Ejecuta en transacción nueva e independiente (REQUIRES_NEW).
+     * Ejecuta en transacciÃ³n nueva e independiente (REQUIRES_NEW).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void marcarExito(Long eventoId) {
@@ -122,12 +123,12 @@ public class OutboxTransaccionServicio {
             if (intentos >= 3) {
                 e.setEstado("FALLIDO");
                 e.setProximoIntento(null);
-                log.error("Evento outbox ID={} superó el límite máximo de reintentos (3). Estado marcado como FALLIDO terminal.", eventoId);
+                log.error("Evento outbox ID={} superÃ³ el lÃ­mite mÃ¡ximo de reintentos (3). Estado marcado como FALLIDO terminal.", eventoId);
             } else {
                 long backoffSegundos = (long) Math.min(300, Math.pow(2, intentos) * 10);
                 e.setEstado("PENDIENTE");
                 e.setProximoIntento(ahora.plusSeconds(backoffSegundos));
-                log.warn("Evento outbox ID={} falló (intento {}/3). Reprogramado con backoff en {} segundos.", eventoId, intentos, backoffSegundos);
+                log.warn("Evento outbox ID={} fallÃ³ (intento {}/3). Reprogramado con backoff en {} segundos.", eventoId, intentos, backoffSegundos);
             }
             outboxEventoRepositorio.save(e);
         });
@@ -151,10 +152,26 @@ public class OutboxTransaccionServicio {
     }
 
     @Transactional(readOnly = true)
-    public List<OutboxEvento> listarEventosConProblemas(PageRequest pageRequest) {
+    public List<OutboxEventoDtoResponse> listarEventosConProblemas(PageRequest pageRequest) {
         return outboxEventoRepositorio.findByEstadoInOrderByFechaCreacionDesc(
-                List.of("FALLIDO", "ERROR_TIPO_DESCONOCIDO", "INCONSISTENTE_NO_ENCONTRADO"),
+                List.of("FALLIDO", "TIPO_DESCONOCIDO", "INCONSISTENTE"),
                 pageRequest
-        );
+        ).stream().map(this::mapearADto).toList();
+    }
+
+    public OutboxEventoDtoResponse mapearADto(OutboxEvento ev) {
+        if (ev == null) return null;
+        return OutboxEventoDtoResponse.builder()
+                .id(ev.getId())
+                .tipoEvento(ev.getTipoEvento())
+                .aggregateId(ev.getAggregateId())
+                .estado(ev.getEstado())
+                .intentos(ev.getIntentos())
+                .ultimoError(ev.getUltimoError())
+                .fechaCreacion(ev.getFechaCreacion())
+                .fechaActualizacion(ev.getFechaActualizacion())
+                .proximoIntento(ev.getProximoIntento())
+                .despachadoExterno(ev.getDespachadoExterno())
+                .build();
     }
 }

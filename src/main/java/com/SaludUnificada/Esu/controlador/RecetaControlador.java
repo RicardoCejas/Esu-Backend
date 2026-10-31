@@ -39,7 +39,7 @@ public class RecetaControlador {
     private final RecetaDigitalMapper recetaDigitalMapper;
 
     @PostMapping("/recetas")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isDoctorAuthor(#request.profesionalId)")
+    @PreAuthorize("hasRole('ADMIN') or (@securityPolicy.isDoctorAuthor(#request.profesionalId) and @securityPolicy.canAccessPatient(#request.pacienteId))")
     @Operation(summary = "Emitir nueva receta medica digital")
     public ResponseEntity<RecetaDigitalDtoResponse> emitirReceta(@Valid @RequestBody RecetaDigitalDtoRequest request) {
         RecetaDigital receta = recetaServicio.emitirReceta(request);

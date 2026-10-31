@@ -26,7 +26,7 @@ public class HistoriaClinicaControlador {
     private final IHistoriaClinicaServicio historiaClinicaServicio;
 
     @PostMapping("/crear")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#dto.pacienteId))")
     public ResponseEntity<HistoriaClinicaDtoResponse> crearHistoriaClinica(@Valid @RequestBody HistoriaClinicaDtoRequest dto) {
         HistoriaClinicaDtoResponse nuevaHistoria = historiaClinicaServicio.crearHistoriaClinica(dto);
         return new ResponseEntity<>(nuevaHistoria, HttpStatus.CREATED);
@@ -90,7 +90,7 @@ public class HistoriaClinicaControlador {
         String motivo = payload != null ? payload.get("motivo") : null;
         historiaClinicaServicio.registrarAccesoEmergencia(pacienteId, principal != null ? principal.getName() : null, motivo, request);
         return ResponseEntity.ok(java.util.Map.of(
-                "mensaje", "Acceso de emergencia/guardia registrado y habilitado exitosamente bajo protocolo de auditoría médica legal."
+                "mensaje", "Acceso de emergencia/guardia registrado y habilitado exitosamente bajo protocolo de auditorÃ­a mÃ©dica legal."
         ));
     }
 
