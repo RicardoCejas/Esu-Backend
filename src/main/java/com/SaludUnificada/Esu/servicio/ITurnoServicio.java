@@ -35,4 +35,8 @@ public interface ITurnoServicio {
     byte[] generarCertificadoAsistencia(Long turnoId, String emailAutenticado);
     TurnoDtoResponse marcarAusente(Long turnoId, String emailPersonal);
     List<TurnoDtoResponse> obtenerTurnosHoyProfesional(Long profesionalId);
+
+    List<TurnoDtoResponse> obtenerAgendaProfesional(Long profesionalId, Long centroSaludId, java.time.LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerMiAgenda(String emailProfesional, Long centroSaludId, java.time.LocalDate fecha);
 }

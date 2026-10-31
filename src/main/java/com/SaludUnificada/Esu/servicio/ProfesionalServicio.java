@@ -135,4 +135,32 @@ public class ProfesionalServicio implements IProfesionalServicio {
         Profesional guardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(guardado);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Set<Long> obtenerCentrosDelProfesional(Long id) {
+        Profesional profesional = profesionalRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+        return new java.util.HashSet<>(profesional.getCentrosSaludIds());
+    }
+
+    @Override
+    @Transactional
+    public java.util.Set<Long> vincularCentro(Long id, Long centroId) {
+        Profesional profesional = profesionalRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+        profesional.getCentrosSaludIds().add(centroId);
+        profesionalRepositorio.save(profesional);
+        return new java.util.HashSet<>(profesional.getCentrosSaludIds());
+    }
+
+    @Override
+    @Transactional
+    public java.util.Set<Long> desvincularCentro(Long id, Long centroId) {
+        Profesional profesional = profesionalRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+        profesional.getCentrosSaludIds().remove(centroId);
+        profesionalRepositorio.save(profesional);
+        return new java.util.HashSet<>(profesional.getCentrosSaludIds());
+    }
 }

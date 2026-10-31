@@ -42,7 +42,7 @@ public class DisponibilidadControlador {
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PostMapping("/api/disponibilidades")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isDoctorAuthor(#request.profesionalId)")
     public ResponseEntity<DisponibilidadDtoResponse> configurarDisponibilidad(
             @Valid @RequestBody DisponibilidadDtoRequest request) {
         DisponibilidadDtoResponse response = disponibilidadServicio.configurarDisponibilidad(request);
@@ -70,13 +70,13 @@ public class DisponibilidadControlador {
             description = "Ejecuta el recálculo y persistencia de turnos libres para los próximos 30 días omitiendo feriados y bloqueos."
     )
     @PostMapping("/api/disponibilidades/profesional/{id}/generar-slots")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isDoctorAuthor(#id)")
     public ResponseEntity<Integer> generarSlotsProximos30Dias(@PathVariable Long id) {
         int slotsGenerados = disponibilidadServicio.generarSlotsProximos30Dias(id);
         return ResponseEntity.ok(slotsGenerados);
     }
     @DeleteMapping("/api/disponibilidades/{id}")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canAccessDisponibilidad(#id)")
     public ResponseEntity<Void> eliminarDisponibilidad(@PathVariable Long id) {
         disponibilidadServicio.eliminarDisponibilidad(id);
         return ResponseEntity.noContent().build();

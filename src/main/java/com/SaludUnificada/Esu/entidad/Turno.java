@@ -56,7 +56,15 @@ public class Turno {
     @JoinColumn(name = "profesional_id")
     private Profesional profesional;
 
-    @Column(name = "fecha_check_in")
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
+
+    @Column(name = "consultorio_numero", length = 50)
+    private String consultorioNumero;
+@Column(name = "fecha_check_in")
     private LocalDateTime fechaCheckIn;
 
     @Column(name = "recepcionista_check_in")

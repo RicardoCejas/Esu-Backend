@@ -21,8 +21,10 @@ public class TurnoDtoResponse {
     private String motivoSobreturno;
     private PacienteDtoResponse paciente;
     private ProfesionalDtoResponse profesional;
-
-    private LocalDateTime fechaCheckIn;
+    private Long centroSaludId;
+    private String centroSaludNombre;
+    private String consultorioNumero;
+private LocalDateTime fechaCheckIn;
     private String recepcionistaCheckIn;
 
     private BigDecimal montoCopago;

@@ -265,6 +265,31 @@ public class TurnoServicio implements ITurnoServicio {
 
         turno.setProfesional(profesional);
 
+        Long centroId = turnoDto.getCentroSaludId();
+        String centroNombre = turnoDto.getCentroSaludNombre();
+        if (centroId == null && disponibilidadRepositorio != null) {
+            Optional<DisponibilidadProfesional> matchingDisp = disponibilidadRepositorio
+                    .findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek())
+                    .stream()
+                    .filter(disp -> {
+                        LocalTime t = fechaHora.toLocalTime();
+                        return !t.isBefore(disp.getHoraInicio()) && t.isBefore(disp.getHoraFin());
+                    })
+                    .findFirst();
+            if (matchingDisp.isPresent()) {
+                centroId = matchingDisp.get().getCentroSaludId();
+            }
+        }
+        if (centroId == null) {
+            centroId = 1L;
+        }
+        if (centroNombre == null || centroNombre.isBlank()) {
+            centroNombre = resolverNombreCentro(centroId);
+        }
+        turno.setCentroSaludId(centroId);
+        turno.setCentroSaludNombre(centroNombre);
+        turno.setConsultorioNumero(turnoDto.getConsultorioNumero() != null ? turnoDto.getConsultorioNumero() : "Consultorio 1");
+
         Turno guardado;
         try {
             guardado = turnoRepositorio.save(turno);
@@ -370,6 +395,10 @@ public class TurnoServicio implements ITurnoServicio {
         sobreturno.setMotivoTurno(request.getMotivoSobreturno());
         sobreturno.setEsSobreturno(true);
         sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
+        Long centroId = 1L;
+        sobreturno.setCentroSaludId(centroId);
+        sobreturno.setCentroSaludNombre(resolverNombreCentro(centroId));
+        sobreturno.setConsultorioNumero("Consultorio Guardia / Sobreturnos");
         sobreturno.setProfesional(profesional);
         sobreturno.setPaciente(paciente);
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
@@ -983,6 +1012,38 @@ public class TurnoServicio implements ITurnoServicio {
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
+
+    private String resolverNombreCentro(Long centroId) {
+        if (centroId == null) return "Hospital Regional Aurelio Crespo";
+        if (centroId == 1L) return "Hospital Regional Aurelio Crespo";
+        if (centroId == 2L) return "Clínica Privada Cabrera";
+        if (centroId == 3L) return "Centro de Diagnóstico Cruz del Eje";
+        if (centroId == 4L) return "Dispensario Municipal Santa Rosa";
+        return "Centro de Salud N° " + centroId;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerAgendaProfesional(Long profesionalId, Long centroSaludId, LocalDate fecha) {
+        if (!profesionalRepositorio.existsById(profesionalId)) {
+            throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId);
+        }
+        LocalDateTime inicio = fecha != null ? fecha.atStartOfDay() : null;
+        LocalDateTime fin = fecha != null ? fecha.atTime(LocalTime.MAX) : null;
+        return turnoRepositorio.findAgendaProfesional(profesionalId, centroSaludId, inicio, fin)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerMiAgenda(String emailProfesional, Long centroSaludId, LocalDate fecha) {
+        Profesional profesional = profesionalRepositorio.findByUsuarioEmail(emailProfesional)
+                .orElseThrow(() -> new NoEncontradoExcepcion("No se encontró perfil profesional para el usuario: " + emailProfesional));
+        return obtenerAgendaProfesional(profesional.getId(), centroSaludId, fecha);
+    }
+
 
     private void validarCoincidenciaYAutorizacionIdempotencia(Turno previo, Long pacienteId, Long profesionalId, LocalDateTime fechaHora, boolean esSobreturno, String emailAutenticado, String key) {
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {

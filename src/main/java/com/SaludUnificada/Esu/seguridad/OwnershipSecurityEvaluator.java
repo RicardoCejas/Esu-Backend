@@ -17,6 +17,7 @@ public class OwnershipSecurityEvaluator {
 
     private final UsuarioRepositorio usuarioRepositorio;
     private final PacienteRepositorio pacienteRepositorio;
+    private final DisponibilidadProfesionalRepositorio disponibilidadRepositorio;
     private final ProfesionalRepositorio profesionalRepositorio;
     private final TurnoRepositorio turnoRepositorio;
     private final RecetaDigitalRepositorio recetaRepositorio;
@@ -141,6 +142,16 @@ public class OwnershipSecurityEvaluator {
         if (usuarioOpt.isEmpty()) return false;
         Optional<Profesional> profOpt = profesionalRepositorio.findByUsuarioEmail(usuarioOpt.get().getEmail());
         return profOpt.isPresent() && profOpt.get().getId().equals(profesionalId);
+    }
+
+    public boolean canAccessDisponibilidad(Long dispId) {
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (disponibilidadRepositorio == null) return false;
+        Optional<DisponibilidadProfesional> dispOpt = disponibilidadRepositorio.findById(dispId);
+        if (dispOpt.isEmpty() || dispOpt.get().getProfesional() == null) return false;
+        return isDoctorAuthor(dispOpt.get().getProfesional().getId());
     }
 
     public boolean isTurnoDoctor(Long turnoId) {
