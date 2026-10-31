@@ -42,6 +42,12 @@ public class EvolucionMedica {
     @JsonIgnoreProperties({"paciente", "profesional"})
     private Turno turno;
 
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "historia_clinica_id")
     @JsonIgnoreProperties({"paciente", "profesional"})

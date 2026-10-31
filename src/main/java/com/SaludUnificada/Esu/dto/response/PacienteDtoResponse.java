@@ -16,4 +16,6 @@ public class PacienteDtoResponse {
     private String dni;
     private String telefono;
     private String email;
+    private Long centroSaludReferenciaId;
+    private String centroSaludReferenciaNombre;
 }

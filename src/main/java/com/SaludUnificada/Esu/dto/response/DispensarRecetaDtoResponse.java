@@ -18,6 +18,9 @@ public class DispensarRecetaDtoResponse {
     private String estadoReceta;
     private LocalDateTime fechaDispensacion;
     private String matriculaFarmacia;
+    private String farmaciaNombre;
+    private Long centroSaludEmisorId;
+    private String centroSaludEmisorNombre;
     private String pacienteNombre;
     private String pacienteDni;
     private String profesionalNombre;

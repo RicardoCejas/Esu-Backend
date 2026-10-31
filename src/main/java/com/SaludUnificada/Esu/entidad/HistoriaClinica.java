@@ -34,6 +34,12 @@ public class HistoriaClinica {
     @Column(name = "fecha_atencion")
     private LocalDateTime fechaAtencion;
 
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
+
     @ManyToOne
     @JoinColumn(name = "profesional_id")
     private Profesional profesional;

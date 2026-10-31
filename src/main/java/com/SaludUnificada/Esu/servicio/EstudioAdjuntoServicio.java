@@ -282,7 +282,10 @@ public class EstudioAdjuntoServicio {
                 entidad.getTipoEstudio(),
                 entidad.getFechaEstudio(),
                 entidad.getFechaCarga(),
-                "/api/estudios/" + entidad.getId() + "/descargar"
+                "/api/estudios/" + entidad.getId() + "/descargar",
+                entidad.getCentroSaludId() != null ? entidad.getCentroSaludId() : 1L,
+                entidad.getCentroSaludNombre() != null ? entidad.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo",
+                entidad.getProfesionalNombre() != null ? entidad.getProfesionalNombre() : "Servicio de Diagnóstico y Laboratorio"
         );
     }
 

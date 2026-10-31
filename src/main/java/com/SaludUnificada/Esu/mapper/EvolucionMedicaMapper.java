@@ -35,6 +35,8 @@ public class EvolucionMedicaMapper {
                 .profesionalId(entidad.getProfesional() != null ? entidad.getProfesional().getId() : null)
                 .profesionalNombre(profNombre)
                 .turnoId(entidad.getTurno() != null ? entidad.getTurno().getId() : null)
+                .centroSaludId(entidad.getCentroSaludId() != null ? entidad.getCentroSaludId() : (entidad.getTurno() != null ? entidad.getTurno().getCentroSaludId() : 1L))
+                .centroSaludNombre(entidad.getCentroSaludNombre() != null ? entidad.getCentroSaludNombre() : (entidad.getTurno() != null && entidad.getTurno().getCentroSaludNombre() != null ? entidad.getTurno().getCentroSaludNombre() : "Hospital Regional Aurelio Crespo"))
                 .historiaClinicaId(entidad.getHistoriaClinica() != null ? entidad.getHistoriaClinica().getId() : null)
                 .motivoConsulta(entidad.getMotivoConsulta())
                 .anamnesis(entidad.getAnamnesis())

@@ -19,6 +19,10 @@ public interface RecetaDigitalRepositorio extends JpaRepository<RecetaDigital, L
 
     List<RecetaDigital> findByPacienteIdOrderByFechaEmisionDesc(Long pacienteId);
 
+    List<RecetaDigital> findByPacienteUsuarioEmailOrderByFechaEmisionDesc(String email);
+
+    List<RecetaDigital> findByPacienteUsuarioEmailAndEstadoRecetaOrderByFechaEmisionDesc(String email, String estado);
+
     Page<RecetaDigital> findByPacienteId(Long pacienteId, Pageable pageable);
 
     Optional<RecetaDigital> findByHashIntegridad(String hashIntegridad);

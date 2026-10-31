@@ -24,4 +24,7 @@ public class EstudioAdjuntoDtoResponse {
     private LocalDate fechaEstudio;
     private LocalDateTime fechaCarga;
     private String urlDescarga;
+    private Long centroSaludId;
+    private String centroSaludNombre;
+    private String profesionalNombre;
 }

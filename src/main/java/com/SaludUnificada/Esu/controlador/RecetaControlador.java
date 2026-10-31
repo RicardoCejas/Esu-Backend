@@ -95,6 +95,15 @@ public class RecetaControlador {
         return ResponseEntity.ok(recetaServicio.verificarDocumentoPublico(hash));
     }
 
+    @GetMapping("/recetas/mis-recetas")
+    @PreAuthorize("hasRole('PACIENTE')")
+    @Operation(summary = "Listar recetas medicas digitales del paciente autenticado")
+    public ResponseEntity<List<RecetaDigitalDtoResponse>> listarMisRecetas(Principal principal, @RequestParam(required = false) String estado) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        List<RecetaDigital> recetas = recetaServicio.listarPorUsuarioEmail(principal.getName(), estado);
+        return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
+    }
+
     @GetMapping("/recetas/paciente/{pacienteId}")
     @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "Listar recetas medicas digitales por paciente")

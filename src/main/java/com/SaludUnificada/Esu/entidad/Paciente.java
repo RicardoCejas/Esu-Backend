@@ -46,6 +46,12 @@ public class Paciente {
     @Column(name = "grupo_sanguineo")
     private String grupoSanguineo;
 
+    @Column(name = "centro_salud_referencia_id")
+    private Long centroSaludReferenciaId;
+
+    @Column(name = "centro_salud_referencia_nombre")
+    private String centroSaludReferenciaNombre;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "fk_usuario", referencedColumnName = "id", nullable = false, unique = true)
     private Usuario usuario;

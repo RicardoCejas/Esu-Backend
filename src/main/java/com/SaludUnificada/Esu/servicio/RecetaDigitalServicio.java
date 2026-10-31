@@ -105,6 +105,9 @@ public class RecetaDigitalServicio {
         receta.setDiagnostico(request.getDiagnostico());
         receta.setCodigoCie10(request.getCodigoCie10());
         receta.setIndicacionesGenerales(request.getIndicacionesGenerales());
+        receta.setCentroSaludEmisorId(request.getCentroSaludEmisorId() != null ? request.getCentroSaludEmisorId() : 1L);
+        receta.setCentroSaludEmisorNombre(request.getCentroSaludEmisorNombre() != null && !request.getCentroSaludEmisorNombre().isBlank() ? request.getCentroSaludEmisorNombre() : "Hospital Regional Aurelio Crespo");
+        receta.setLugarRetiroSugerido(request.getLugarRetiroSugerido() != null && !request.getLugarRetiroSugerido().isBlank() ? request.getLugarRetiroSugerido() : "Farmacia Hospital Regional Aurelio Crespo o CAPS barrial asignado");
 
         List<MedicamentoReceta> meds = new ArrayList<>();
         if (request.getMedicamentos() != null) {
@@ -202,6 +205,7 @@ public class RecetaDigitalServicio {
         receta.setEstadoReceta("DISPENSADA");
         receta.setFechaDispensacion(LocalDateTime.now());
         receta.setMatriculaFarmaciaDispensadora(request.getMatriculaFarmacia());
+        receta.setFarmaciaDispensadoraNombre(request.getFarmaciaNombre() != null && !request.getFarmaciaNombre().isBlank() ? request.getFarmaciaNombre() : "Farmacia Matrícula " + request.getMatriculaFarmacia());
 
         RecetaDigital actualizada = recetaRepositorio.save(receta);
         if (!"DISPENSADA".equalsIgnoreCase(actualizada.getEstadoReceta())) {
@@ -213,6 +217,9 @@ public class RecetaDigitalServicio {
             .estadoReceta(actualizada.getEstadoReceta())
             .fechaDispensacion(actualizada.getFechaDispensacion())
             .matriculaFarmacia(actualizada.getMatriculaFarmaciaDispensadora())
+            .farmaciaNombre(actualizada.getFarmaciaDispensadoraNombre())
+            .centroSaludEmisorId(actualizada.getCentroSaludEmisorId())
+            .centroSaludEmisorNombre(actualizada.getCentroSaludEmisorNombre())
             .pacienteNombre(actualizada.getPaciente().getNombre() + " " + actualizada.getPaciente().getApellido())
             .pacienteDni(actualizada.getPaciente().getDni())
             .profesionalNombre("Dr./Dra. " + actualizada.getProfesional().getNombre() + " " + actualizada.getProfesional().getApellido())
@@ -359,6 +366,13 @@ public class RecetaDigitalServicio {
     }
 
     @Transactional(readOnly = true)
+    public List<RecetaDigital> listarPorUsuarioEmail(String email, String estado) {
+        if (estado != null && !estado.isBlank()) {
+            return recetaRepositorio.findByPacienteUsuarioEmailAndEstadoRecetaOrderByFechaEmisionDesc(email, estado.toUpperCase());
+        }
+        return recetaRepositorio.findByPacienteUsuarioEmailOrderByFechaEmisionDesc(email);
+    }
+
     public List<RecetaDigital> listarPorPaciente(Long pacienteId, String estado) {
         List<RecetaDigital> lista = recetaRepositorio.findByPacienteIdOrderByFechaEmisionDesc(pacienteId);
         if (estado != null && !estado.isBlank()) {

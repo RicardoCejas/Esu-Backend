@@ -58,6 +58,15 @@ public class EstudioAdjunto {
     @Column(name = "fecha_carga", nullable = false, updatable = false)
     private LocalDateTime fechaCarga;
 
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
+
+    @Column(name = "profesional_nombre")
+    private String profesionalNombre;
+
     @PrePersist
     public void prePersist() {
         if (this.fechaCarga == null) {
