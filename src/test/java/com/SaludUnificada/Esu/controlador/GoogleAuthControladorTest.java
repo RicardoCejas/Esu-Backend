@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
+import com.SaludUnificada.Esu.servicio.GoogleAuthServicio;
 import com.SaludUnificada.Esu.servicio.GoogleTokenVerifierService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,12 +48,16 @@ class GoogleAuthControladorTest {
     @Mock
     private GoogleTokenVerifierService googleTokenVerifierService;
 
+    @Mock
+    private com.SaludUnificada.Esu.servicio.GoogleAuthServicio googleAuthServicio;
+
     @InjectMocks
     private AuthControlador authControlador;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         authControlador.setGoogleTokenVerifierService(googleTokenVerifierService);
+        authControlador.setGoogleAuthServicio(googleAuthServicio);
     }
 
     @Test
@@ -70,7 +75,6 @@ class GoogleAuthControladorTest {
         when(googleTokenVerifierService.verificarToken("valid-token")).thenReturn(payload);
         when(usuarioRepositorio.findByGoogleSub("google-123456")).thenReturn(Optional.empty());
         when(usuarioRepositorio.findByEmail("nuevo.paciente@gmail.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
 
         Usuario savedUser = new Usuario();
         savedUser.setId(99L);
@@ -81,7 +85,7 @@ class GoogleAuthControladorTest {
         savedUser.setEmailVerificado(true);
         savedUser.setPassword("encoded-password");
 
-        when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(savedUser);
+        when(googleAuthServicio.registrarUsuarioConPaciente(payload)).thenReturn(savedUser);
         when(jwtTokenProvider.generarToken(any(Authentication.class))).thenReturn("jwt.google.esu");
 
         var response = authControlador.loginConGoogle(request, null);
@@ -91,7 +95,7 @@ class GoogleAuthControladorTest {
         assertEquals("PACIENTE", response.getBody().getRol());
         assertEquals("nuevo.paciente@gmail.com", response.getBody().getEmail());
         assertEquals("jwt.google.esu", response.getBody().getAccessToken());
-        verify(usuarioRepositorio).save(argThat(u -> "PACIENTE".equals(u.getRol()) && "GOOGLE".equals(u.getAuthProvider())));
+        verify(googleAuthServicio).registrarUsuarioConPaciente(payload);
     }
 
     @Test
@@ -187,5 +191,27 @@ class GoogleAuthControladorTest {
                 () -> authControlador.loginConGoogle(request, null));
 
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+    }
+    @Test
+    @DisplayName("Fallo transaccional al crear perfil de paciente: revierte y retorna 500 INTERNAL_SERVER_ERROR")
+    void loginGoogle_fallaCreacionPerfilPaciente_retornaInternalServerError() {
+        GoogleLoginDtoRequest request = new GoogleLoginDtoRequest("valid-token-failing-profile");
+        GoogleIdTokenPayload payload = GoogleIdTokenPayload.builder()
+                .sub("google-fail-profile")
+                .email("fail.paciente@gmail.com")
+                .emailVerified(true)
+                .build();
+
+        when(googleTokenVerifierService.verificarToken("valid-token-failing-profile")).thenReturn(payload);
+        when(usuarioRepositorio.findByGoogleSub("google-fail-profile")).thenReturn(Optional.empty());
+        when(usuarioRepositorio.findByEmail("fail.paciente@gmail.com")).thenReturn(Optional.empty());
+        when(googleAuthServicio.registrarUsuarioConPaciente(payload))
+                .thenThrow(new IllegalStateException("Error al registrar ficha clínica de paciente"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authControlador.loginConGoogle(request, null));
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("perfil de paciente"));
     }
 }

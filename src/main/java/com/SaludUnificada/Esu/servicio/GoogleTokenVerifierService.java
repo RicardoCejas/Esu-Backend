@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.auth.GoogleIdTokenPayload;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,7 @@ public class GoogleTokenVerifierService {
     @Value("${google.client.id:}")
     private String configuredClientId;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public GoogleTokenVerifierService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofSeconds(5))
@@ -42,11 +43,17 @@ public class GoogleTokenVerifierService {
 
     /**
      * Valida la credencial Google OIDC ID Token consultando el servicio oficial de Google tokeninfo.
-     * Verifica firma criptográfica (realizada por Google), emisor, audiencia, expiración y estado del email.
+     * Verifica firma criptográfica (realizada por Google), emisor, audiencia exacta, expiración, email verificado
+     * y presencia de todos los claims obligatorios.
      */
     public GoogleIdTokenPayload verificarToken(String idToken) {
         if (idToken == null || idToken.trim().isEmpty()) {
             throw new BadCredentialsException("El token de Google no puede estar vacío.");
+        }
+
+        if (configuredClientId == null || configuredClientId.isBlank()) {
+            log.error("Google Client ID no se encuentra configurado en el servidor");
+            throw new BadCredentialsException("El servidor no tiene configurada la audiencia de Google.");
         }
 
         String url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken.trim();
@@ -59,31 +66,35 @@ public class GoogleTokenVerifierService {
 
             JsonNode root = objectMapper.readTree(response.getBody());
 
-            // 1. Validar emisor (iss)
+            // 1. Validar emisor obligatorio (iss)
             String iss = root.path("iss").asText(null);
             if (iss == null || (!"accounts.google.com".equals(iss) && !"https://accounts.google.com".equals(iss))) {
-                log.warn("Rechazo de Google Token por emisor no válido");
+                log.warn("Rechazo de Google Token por emisor no válido o ausente");
                 throw new BadCredentialsException("El emisor del token de Google no es válido.");
             }
 
-            // 2. Validar audiencia (aud)
+            // 2. Validar audiencia obligatoria exacta (aud)
             String aud = root.path("aud").asText(null);
-            if (configuredClientId != null && !configuredClientId.isBlank()) {
-                if (!configuredClientId.trim().equals(aud)) {
-                    log.warn("Rechazo de Google Token por audiencia no coincidente");
-                    throw new BadCredentialsException("La audiencia del token de Google no coincide con el cliente configurado.");
-                }
+            if (aud == null || aud.isBlank() || !configuredClientId.trim().equals(aud.trim())) {
+                log.warn("Rechazo de Google Token por audiencia no coincidente o ausente");
+                throw new BadCredentialsException("La audiencia del token de Google no coincide con el cliente configurado.");
             }
 
-            // 3. Validar expiración (exp)
+            // 3. Validar expiración obligatoria (exp)
+            if (!root.hasNonNull("exp")) {
+                throw new BadCredentialsException("El token de Google no contiene claim de expiración.");
+            }
             long exp = root.path("exp").asLong(0);
             long nowSeconds = System.currentTimeMillis() / 1000L;
-            if (exp > 0 && exp < nowSeconds) {
+            if (exp <= 0 || exp < nowSeconds) {
                 log.warn("Rechazo de Google Token expirado");
                 throw new BadCredentialsException("El token de Google ha expirado.");
             }
 
-            // 4. Validar estado de verificación del email
+            // 4. Validar estado de verificación obligatoria del email
+            if (!root.hasNonNull("email_verified")) {
+                throw new BadCredentialsException("El token de Google no especifica el estado de verificación del correo.");
+            }
             JsonNode emailVerifiedNode = root.path("email_verified");
             boolean emailVerified = emailVerifiedNode.isBoolean() ? emailVerifiedNode.asBoolean() : "true".equalsIgnoreCase(emailVerifiedNode.asText());
             if (!emailVerified) {
@@ -91,13 +102,14 @@ public class GoogleTokenVerifierService {
                 throw new BadCredentialsException("El correo electrónico de Google no está verificado.");
             }
 
-            // 5. Validar sub (identificador único del usuario en Google)
+            // 5. Validar sub obligatorio (identificador único del usuario en Google)
             String sub = root.path("sub").asText(null);
             if (sub == null || sub.trim().isEmpty()) {
                 log.warn("Rechazo de Google Token sin sub");
                 throw new BadCredentialsException("El identificador único de Google (sub) es requerido.");
             }
 
+            // 6. Validar email obligatorio
             String email = root.path("email").asText(null);
             if (email == null || email.trim().isEmpty()) {
                 throw new BadCredentialsException("El email asociado a la cuenta de Google es requerido.");

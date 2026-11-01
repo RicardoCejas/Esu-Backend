@@ -132,8 +132,26 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
         ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+        ReflectionTestUtils.setField(validator, "googleClientId", "123456789-prod.apps.googleusercontent.com");
 
         assertDoesNotThrow(validator::validateConfiguration);
+    }
+
+    @Test
+    void testValidateConfiguration_ProdSinGoogleClientId_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
+        ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
+        ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+        ReflectionTestUtils.setField(validator, "googleClientId", "");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
     }
 
     @Test
@@ -150,6 +168,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
         ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+        ReflectionTestUtils.setField(validator, "googleClientId", "123456789-prod.apps.googleusercontent.com");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
     }
@@ -168,6 +187,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
         ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+        ReflectionTestUtils.setField(validator, "googleClientId", "123456789-prod.apps.googleusercontent.com");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
     }

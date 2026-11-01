@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -10,7 +11,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Getter
 @Setter
@@ -19,8 +22,11 @@ import java.time.LocalDateTime;
 @Builder
 public class TurnoPublicoDtoRequest {
 
-    @NotNull(message = "La fecha y hora del turno son obligatorias")
     private LocalDateTime fechaHora;
+
+    // Campos alternativos compatibles con el contrato frontend fecha + hora
+    private String fecha;
+    private String hora;
 
     @NotNull(message = "El ID del profesional es obligatorio")
     private Long profesionalId;
@@ -30,6 +36,7 @@ public class TurnoPublicoDtoRequest {
     private String consultorioNumero;
 
     @Size(max = 255, message = "El motivo del turno no puede superar los 255 caracteres")
+    @JsonAlias({"motivoConsulta"})
     private String motivoTurno;
 
     @Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
@@ -59,5 +66,22 @@ public class TurnoPublicoDtoRequest {
     private String obraSocial;
 
     @Size(max = 50, message = "El número de afiliado no puede superar los 50 caracteres")
+    @JsonAlias({"numeroAfiliado"})
     private String nroAfiliado;
+
+    public LocalDateTime obtenerFechaHoraEfectiva() {
+        if (this.fechaHora != null) {
+            return this.fechaHora;
+        }
+        if (this.fecha != null && !this.fecha.isBlank() && this.hora != null && !this.hora.isBlank()) {
+            LocalDate f = LocalDate.parse(this.fecha.trim());
+            String hStr = this.hora.trim();
+            if (hStr.length() == 5) {
+                hStr += ":00";
+            }
+            LocalTime h = LocalTime.parse(hStr);
+            return f.atTime(h);
+        }
+        return null;
+    }
 }

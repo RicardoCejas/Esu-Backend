@@ -14,6 +14,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -28,6 +31,9 @@ public class RefreshTokenServicio {
     private final RefreshTokenRepositorio refreshTokenRepositorio;
     private final UsuarioRepositorio usuarioRepositorio;
     private final JwtTokenProvider jwtTokenProvider;
+
+    @Autowired(required = false)
+    private RefreshTokenRevocationService refreshTokenRevocationService;
 
     @Autowired(required = false)
     private Clock clock;
@@ -52,21 +58,44 @@ public class RefreshTokenServicio {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    public static String hashToken(String rawToken) {
+        if (rawToken == null) return null;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedHash = digest.digest(rawToken.trim().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : encodedHash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Algoritmo SHA-256 no disponible en la plataforma JVM.", e);
+        }
+    }
+
     @Transactional
     public RefreshToken crearRefreshToken(Usuario usuario) {
-        String tokenStr = generarTokenAleatorio();
+        String rawToken = generarTokenAleatorio();
+        String tokenHash = hashToken(rawToken);
         LocalDateTime fechaCreacion = ahora();
         LocalDateTime fechaExpiracion = fechaCreacion.plusDays(refreshExpirationDays);
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .usuario(usuario)
-                .token(tokenStr)
+                .token(rawToken)
+                .tokenHash(tokenHash)
                 .fechaCreacion(fechaCreacion)
                 .fechaExpiracion(fechaExpiracion)
                 .revocado(false)
                 .build();
 
-        return refreshTokenRepositorio.save(refreshToken);
+        RefreshToken guardado = refreshTokenRepositorio.save(refreshToken);
+        guardado.setToken(rawToken);
+        return guardado;
     }
 
     public record RefreshResult(JwtAuthDtoResponse authResponse, String newRefreshTokenStr) {}
@@ -77,7 +106,11 @@ public class RefreshTokenServicio {
             throw new BadCredentialsException("Refresh token no proporcionado o inválido.");
         }
 
-        RefreshToken tokenExistente = refreshTokenRepositorio.findByToken(rawToken.trim())
+        String tokenHash = hashToken(rawToken);
+
+        // Bloqueo pesimista para serializar rotaciones concurrentes de un mismo token y evitar condiciones de carrera
+        RefreshToken tokenExistente = refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)
+                .or(() -> refreshTokenRepositorio.findByToken(rawToken.trim()))
                 .orElseThrow(() -> {
                     log.warn("Intento de refresh con token inexistente.");
                     return new BadCredentialsException("Refresh token inválido.");
@@ -89,7 +122,11 @@ public class RefreshTokenServicio {
         // Detección de reuso de token revocado (posible robo de sesión)
         if (tokenExistente.isRevocado()) {
             log.warn("Alerta de seguridad: Intento de reuso de refresh token ya revocado para usuario ID={}. Revocando todas las sesiones.", usuario.getId());
-            refreshTokenRepositorio.revocarTodosPorUsuarioId(usuario.getId());
+            if (refreshTokenRevocationService != null) {
+                refreshTokenRevocationService.revocarTodasLasSesionesPorCompromiso(usuario.getId());
+            } else {
+                refreshTokenRepositorio.revocarTodosPorUsuarioId(usuario.getId());
+            }
             throw new BadCredentialsException("Sesión comprometida o revocada. Inicie sesión nuevamente.");
         }
 
@@ -106,14 +143,17 @@ public class RefreshTokenServicio {
         }
 
         // Rotación: revocar el token actual y generar uno nuevo
-        String nuevoTokenStr = generarTokenAleatorio();
+        String nuevoTokenRaw = generarTokenAleatorio();
+        String nuevoTokenHash = hashToken(nuevoTokenRaw);
+
         tokenExistente.setRevocado(true);
-        tokenExistente.setReemplazadoPor(nuevoTokenStr);
+        tokenExistente.setReemplazadoPor(nuevoTokenHash);
         refreshTokenRepositorio.save(tokenExistente);
 
         RefreshToken nuevoRefreshToken = RefreshToken.builder()
                 .usuario(usuario)
-                .token(nuevoTokenStr)
+                .token(nuevoTokenRaw)
+                .tokenHash(nuevoTokenHash)
                 .fechaCreacion(ahora)
                 .fechaExpiracion(ahora.plusDays(refreshExpirationDays))
                 .revocado(false)
@@ -135,18 +175,21 @@ public class RefreshTokenServicio {
                 .rol(usuario.getRol())
                 .build();
 
-        return new RefreshResult(authResponse, nuevoTokenStr);
+        return new RefreshResult(authResponse, nuevoTokenRaw);
     }
 
     @Transactional
     public void revocarToken(String rawToken) {
-        if (rawToken != null && !rawToken.isBlank()) {
+        if (rawToken == null || rawToken.isBlank()) return;
+        String tokenHash = hashToken(rawToken);
+        int rows = refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
+        if (rows == 0) {
             refreshTokenRepositorio.revocarPorToken(rawToken.trim());
         }
     }
 
     @Transactional
-    public void revocarTodosDeUsuario(Long usuarioId) {
+    public void revocarTodosLosTokensDeUsuario(Long usuarioId) {
         if (usuarioId != null) {
             refreshTokenRepositorio.revocarTodosPorUsuarioId(usuarioId);
         }

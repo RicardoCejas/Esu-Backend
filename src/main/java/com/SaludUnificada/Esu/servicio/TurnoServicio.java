@@ -280,13 +280,27 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional
     public TurnoDtoResponse reservarTurnoPublico(TurnoPublicoDtoRequest request, String emailAutenticado) {
         LocalDateTime ahora = ahora();
-        LocalDateTime fechaHora = request.getFechaHora().withSecond(0).withNano(0);
+        LocalDateTime fechaHoraRaw = request.obtenerFechaHoraEfectiva();
+        if (fechaHoraRaw == null) {
+            throw new ReglaNegocioException("La fecha y hora del turno son obligatorias.");
+        }
+        LocalDateTime fechaHora = fechaHoraRaw.withSecond(0).withNano(0);
 
         if (fechaHora.isBefore(ahora)) {
             throw new ReglaNegocioException("No es posible solicitar turnos médicos en fechas u horarios pasados.");
         }
 
         validarHorario(fechaHora);
+
+        // Resolución de idempotencia: si la reserva ya fue procesada, devolver la existente
+        if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+            String key = request.getIdempotencyKey().trim();
+            Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(key);
+            if (previo.isPresent()) {
+                log.info("Turno público ya procesado con idempotencyKey={}. Devolviendo turno existente ID={}.", key, previo.get().getId());
+                return turnoMapper.paraDto(previo.get());
+            }
+        }
 
         Profesional profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
                 .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
@@ -314,23 +328,20 @@ public class TurnoServicio implements ITurnoServicio {
             Optional<Paciente> pacienteAut = pacienteRepositorio.findByUsuarioEmail(emailAutenticado);
             if (pacienteAut.isPresent()) {
                 paciente = pacienteAut.get();
+                if (paciente.getDni() != null && !paciente.getDni().replaceAll("[^0-9]", "").equals(dniLimpio)) {
+                    throw new ReglaNegocioException("El DNI indicado en la reserva no coincide con el DNI del usuario autenticado.");
+                }
             }
         }
 
         if (paciente == null) {
             Optional<Paciente> existente = pacienteRepositorio.findByDni(dniLimpio);
             if (existente.isPresent()) {
-                paciente = existente.get();
-                if (request.getTelefono() != null && !request.getTelefono().isBlank()) {
-                    paciente.setTelefono(request.getTelefono().trim());
-                }
-                if (request.getObraSocial() != null && !request.getObraSocial().isBlank()) {
-                    paciente.setObraSocial(request.getObraSocial().trim());
-                }
-                if (request.getNroAfiliado() != null && !request.getNroAfiliado().isBlank()) {
-                    paciente.setNroAfiliado(request.getNroAfiliado().trim());
-                }
-                paciente = pacienteRepositorio.save(paciente);
+                // REGLA CRÍTICA DE SEGURIDAD (FASE 3): No asociar ni modificar datos de contacto/cobertura
+                // de un paciente existente presentando únicamente su DNI sin autenticación.
+                throw new ReglaNegocioException(
+                        "El DNI ingresado corresponde a un paciente registrado en el sistema. Para resguardar su privacidad médica, por favor inicie sesión con su usuario o cuenta de Google para confirmar la reserva."
+                );
             } else {
                 com.SaludUnificada.Esu.dto.request.PacienteDtoRequest dto = new com.SaludUnificada.Esu.dto.request.PacienteDtoRequest();
                 dto.setDni(dniLimpio);
