@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoPublicoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
 import com.SaludUnificada.Esu.entidad.DisponibilidadProfesional;
@@ -86,6 +87,12 @@ public class TurnoServicio implements ITurnoServicio {
 
     @Autowired(required = false)
     private FeriadoServicio feriadoServicio;
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.mapper.PacienteMapper pacienteMapper;
+
+    @Autowired(required = false)
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -264,6 +271,136 @@ public class TurnoServicio implements ITurnoServicio {
                 "TURNO",
                 "/mis-turnos"
             );
+        }
+
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public TurnoDtoResponse reservarTurnoPublico(TurnoPublicoDtoRequest request, String emailAutenticado) {
+        LocalDateTime ahora = ahora();
+        LocalDateTime fechaHora = request.getFechaHora().withSecond(0).withNano(0);
+
+        if (fechaHora.isBefore(ahora)) {
+            throw new ReglaNegocioException("No es posible solicitar turnos médicos en fechas u horarios pasados.");
+        }
+
+        validarHorario(fechaHora);
+
+        Profesional profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
+                .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+
+        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo.");
+        }
+
+        if (disponibilidadRepositorio != null) {
+            List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
+            if (disponibilidades.isEmpty()) {
+                throw new ReglaNegocioException("El profesional no posee franjas de atención configuradas para el día seleccionado.");
+            }
+        }
+
+        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+            throw new IllegalStateException("El horario solicitado ya no está disponible.");
+        }
+
+        String dniLimpio = request.getDni().trim().replaceAll("[^0-9]", "");
+        Paciente paciente = null;
+
+        if (emailAutenticado != null && !emailAutenticado.isBlank() && !"anonymousUser".equals(emailAutenticado)) {
+            Optional<Paciente> pacienteAut = pacienteRepositorio.findByUsuarioEmail(emailAutenticado);
+            if (pacienteAut.isPresent()) {
+                paciente = pacienteAut.get();
+            }
+        }
+
+        if (paciente == null) {
+            Optional<Paciente> existente = pacienteRepositorio.findByDni(dniLimpio);
+            if (existente.isPresent()) {
+                paciente = existente.get();
+                if (request.getTelefono() != null && !request.getTelefono().isBlank()) {
+                    paciente.setTelefono(request.getTelefono().trim());
+                }
+                if (request.getObraSocial() != null && !request.getObraSocial().isBlank()) {
+                    paciente.setObraSocial(request.getObraSocial().trim());
+                }
+                if (request.getNroAfiliado() != null && !request.getNroAfiliado().isBlank()) {
+                    paciente.setNroAfiliado(request.getNroAfiliado().trim());
+                }
+                paciente = pacienteRepositorio.save(paciente);
+            } else {
+                com.SaludUnificada.Esu.dto.request.PacienteDtoRequest dto = new com.SaludUnificada.Esu.dto.request.PacienteDtoRequest();
+                dto.setDni(dniLimpio);
+                dto.setNombre(request.getNombre().trim());
+                dto.setApellido(request.getApellido().trim());
+                dto.setTelefono(request.getTelefono().trim());
+                dto.setEmail(request.getEmail() != null && !request.getEmail().isBlank()
+                        ? request.getEmail().trim().toLowerCase()
+                        : "paciente." + dniLimpio + "@salud.cruzdeleje.gob.ar");
+                dto.setObraSocial(request.getObraSocial() != null && !request.getObraSocial().isBlank() ? request.getObraSocial().trim() : "Particular");
+                dto.setNroAfiliado(request.getNroAfiliado() != null && !request.getNroAfiliado().isBlank() ? request.getNroAfiliado().trim() : dniLimpio);
+                dto.setCentroSaludReferenciaId(request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L);
+                dto.setCentroSaludReferenciaNombre(request.getCentroSaludNombre() != null ? request.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo");
+
+                Paciente nuevo;
+                if (pacienteMapper != null) {
+                    nuevo = pacienteMapper.paraEntidad(dto);
+                } else {
+                    nuevo = new Paciente();
+                    nuevo.setDni(dniLimpio);
+                    nuevo.setNombre(dto.getNombre());
+                    nuevo.setApellido(dto.getApellido());
+                    nuevo.setTelefono(dto.getTelefono());
+                    nuevo.setObraSocial(dto.getObraSocial());
+                    nuevo.setNroAfiliado(dto.getNroAfiliado());
+                    Usuario u = new Usuario();
+                    u.setEmail(dto.getEmail());
+                    String rawPass = dniLimpio;
+                    u.setPassword(passwordEncoder != null ? passwordEncoder.encode(rawPass) : rawPass);
+                    u.setRol("PACIENTE");
+                    u.setEstadoActivo(true);
+                    u.setEmailVerificado(true);
+                    u.setFechaDeAlta(java.time.LocalDate.now());
+                    nuevo.setUsuario(u);
+                }
+                paciente = pacienteRepositorio.save(nuevo);
+            }
+        }
+
+        if (turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(paciente.getId(), fechaHora, CANCELADO)) {
+            throw new ReglaNegocioException("Ya posee una consulta médica programada para la misma fecha y hora.");
+        }
+
+        Turno turno = new Turno();
+        turno.setFechaHora(fechaHora);
+        turno.setProfesional(profesional);
+        turno.setPaciente(paciente);
+        turno.setMotivoTurno(request.getMotivoTurno() != null && !request.getMotivoTurno().isBlank()
+                ? request.getMotivoTurno().trim()
+                : "Consulta programada vía turnero oficial");
+        turno.setEstado("PENDIENTE");
+        turno.setFechaCreacion(ahora);
+        turno.setEsSobreturno(false);
+        turno.setIdempotencyKey(request.getIdempotencyKey());
+
+        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        String centroNombre = request.getCentroSaludNombre() != null ? request.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo";
+        turno.setCentroSaludId(centroId);
+        turno.setCentroSaludNombre(centroNombre);
+        turno.setConsultorioNumero(request.getConsultorioNumero() != null ? request.getConsultorioNumero() : "Consultorio 1");
+
+        Turno guardado = turnoRepositorio.save(turno);
+        turnoRepositorio.flush();
+
+        if (recordatorioRepositorio != null) {
+            try {
+                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
+            } catch (Exception ex) {
+                log.warn("Recordatorio no generado inmediatamente: {}", ex.getMessage());
+            }
         }
 
         return turnoMapper.paraDto(guardado);

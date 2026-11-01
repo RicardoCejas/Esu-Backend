@@ -92,7 +92,8 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
-                        auth.requestMatchers("/api/auth/login", "/api/auth/registro", "/api/auth/register").permitAll();
+                        auth.requestMatchers("/api/auth/login", "/api/auth/registro", "/api/auth/register", "/api/auth/google").permitAll();
+                        auth.requestMatchers("/api/auth/refresh", "/api/auth/logout").permitAll();
                         auth.requestMatchers("/api/auth/solicitar-recuperacion", "/api/auth/forgot-password").permitAll();
                         auth.requestMatchers("/api/auth/resetear-password", "/api/auth/reset-password").permitAll();
                         auth.requestMatchers("/api/auth/verify-email", "/api/auth/verify-email/resend").permitAll();
@@ -141,6 +142,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/turnos/disponibles").permitAll();
+                        auth.requestMatchers(HttpMethod.POST, "/api/turnos/publico/reservar").permitAll();
                         auth.requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN");

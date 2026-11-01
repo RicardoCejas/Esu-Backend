@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoPublicoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.servicio.ITurnoServicio;
@@ -72,6 +73,13 @@ public class TurnoControlador {
     @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<TurnoDtoResponse> crearTurno(@Valid @RequestBody TurnoDtoRequest turnoDto, Principal principal) {
         TurnoDtoResponse nuevoTurno = turnoServicio.crearTurno(turnoDto, principal != null ? principal.getName() : null);
+        return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/publico/reservar")
+    @Operation(summary = "Reserva pública de turnos oficiales con verificación probatoria de identidad del paciente")
+    public ResponseEntity<TurnoDtoResponse> reservarTurnoPublico(@Valid @RequestBody TurnoPublicoDtoRequest request, Principal principal) {
+        TurnoDtoResponse nuevoTurno = turnoServicio.reservarTurnoPublico(request, principal != null ? principal.getName() : null);
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
     }
 

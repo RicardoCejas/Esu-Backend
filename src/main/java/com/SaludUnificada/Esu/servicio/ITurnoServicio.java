@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoPublicoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import java.util.List;
 
 public interface ITurnoServicio {
     TurnoDtoResponse crearTurno(TurnoDtoRequest turno, String emailAutenticado);
+    TurnoDtoResponse reservarTurnoPublico(TurnoPublicoDtoRequest request, String emailAutenticado);
     TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request);
     TurnoDtoResponse crearTurnoMostrador(TurnoMostradorDtoRequest request, String emailRecepcionista);
     List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);

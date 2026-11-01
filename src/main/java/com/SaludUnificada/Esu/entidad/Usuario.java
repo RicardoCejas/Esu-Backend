@@ -66,6 +66,12 @@ public class Usuario {
     @Column(name = "token_version")
     private Integer tokenVersion = 1;
 
+    @Column(name = "google_sub", unique = true)
+    private String googleSub;
+
+    @Column(name = "auth_provider")
+    private String authProvider = "LOCAL";
+
     public void revocarSesiones() {
         this.tokenVersion = (this.tokenVersion != null ? this.tokenVersion : 0) + 1;
     }
