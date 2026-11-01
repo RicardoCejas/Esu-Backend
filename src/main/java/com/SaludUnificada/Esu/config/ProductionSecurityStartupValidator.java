@@ -38,6 +38,9 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.mail.password:}")
     private String mailPassword;
 
+    @Value("${app.mail.enabled:false}")
+    private boolean mailEnabled = false;
+
     @Value("${app.auth.google.enabled:false}")
     private boolean googleAuthEnabled = false;
 
@@ -104,15 +107,19 @@ public class ProductionSecurityStartupValidator {
                 throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar 'FRONTEND_URL' con una URL pública HTTPS válida (no localhost).");
             }
 
-            // 5. Validar host y password de correo electrónico
-            if (mailHost == null || mailHost.trim().isEmpty() || "localhost".equalsIgnoreCase(mailHost) || "127.0.0.1".equals(mailHost)
-                    || mailHost.contains("ejemplo.gob.ar") || mailHost.contains("example.com") || mailHost.toLowerCase().contains("cambiar")) {
-                throw new IllegalStateException("FATAL: En producción se requiere configurar un servidor SMTP externo legítimo y no un placeholder ('spring.mail.host').");
-            }
-            if (mailPassword == null || mailPassword.trim().isEmpty()
-                    || mailPassword.toLowerCase().contains("definir") || mailPassword.toLowerCase().contains("cambiar")
-                    || mailPassword.toLowerCase().contains("password") || mailPassword.contains("123456")) {
-                throw new IllegalStateException("FATAL: Contraseña de servidor SMTP vacía o placeholder para entorno productivo ('spring.mail.password').");
+            // 5. Validar host y password de correo electrónico solo si está habilitado
+            if (mailEnabled) {
+                if (mailHost == null || mailHost.trim().isEmpty() || "localhost".equalsIgnoreCase(mailHost) || "127.0.0.1".equals(mailHost)
+                        || mailHost.contains("ejemplo.gob.ar") || mailHost.contains("example.com") || mailHost.toLowerCase().contains("cambiar")) {
+                    throw new IllegalStateException("FATAL: En producción se requiere configurar un servidor SMTP externo legítimo y no un placeholder ('spring.mail.host').");
+                }
+                if (mailPassword == null || mailPassword.trim().isEmpty()
+                        || mailPassword.toLowerCase().contains("definir") || mailPassword.toLowerCase().contains("cambiar")
+                        || mailPassword.toLowerCase().contains("password") || mailPassword.contains("123456")) {
+                    throw new IllegalStateException("FATAL: Contraseña de servidor SMTP vacía o placeholder para entorno productivo ('spring.mail.password').");
+                }
+            } else {
+                log.info("Envío de correos SMTP desactivado para entorno de demostración (app.mail.enabled=false).");
             }
 
             // 6. Validar Google Client ID en producción sólo si está habilitado

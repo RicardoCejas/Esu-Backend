@@ -30,6 +30,9 @@ public class EmailNotificacionServicio {
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
+
+    @Value("${app.mail.enabled:false}")
+    private boolean mailEnabled = false;
     public void enviarConfirmacionTurno(Turno turno) {
         if (turno == null || turno.getPaciente() == null) {
             log.warn("No se pudo despachar el correo de confirmación: el turno o paciente es nulo.");
@@ -139,6 +142,10 @@ public class EmailNotificacionServicio {
         }
 
         String emailEnmascarado = com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(destinatario);
+        if (!mailEnabled || mailSender == null) {
+            log.info("[MODO DEMO] Notificación por email omitida (app.mail.enabled=false) para destinatario: {}. Asunto: '{}'", emailEnmascarado, asunto);
+            return;
+        }
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
