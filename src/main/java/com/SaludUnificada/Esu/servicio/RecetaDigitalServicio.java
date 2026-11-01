@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.DispensarRecetaDtoRequest;
 import com.SaludUnificada.Esu.dto.request.MedicamentoItemDto;
 import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
+import com.SaludUnificada.Esu.dto.response.RecetaValidacionDtoResponse;
 import com.SaludUnificada.Esu.dto.response.VerificacionRecetaPublicaDtoResponse;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.Paciente;
@@ -18,6 +19,7 @@ import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +49,8 @@ public class RecetaDigitalServicio {
 
     @Autowired(required = false)
     private EvolucionMedicaRepositorio evolucionRepositorio;
+    @Autowired(required = false)
+    private TurnoRepositorio turnoRepositorio;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -296,18 +301,100 @@ public class RecetaDigitalServicio {
     }
 
     @Transactional(readOnly = true)
+    public RecetaValidacionDtoResponse validarRecetaParaDispensacion(String codigoOQr) {
+        String claveBusqueda = extraerHashOId(codigoOQr);
+        if (claveBusqueda == null || claveBusqueda.trim().length() < 16 || claveBusqueda.trim().matches("^\\d+$")) {
+            throw new NoEncontradoExcepcion("Identificador de receta inválido: no se permite consulta por ID numérico.");
+        }
+        RecetaDigital receta = buscarRecetaPorCodigoOHashReadOnly(claveBusqueda)
+            .orElseThrow(() -> new NoEncontradoExcepcion("No se encontró ninguna receta médica registrada con el identificador o QR: " + codigoOQr));
+        if (receta.getFechaVencimiento() != null && receta.getFechaVencimiento().isBefore(LocalDate.now())
+                && !"DISPENSADA".equalsIgnoreCase(receta.getEstadoReceta())
+                && !"ANULADA".equalsIgnoreCase(receta.getEstadoReceta())) {
+            receta.setEstadoReceta("VENCIDA");
+        }
+
+        List<MedicamentoItemDto> items = new ArrayList<>();
+        if (receta.getMedicamentos() != null) {
+            for (var m : receta.getMedicamentos()) {
+                Integer cant = 1;
+                if (m.getCantidad() != null) {
+                    try {
+                        cant = Integer.parseInt(m.getCantidad().trim());
+                    } catch (NumberFormatException ignored) {
+                        cant = 1;
+                    }
+                }
+                items.add(new MedicamentoItemDto(
+                        m.getNombreComercial(),
+                        m.getDroga(),
+                        m.getPresentacion(),
+                        m.getDosisIndicada(),
+                        m.getPosologia(),
+                        m.getViaAdministracion(),
+                        m.getDuracion(),
+                        cant
+                ));
+            }
+        }
+
+        String profesionalEsp = null;
+        if (receta.getProfesional() != null && receta.getProfesional().getEspecialidades() != null && !receta.getProfesional().getEspecialidades().isEmpty()) {
+            profesionalEsp = receta.getProfesional().getEspecialidades().iterator().next().getNombre();
+        }
+
+        return RecetaValidacionDtoResponse.builder()
+                .codigoReceta(receta.getHashIntegridad())
+                .estado(receta.getEstadoReceta())
+                .fechaEmision(receta.getFechaEmision())
+                .fechaVencimiento(receta.getFechaVencimiento())
+                .fechaDispensacion(receta.getFechaDispensacion())
+                .profesionalNombre(receta.getProfesional() != null ? receta.getProfesional().getNombre() + " " + receta.getProfesional().getApellido() : "")
+                .profesionalMatricula(receta.getProfesional() != null ? receta.getProfesional().getMatricula() : "")
+                .profesionalEspecialidad(profesionalEsp != null ? profesionalEsp : "Medicina General")
+                .centroSaludEmisorNombre(receta.getCentroSaludEmisorNombre())
+                .pacienteNombre(receta.getPaciente() != null ? receta.getPaciente().getNombre() + " " + receta.getPaciente().getApellido() : "")
+                .pacienteDni(receta.getPaciente() != null ? receta.getPaciente().getDni() : "")
+                .pacienteObraSocial(receta.getPaciente() != null ? receta.getPaciente().getObraSocial() : "")
+                .pacienteNroAfiliado(receta.getPaciente() != null ? receta.getPaciente().getNroAfiliado() : "")
+                .medicamentos(items)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecetaDigital> listarPorCodigoCie10ParaProfesional(String cie10, String emailProfesional) {
+        if (cie10 == null || cie10.isBlank()) {
+            return List.of();
+        }
+        List<RecetaDigital> todas = recetaRepositorio.findByCodigoCie10(cie10.trim().toUpperCase());
+        if (emailProfesional == null || emailProfesional.isBlank()) {
+            return List.of();
+        }
+        Optional<Profesional> profOpt = profesionalRepositorio.findByUsuarioEmail(emailProfesional);
+        if (profOpt.isEmpty()) {
+            return List.of();
+        }
+        Long profId = profOpt.get().getId();
+        return todas.stream()
+                .filter(r -> {
+                    if (r.getPaciente() == null) return false;
+                    Long pacId = r.getPaciente().getId();
+                    return (r.getProfesional() != null && r.getProfesional().getId().equals(profId))
+                            || (turnoRepositorio != null && turnoRepositorio.existsByProfesionalIdAndPacienteId(profId, pacId))
+                            || recetaRepositorio.existsByProfesionalIdAndPacienteId(profId, pacId);
+                })
+                .collect(Collectors.toList());
+    }
+
     public Optional<RecetaDigital> buscarRecetaPorCodigoOHashReadOnly(String clave) {
         if (clave == null || clave.trim().isEmpty()) {
             return Optional.empty();
         }
         String limpia = clave.trim();
-
-        if (limpia.matches("^\\d+$")) {
-            Long id = Long.parseLong(limpia);
-            Optional<RecetaDigital> porId = recetaRepositorio.findById(id);
-            if (porId.isPresent()) return porId;
+        // Solo aceptar identificadores opacos de alta entropía; rechazar enumeración por IDs numéricos
+        if (limpia.matches("^\\d+$") || limpia.length() < 16) {
+            return Optional.empty();
         }
-
         return recetaRepositorio.findByHashIntegridad(limpia);
     }
 
@@ -328,8 +415,7 @@ public class RecetaDigitalServicio {
                 return VerificacionRecetaPublicaDtoResponse.builder()
                     .valido(false)
                     .integridadValida(false)
-                    .id(r.getId())
-                    .tipoDocumento("RECETA_DIGITAL")
+                                        .tipoDocumento("RECETA_DIGITAL")
                     .estado("INTEGRIDAD_INVALIDA")
                     .hashIntegridadSha256(r.getHashIntegridad())
                     .mensaje("Falla en la verificación de integridad: el documento ha sido alterado o la firma digital no coincide.")
@@ -338,7 +424,7 @@ public class RecetaDigitalServicio {
 
             return VerificacionRecetaPublicaDtoResponse.builder()
                 .valido(true)
-                .id(r.getId())
+                .id(null)
                 .tipoDocumento("RECETA_DIGITAL")
                 .estado(estado)
                 .fechaEmision(r.getFechaEmision())

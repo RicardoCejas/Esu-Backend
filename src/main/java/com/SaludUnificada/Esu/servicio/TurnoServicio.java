@@ -127,7 +127,7 @@ public class TurnoServicio implements ITurnoServicio {
             if (previo.isPresent()) {
                 validarCoincidenciaYAutorizacionIdempotencia(previo.get(), turnoDto.getPacienteId(), turnoDto.getProfesionalId(), turnoDto.getFechaHora(), false, emailAutenticado, key);
                 log.info("Turno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
-                        key, previo.get().getId());
+                        MascaraDatosUtil.enmascararClave(key), previo.get().getId());
                 return turnoMapper.paraDto(previo.get());
             }
         }
@@ -248,7 +248,7 @@ public class TurnoServicio implements ITurnoServicio {
                 Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
                 if (recuperado.isPresent()) {
                     validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, false, emailAutenticado, key);
-                    log.info("Colisión simultánea resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    log.info("Colisión simultánea resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", MascaraDatosUtil.enmascararClave(key), recuperado.get().getId());
                     return turnoMapper.paraDto(recuperado.get());
                 }
             }
@@ -292,13 +292,49 @@ public class TurnoServicio implements ITurnoServicio {
 
         validarHorario(fechaHora);
 
-        // Resolución de idempotencia: si la reserva ya fue procesada, devolver la existente
+        String dniLimpio = request.getDni() != null ? request.getDni().trim().replaceAll("[^0-9]", "") : "";
+
+        // Resolución de idempotencia: si la reserva ya fue procesada, validar correspondencia antes de devolver
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             String key = request.getIdempotencyKey().trim();
             Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(key);
             if (previo.isPresent()) {
-                log.info("Turno público ya procesado con idempotencyKey={}. Devolviendo turno existente ID={}.", key, previo.get().getId());
-                return turnoMapper.paraDto(previo.get());
+                Turno turnoExistente = previo.get();
+                boolean coincideProfesional = turnoExistente.getProfesional() != null && turnoExistente.getProfesional().getId().equals(request.getProfesionalId());
+                boolean coincideFecha = turnoExistente.getFechaHora() != null && turnoExistente.getFechaHora().isEqual(fechaHora);
+                boolean previoEsSobreturno = Boolean.TRUE.equals(turnoExistente.getEsSobreturno());
+
+                if (previoEsSobreturno) {
+                    throw new IllegalStateException("Conflicto de idempotencia: La clave '" + MascaraDatosUtil.enmascararClave(key) + "' fue utilizada previamente para un tipo de operación distinto.");
+                }
+                if (!coincideProfesional || !coincideFecha) {
+                    throw new IllegalStateException("Conflicto de idempotencia: La clave '" + MascaraDatosUtil.enmascararClave(key) + "' ya fue utilizada previamente con parámetros de reserva diferentes.");
+                }
+
+                if (emailAutenticado != null && !emailAutenticado.isBlank() && !"anonymousUser".equals(emailAutenticado)) {
+                    boolean coincidePaciente = turnoExistente.getPaciente() != null && turnoExistente.getPaciente().getUsuario() != null
+                            && emailAutenticado.equalsIgnoreCase(turnoExistente.getPaciente().getUsuario().getEmail());
+                    if (!coincidePaciente) {
+                        log.warn("Intento no autorizado de reutilizar idempotencyKey de otro paciente por {}", MascaraDatosUtil.enmascararEmail(emailAutenticado));
+                        throw new AccessDeniedException("No está autorizado a consultar o recuperar el turno asociado a esta clave de idempotencia.");
+                    }
+                } else {
+                    String dniExistente = turnoExistente.getPaciente() != null && turnoExistente.getPaciente().getDni() != null
+                            ? turnoExistente.getPaciente().getDni().replaceAll("[^0-9]", "") : "";
+                    if (dniExistente.isEmpty() || !dniExistente.equals(dniLimpio)) {
+                        throw new AccessDeniedException("No está autorizado a consultar o recuperar el turno asociado a esta clave de idempotencia.");
+                    }
+                }
+
+                log.info("Turno público ya procesado con idempotencyKey={}. Devolviendo turno existente ID={}.", MascaraDatosUtil.enmascararClave(key), turnoExistente.getId());
+                TurnoDtoResponse responseDto = turnoMapper.paraDto(turnoExistente);
+                if (emailAutenticado == null || emailAutenticado.isBlank() || "anonymousUser".equals(emailAutenticado)) {
+                    if (responseDto.getPaciente() != null) {
+                        responseDto.getPaciente().setTelefono(MascaraDatosUtil.enmascararTelefono(responseDto.getPaciente().getTelefono()));
+                        responseDto.getPaciente().setEmail(MascaraDatosUtil.enmascararEmail(responseDto.getPaciente().getEmail()));
+                    }
+                }
+                return responseDto;
             }
         }
 
@@ -321,7 +357,6 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("El horario solicitado ya no está disponible.");
         }
 
-        String dniLimpio = request.getDni().trim().replaceAll("[^0-9]", "");
         Paciente paciente = null;
 
         if (emailAutenticado != null && !emailAutenticado.isBlank() && !"anonymousUser".equals(emailAutenticado)) {
@@ -451,7 +486,7 @@ public class TurnoServicio implements ITurnoServicio {
             if (previo.isPresent()) {
                 validarCoincidenciaYAutorizacionIdempotencia(previo.get(), request.getPacienteId(), request.getProfesionalId(), fechaHora, true, emailAut, key);
                 log.info("Sobreturno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
-                        key, previo.get().getId());
+                        MascaraDatosUtil.enmascararClave(key), previo.get().getId());
                 return turnoMapper.paraDto(previo.get());
             }
         }
@@ -524,7 +559,7 @@ public class TurnoServicio implements ITurnoServicio {
                 Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
                 if (recuperado.isPresent()) {
                     validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, true, emailAut, key);
-                    log.info("Colisión simultánea de sobreturno resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    log.info("Colisión simultánea de sobreturno resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", MascaraDatosUtil.enmascararClave(key), recuperado.get().getId());
                     return turnoMapper.paraDto(recuperado.get());
                 }
             }
@@ -1298,14 +1333,14 @@ public class TurnoServicio implements ITurnoServicio {
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_RECEPCIONISTA"));
 
             if (!esDuenoPaciente && !esDuenoMedico && !esAdminORecepcion) {
-                log.warn("Intento de acceso no autorizado a turno preexistente vía idempotencyKey '{}' por usuario '{}'", key, MascaraDatosUtil.enmascararEmail(emailAutenticado));
+                log.warn("Intento de acceso no autorizado a turno preexistente vía idempotencyKey '{}' por usuario '{}'", MascaraDatosUtil.enmascararClave(key), MascaraDatosUtil.enmascararEmail(emailAutenticado));
                 throw new AccessDeniedException("No está autorizado a consultar o recuperar el turno asociado a esta clave de idempotencia.");
             }
         }
 
         boolean previoEsSobreturno = Boolean.TRUE.equals(previo.getEsSobreturno());
         if (previoEsSobreturno != esSobreturno) {
-            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + key + "' fue utilizada previamente para un tipo de operación distinto.");
+            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + MascaraDatosUtil.enmascararClave(key) + "' fue utilizada previamente para un tipo de operación distinto.");
         }
 
         boolean coincidePaciente = (pacienteId != null && previo.getPaciente() != null && previo.getPaciente().getId().equals(pacienteId))
@@ -1314,7 +1349,7 @@ public class TurnoServicio implements ITurnoServicio {
         boolean coincideFecha = previo.getFechaHora() != null && previo.getFechaHora().isEqual(fechaHora);
 
         if (!coincidePaciente || !coincideProfesional || !coincideFecha) {
-            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + key + "' ya fue utilizada previamente con parámetros de reserva diferentes.");
+            throw new IllegalStateException("Conflicto de idempotencia: La clave '" + MascaraDatosUtil.enmascararClave(key) + "' ya fue utilizada previamente con parámetros de reserva diferentes.");
         }
     }
 }

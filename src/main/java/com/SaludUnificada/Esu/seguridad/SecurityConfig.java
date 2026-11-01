@@ -151,7 +151,6 @@ public class SecurityConfig {
                         auth.requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").denyAll();
                         auth.requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "PACIENTE");
 
-                        auth.requestMatchers(HttpMethod.GET, "/api/recetas/validar/**").permitAll();
                         auth.requestMatchers("/api/recetas/dispensar").hasAnyRole("FARMACIA", "ADMIN", "MEDICO", "PROFESIONAL", "RECEPCIONISTA");
                         auth.requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "FARMACIA", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO");

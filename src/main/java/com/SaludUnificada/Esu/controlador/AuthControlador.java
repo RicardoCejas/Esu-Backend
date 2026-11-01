@@ -85,26 +85,55 @@ public class AuthControlador {
         return "prod".equalsIgnoreCase(activeProfile) || "production".equalsIgnoreCase(activeProfile);
     }
 
+    @Value("${app.auth.cookie.same-site:}")
+    private String cookieSameSiteConfig;
+
+    @Value("${app.auth.cookie.secure:}")
+    private String cookieSecureConfig;
+
+    private boolean esCookieSegura() {
+        if ("true".equalsIgnoreCase(cookieSecureConfig)) return true;
+        if ("false".equalsIgnoreCase(cookieSecureConfig)) return false;
+        return esProduccion();
+    }
+
+    private String obtenerSameSite() {
+        if (cookieSameSiteConfig != null && !cookieSameSiteConfig.isBlank()) {
+            return cookieSameSiteConfig.trim();
+        }
+        return esProduccion() ? "None" : "Lax";
+    }
+
     private void fijarCookieRefreshToken(HttpServletResponse response, String refreshTokenStr) {
         if (response == null || refreshTokenStr == null) return;
+        boolean secure = esCookieSegura();
+        String sameSite = obtenerSameSite();
+        if ("None".equalsIgnoreCase(sameSite)) {
+            secure = true;
+        }
         ResponseCookie cookie = ResponseCookie.from("esu_refresh_token", refreshTokenStr)
                 .httpOnly(true)
-                .secure(esProduccion())
+                .secure(secure)
                 .path("/api/auth")
                 .maxAge(7 * 24 * 3600)
-                .sameSite("Lax")
+                .sameSite(sameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private void limpiarCookieRefreshToken(HttpServletResponse response) {
         if (response == null) return;
+        boolean secure = esCookieSegura();
+        String sameSite = obtenerSameSite();
+        if ("None".equalsIgnoreCase(sameSite)) {
+            secure = true;
+        }
         ResponseCookie cookie = ResponseCookie.from("esu_refresh_token", "")
                 .httpOnly(true)
-                .secure(esProduccion())
+                .secure(secure)
                 .path("/api/auth")
                 .maxAge(0)
-                .sameSite("Lax")
+                .sameSite(sameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -357,7 +386,8 @@ public class AuthControlador {
         usuario.setFechaDeAlta(LocalDate.now());
 
         String tokenVerificacion = UUID.randomUUID().toString();
-        usuario.setTokenVerificacion(tokenVerificacion);
+        String tokenVerificacionHash = RefreshTokenServicio.hashToken(tokenVerificacion);
+        usuario.setTokenVerificacion(tokenVerificacionHash);
         usuario.setEmailVerificado(false);
         usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
         usuario.setTokenVerificacionUsado(false);
@@ -439,7 +469,8 @@ public class AuthControlador {
                     ));
                 }
                 String token = UUID.randomUUID().toString();
-                usuario.setTokenVerificacion(token);
+                String tokenHash = RefreshTokenServicio.hashToken(token);
+                usuario.setTokenVerificacion(tokenHash);
                 usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
                 usuario.setTokenVerificacionUsado(false);
                 usuarioRepositorio.save(usuario);
@@ -464,7 +495,9 @@ public class AuthControlador {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token de verificación no proporcionado");
         }
 
-        Usuario usuario = usuarioRepositorio.findByTokenVerificacion(token)
+        String tokenHash = RefreshTokenServicio.hashToken(token.trim());
+        Usuario usuario = usuarioRepositorio.findByTokenVerificacion(tokenHash)
+                .or(() -> usuarioRepositorio.findByTokenVerificacion(token.trim()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El enlace de verificación ha expirado o no es válido."));
 
         if (Boolean.TRUE.equals(usuario.getTokenVerificacionUsado())) {

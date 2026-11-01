@@ -12,6 +12,10 @@ import com.SaludUnificada.Esu.error.RecetaYaDispensadaException;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
+import com.SaludUnificada.Esu.dto.response.RecetaValidacionDtoResponse;
+import com.SaludUnificada.Esu.dto.response.VerificacionRecetaPublicaDtoResponse;
+import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,9 @@ class RecetaDigitalServicioTest {
 
     @Mock
     private RecetaDigitalRepositorio recetaRepositorio;
+
+    @Mock
+    private TurnoRepositorio turnoRepositorio;
 
     @Mock
     private PacienteRepositorio pacienteRepositorio;
@@ -224,4 +231,107 @@ class RecetaDigitalServicioTest {
         assertEquals("VENCIDA", r2.getEstadoReceta());
         verify(recetaRepositorio, times(2)).save(any(RecetaDigital.class));
     }
+
+    @Test
+    @DisplayName("Fase 1: Validación exitosa para dispensación usando hash de alta entropía")
+    void testValidarRecetaParaDispensacion_Exito() {
+        String hash = "a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef";
+        RecetaDigital r = new RecetaDigital();
+        r.setId(99L);
+        r.setHashIntegridad(hash);
+        r.setEstadoReceta("EMITIDA");
+        r.setPaciente(paciente);
+        r.setProfesional(profesional);
+        r.setMedicamentos(List.of());
+
+        when(recetaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(r));
+
+        RecetaValidacionDtoResponse resp = recetaServicio.validarRecetaParaDispensacion(hash);
+
+        assertNotNull(resp);
+        assertEquals(hash, resp.getCodigoReceta());
+        assertEquals("EMITIDA", resp.getEstado());
+        assertEquals("30111222", resp.getPacienteDni());
+    }
+
+    @Test
+    @DisplayName("Fase 1: Rechazo de consulta por ID numérico en validación de dispensación")
+    void testValidarRecetaParaDispensacion_RechazarIdNumerico() {
+        assertThrows(NoEncontradoExcepcion.class, () -> {
+            recetaServicio.validarRecetaParaDispensacion("12345");
+        });
+        verify(recetaRepositorio, never()).findByHashIntegridad(anyString());
+    }
+
+    @Test
+    @DisplayName("Fase 1: Verificación pública con hash válido oculta ID numérico primario")
+    void testVerificarDocumentoPublico_OcultaIdNumerico() {
+        String hash = "c1c2c3c4c5c6c7c8c9c0d1d2d3d4d5d6d7d8d9d0e1e2e3e4e5e6e7e8e9e0f1f2";
+        RecetaDigital r = new RecetaDigital();
+        r.setId(77L);
+        r.setHashIntegridad(hash);
+        r.setEstadoReceta("VIGENTE");
+        r.setPaciente(paciente);
+        r.setProfesional(profesional);
+        r.setMedicamentos(List.of());
+
+        when(recetaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(r));
+        when(pdfServicio.calcularHashSha256(anyString())).thenReturn(hash);
+
+        VerificacionRecetaPublicaDtoResponse resp = recetaServicio.verificarDocumentoPublico(hash);
+
+        assertTrue(resp.isValido());
+        assertNull(resp.getId(), "El ID numérico interno nunca debe exponerse en el endpoint público");
+        assertEquals(hash, resp.getHashIntegridadSha256());
+    }
+
+    @Test
+    @DisplayName("Fase 1: Verificación pública rechaza código numérico de baja entropía")
+    void testVerificarDocumentoPublico_RechazaIdNumerico() {
+        VerificacionRecetaPublicaDtoResponse resp = recetaServicio.verificarDocumentoPublico("77");
+
+        assertFalse(resp.isValido());
+        assertFalse(resp.isIntegridadValida());
+        verify(recetaRepositorio, never()).findByHashIntegridad(anyString());
+    }
+
+    @Test
+    @DisplayName("Fase 1: Filtrar recetas por CIE-10 impidiendo acceso sin relación asistencial")
+    void testListarPorCodigoCie10ParaProfesional_FiltraSinRelacion() {
+        String cie10 = "J00";
+        Profesional profAuth = new Profesional();
+        profAuth.setId(10L);
+
+        Paciente pacConRelacion = new Paciente();
+        pacConRelacion.setId(1L);
+
+        Paciente pacSinRelacion = new Paciente();
+        pacSinRelacion.setId(2L);
+
+        RecetaDigital r1 = new RecetaDigital();
+        r1.setId(101L);
+        r1.setProfesional(profAuth);
+        r1.setPaciente(pacConRelacion);
+        r1.setCodigoCie10(cie10);
+
+        RecetaDigital r2 = new RecetaDigital();
+        r2.setId(102L);
+        Profesional otroProf = new Profesional();
+        otroProf.setId(99L);
+        r2.setProfesional(otroProf);
+        r2.setPaciente(pacSinRelacion);
+        r2.setCodigoCie10(cie10);
+
+        when(profesionalRepositorio.findByUsuarioEmail("medico@esu.com")).thenReturn(Optional.of(profAuth));
+        when(recetaRepositorio.findByCodigoCie10(cie10)).thenReturn(List.of(r1, r2));
+        when(turnoRepositorio.existsByProfesionalIdAndPacienteId(10L, 2L)).thenReturn(false);
+        when(recetaRepositorio.existsByProfesionalIdAndPacienteId(10L, 2L)).thenReturn(false);
+
+        org.springframework.test.util.ReflectionTestUtils.setField(recetaServicio, "turnoRepositorio", turnoRepositorio);
+        List<RecetaDigital> resultado = recetaServicio.listarPorCodigoCie10ParaProfesional(cie10, "medico@esu.com");
+
+        assertEquals(1, resultado.size());
+        assertEquals(101L, resultado.get(0).getId());
+    }
 }
+

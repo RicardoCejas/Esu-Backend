@@ -103,7 +103,7 @@ public class EvolucionControlador {
     }
 
     @PostMapping("/historias-clinicas/consultas/borrador")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.canAccessPatient(#borrador.pacienteId)")
     @Operation(summary = "Guardar borrador de consulta mÃ©dica")
     public ResponseEntity<ConsultaBorradorDtoResponse> guardarBorrador(
             @RequestBody ConsultaBorradorDtoRequest borrador,
@@ -112,7 +112,7 @@ public class EvolucionControlador {
     }
 
     @GetMapping("/historias-clinicas/consultas/borrador")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL') and (#pacienteId == null or @securityPolicy.canAccessPatient(#pacienteId))")
     @Operation(summary = "Consultar borrador de consulta mÃ©dica")
     public ResponseEntity<ConsultaBorrador> obtenerBorrador(
             @RequestParam(required = false) Long turnoId,

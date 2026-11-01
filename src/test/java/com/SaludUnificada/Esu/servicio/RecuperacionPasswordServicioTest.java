@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
 import com.SaludUnificada.Esu.entidad.TokenRecuperacion;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.TokenRecuperacionRepositorio;
+import com.SaludUnificada.Esu.repositorio.RefreshTokenRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,9 @@ class RecuperacionPasswordServicioTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private RefreshTokenRepositorio refreshTokenRepositorio;
 
     @InjectMocks
     private RecuperacionPasswordServicio recuperacionServicio;
@@ -71,7 +75,7 @@ class RecuperacionPasswordServicioTest {
         token.setFechaExpiracion(LocalDateTime.now().plusMinutes(10));
         token.setUsado(false);
 
-        when(tokenRepositorio.findByToken("uuid-1234")).thenReturn(Optional.of(token));
+        when(tokenRepositorio.findByToken(anyString())).thenReturn(Optional.of(token));
         when(passwordEncoder.encode("NuevaClave123!")).thenReturn("hashNuevo");
 
         ResetearPasswordDtoRequest request = new ResetearPasswordDtoRequest("uuid-1234", "NuevaClave123!");
@@ -81,6 +85,7 @@ class RecuperacionPasswordServicioTest {
         assertTrue(token.getUsado());
         verify(usuarioRepositorio, times(1)).save(usuario);
         verify(tokenRepositorio, times(1)).save(token);
+        verify(refreshTokenRepositorio, times(1)).revocarTodosPorUsuarioId(usuario.getId());
     }
 
     @Test
@@ -91,7 +96,7 @@ class RecuperacionPasswordServicioTest {
         token.setFechaExpiracion(LocalDateTime.now().plusMinutes(10));
         token.setUsado(true);
 
-        when(tokenRepositorio.findByToken("uuid-usado")).thenReturn(Optional.of(token));
+        when(tokenRepositorio.findByToken(anyString())).thenReturn(Optional.of(token));
 
         ResetearPasswordDtoRequest request = new ResetearPasswordDtoRequest("uuid-usado", "NuevaClave123!");
         assertThrows(IllegalStateException.class, () -> recuperacionServicio.resetearPassword(request));
@@ -105,9 +110,27 @@ class RecuperacionPasswordServicioTest {
         token.setFechaExpiracion(LocalDateTime.now().minusMinutes(5));
         token.setUsado(false);
 
-        when(tokenRepositorio.findByToken("uuid-vencido")).thenReturn(Optional.of(token));
+        when(tokenRepositorio.findByToken(anyString())).thenReturn(Optional.of(token));
 
         ResetearPasswordDtoRequest request = new ResetearPasswordDtoRequest("uuid-vencido", "NuevaClave123!");
         assertThrows(IllegalStateException.class, () -> recuperacionServicio.resetearPassword(request));
     }
+
+    @Test
+    void solicitarRecuperacion_guardaSoloHashSha256EnBaseDeDatos() {
+        SolicitarRecuperacionDtoRequest request = new SolicitarRecuperacionDtoRequest("test@paciente.com");
+        when(usuarioRepositorio.findByEmail("test@paciente.com")).thenReturn(Optional.of(usuario));
+
+        recuperacionServicio.solicitarRecuperacion(request);
+
+        org.mockito.ArgumentCaptor<TokenRecuperacion> captor = org.mockito.ArgumentCaptor.forClass(TokenRecuperacion.class);
+        verify(tokenRepositorio).save(captor.capture());
+
+        TokenRecuperacion guardado = captor.getValue();
+        assertNotNull(guardado.getToken());
+        // Debe ser un hash SHA-256 de 64 caracteres hexadecimales
+        assertEquals(64, guardado.getToken().length());
+        assertTrue(guardado.getToken().matches("^[a-f0-9]{64}$"));
+    }
 }
+

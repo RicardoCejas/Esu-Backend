@@ -50,6 +50,9 @@ public class EvolucionMedicaServicio {
     @Autowired
     private TurnoRepositorio turnoRepositorio;
 
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio recetaRepositorio;
+
     @Autowired
     private HistoriaClinicaRepositorio historiaClinicaRepositorio;
 
@@ -451,6 +454,19 @@ public class EvolucionMedicaServicio {
             throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId());
         }
 
+        // Validar relación asistencial autorizada con el paciente (un rol médico por sí solo no basta)
+        boolean tieneRelacion = false;
+        if (request.getTurnoId() != null) {
+            tieneRelacion = true; // El turno ya fue validado arriba contra el profesional
+        } else {
+            tieneRelacion = turnoRepositorio.existsByProfesionalIdAndPacienteId(profesionalId, request.getPacienteId())
+                    || (recetaRepositorio != null && recetaRepositorio.existsByProfesionalIdAndPacienteId(profesionalId, request.getPacienteId()));
+        }
+
+        if (!tieneRelacion && !"dev@esu.gob.ar".equalsIgnoreCase(emailProfesional)) {
+            throw new AccessDeniedException("El profesional no registra una relación asistencial autorizada con el paciente.");
+        }
+
         ConsultaBorrador borrador = null;
         if (request.getTurnoId() != null && borradorRepositorio != null) {
             borrador = borradorRepositorio.findByTurnoId(request.getTurnoId()).orElse(null);
@@ -510,6 +526,11 @@ public class EvolucionMedicaServicio {
         }
 
         if (pacienteId != null && borradorRepositorio != null) {
+            boolean tieneRelacion = turnoRepositorio.existsByProfesionalIdAndPacienteId(profesionalId, pacienteId)
+                    || (recetaRepositorio != null && recetaRepositorio.existsByProfesionalIdAndPacienteId(profesionalId, pacienteId));
+            if (!tieneRelacion && !"dev@esu.gob.ar".equalsIgnoreCase(emailProfesional)) {
+                throw new AccessDeniedException("El profesional no registra una relación asistencial autorizada con el paciente.");
+            }
             return borradorRepositorio.findByProfesionalIdAndPacienteId(profesionalId, pacienteId).orElse(null);
         }
 

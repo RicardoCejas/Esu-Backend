@@ -8,7 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +34,9 @@ public class JwtTokenProvider {
     @Value("${app.jwt.audience:esu-frontend}")
     private String jwtAudience;
 
+    @Autowired(required = false)
+    private UsuarioRepositorio usuarioRepositorio;
+
     @PostConstruct
     public void validateSecret() {
         if (jwtSecret == null || jwtSecret.trim().isEmpty() || jwtSecret.trim().length() < 32) {
@@ -52,12 +58,22 @@ public class JwtTokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
+        Integer tokenVersion = 1;
+        if (usuarioRepositorio != null) {
+            tokenVersion = usuarioRepositorio.findByEmail(userPrincipal.getUsername())
+                    .map(Usuario::getTokenVersion)
+                    .orElse(1);
+        }
+        if (tokenVersion == null) {
+            tokenVersion = 1;
+        }
+
         return Jwts.builder()
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
                 .subject(userPrincipal.getUsername())
                 .claim("roles", roles)
-                .claim("tv", 1)
+                .claim("tv", tokenVersion)
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
@@ -81,7 +97,13 @@ public class JwtTokenProvider {
     }
 
     public String generarTokenParaUsuario(String email, String rol) {
-        return generarTokenParaUsuario(email, rol, 1);
+        Integer tv = 1;
+        if (usuarioRepositorio != null) {
+            tv = usuarioRepositorio.findByEmail(email)
+                    .map(Usuario::getTokenVersion)
+                    .orElse(1);
+        }
+        return generarTokenParaUsuario(email, rol, tv != null ? tv : 1);
     }
 
     public String obtenerUsernameDelJwt(String token) {

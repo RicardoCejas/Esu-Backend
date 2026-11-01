@@ -47,6 +47,7 @@ public class EstudioAdjuntoServicio {
 
     private final EstudioAdjuntoRepositorio estudioRepositorio;
     private final PacienteRepositorio pacienteRepositorio;
+    private final com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio evolucionRepositorio;
 
     @Value("${esu.uploads.estudios.dir:uploads/estudios}")
     private String directorioCargas;
@@ -76,6 +77,14 @@ public class EstudioAdjuntoServicio {
 
         if (!pacienteRepositorio.existsById(pacienteId)) {
             throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId);
+        }
+
+        if (evolucionId != null) {
+            com.SaludUnificada.Esu.entidad.EvolucionMedica evolucion = evolucionRepositorio.findById(evolucionId)
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Evolución médica no encontrada con ID: " + evolucionId));
+            if (evolucion.getPaciente() == null || !evolucion.getPaciente().getId().equals(pacienteId)) {
+                throw new ReglaNegocioException("La evolución clínica indicada (ID: " + evolucionId + ") no pertenece al paciente especificado (ID: " + pacienteId + ").");
+            }
         }
 
         // Validate storage quota for patient
