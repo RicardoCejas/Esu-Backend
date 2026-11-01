@@ -1,5 +1,5 @@
 # Ecosistema de Salud Unificado (ESU) - Backend
-> API REST empresarial para la interoperabilidad, gestión clínica inmutable, turnos médicos y receta digital en Cruz del Eje.
+> API REST para la interoperabilidad, gestión clínica inmutable, turnos médicos y receta digital en Cruz del Eje.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Estado-Producción_/_Operativo-success?style=for-the-badge" alt="Estado">
