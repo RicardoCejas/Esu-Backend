@@ -15,6 +15,8 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
+import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -83,12 +85,25 @@ class TurnoPublicoReservaTest {
                 .idempotencyKey("idem-key-abc-123")
                 .build();
 
+        Paciente pacPrevio = new Paciente();
+        pacPrevio.setId(10L);
+        pacPrevio.setDni("38123456");
+
         Turno previo = new Turno();
         previo.setId(77L);
         previo.setIdempotencyKey("idem-key-abc-123");
+        previo.setProfesional(profesional);
+        previo.setFechaHora(fechaFutura);
+        previo.setPaciente(pacPrevio);
 
         TurnoDtoResponse responseDto = new TurnoDtoResponse();
         responseDto.setId(77L);
+        PacienteDtoResponse pacDto = new PacienteDtoResponse();
+        pacDto.setId(10L);
+        pacDto.setDni("38123456");
+        pacDto.setTelefono("3549112233");
+        pacDto.setEmail("maria@gmail.com");
+        responseDto.setPaciente(pacDto);
 
         when(turnoRepositorio.findByIdempotencyKey("idem-key-abc-123")).thenReturn(Optional.of(previo));
         when(turnoMapper.paraDto(previo)).thenReturn(responseDto);
@@ -167,4 +182,61 @@ class TurnoPublicoReservaTest {
         assertEquals(100L, result.getId());
         verify(turnoRepositorio).save(argThat(t -> t.getPaciente().getId().equals(55L)));
     }
+
+    @Test
+    @DisplayName("Fase 2 Idempotencia: rechazar recuperación si los parámetros de profesional difieren")
+    void reservarTurnoPublico_idempotencia_distintoProfesional_lanzaExcepcion() {
+        TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
+                .fechaHora(fechaFutura)
+                .profesionalId(1L)
+                .dni("38123456")
+                .nombre("Maria")
+                .apellido("Lopez")
+                .telefono("3549112233")
+                .idempotencyKey("idem-key-abc-123")
+                .build();
+
+        Profesional otroProf = new Profesional();
+        otroProf.setId(99L); // Profesional distinto
+
+        Turno previo = new Turno();
+        previo.setId(77L);
+        previo.setIdempotencyKey("idem-key-abc-123");
+        previo.setProfesional(otroProf);
+        previo.setFechaHora(fechaFutura);
+
+        when(turnoRepositorio.findByIdempotencyKey("idem-key-abc-123")).thenReturn(Optional.of(previo));
+
+        assertThrows(IllegalStateException.class, () -> turnoServicio.reservarTurnoPublico(request, null));
+    }
+
+    @Test
+    @DisplayName("Fase 2 Idempotencia: rechazar si un tercero anónimo intenta reutilizar la clave con otro DNI")
+    void reservarTurnoPublico_idempotencia_distintoDniAnonimo_lanzaAccessDenied() {
+        TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
+                .fechaHora(fechaFutura)
+                .profesionalId(1L)
+                .dni("38999999") // DNI diferente
+                .nombre("Intruso")
+                .apellido("Perez")
+                .telefono("3549112233")
+                .idempotencyKey("idem-key-abc-123")
+                .build();
+
+        Paciente pacOriginal = new Paciente();
+        pacOriginal.setId(10L);
+        pacOriginal.setDni("38123456");
+
+        Turno previo = new Turno();
+        previo.setId(77L);
+        previo.setIdempotencyKey("idem-key-abc-123");
+        previo.setProfesional(profesional);
+        previo.setFechaHora(fechaFutura);
+        previo.setPaciente(pacOriginal);
+
+        when(turnoRepositorio.findByIdempotencyKey("idem-key-abc-123")).thenReturn(Optional.of(previo));
+
+        assertThrows(AccessDeniedException.class, () -> turnoServicio.reservarTurnoPublico(request, null));
+    }
 }
+

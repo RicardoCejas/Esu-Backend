@@ -47,6 +47,7 @@ public class GoogleTokenVerifierService {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.configuredClientId = configuredClientId;
+        this.googleAuthEnabled = (configuredClientId != null && !configuredClientId.isBlank());
     }
 
     /**
@@ -55,6 +56,11 @@ public class GoogleTokenVerifierService {
      * y presencia de todos los claims obligatorios.
      */
     public GoogleIdTokenPayload verificarToken(String idToken) {
+        if (!googleAuthEnabled) {
+            log.info("Intento de autenticación con Google rechazado: app.auth.google.enabled=false");
+            throw new BadCredentialsException("La autenticación mediante Google se encuentra deshabilitada en este entorno.");
+        }
+
         if (idToken == null || idToken.trim().isEmpty()) {
             throw new BadCredentialsException("El token de Google no puede estar vacío.");
         }

@@ -44,4 +44,35 @@ public final class MascaraDatosUtil {
 
         return localEnmascarado + "@" + domainEnmascarado;
     }
+
+    /**
+     * Enmascara claves de idempotencia o tokens sensibles para evitar fugas en logs y respuestas.
+     * Ejemplo: "idem-key-abc-12345" -> "idem...2345"
+     */
+    public static String enmascararClave(String key) {
+        if (key == null || key.isBlank()) {
+            return "***";
+        }
+        String trimmed = key.trim();
+        if (trimmed.length() <= 8) {
+            return "***";
+        }
+        return trimmed.substring(0, 4) + "..." + trimmed.substring(trimmed.length() - 4);
+    }
+
+    /**
+     * Enmascara números telefónicos en endpoints públicos.
+     * Ejemplo: "3549123456" -> "35***56"
+     */
+    public static String enmascararTelefono(String tel) {
+        if (tel == null || tel.isBlank()) {
+            return "***";
+        }
+        String trimmed = tel.trim();
+        if (trimmed.length() <= 4) {
+            return "***";
+        }
+        return trimmed.substring(0, 2) + "***" + trimmed.substring(trimmed.length() - 2);
+    }
 }
+

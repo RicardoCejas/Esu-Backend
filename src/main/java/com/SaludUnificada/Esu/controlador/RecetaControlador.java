@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.dto.request.RecetaDigitalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.DispensarRecetaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.VerificacionRecetaPublicaDtoResponse;
 import com.SaludUnificada.Esu.dto.response.RecetaDigitalDtoResponse;
+import com.SaludUnificada.Esu.dto.response.RecetaValidacionDtoResponse;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import com.SaludUnificada.Esu.mapper.RecetaDigitalMapper;
 import com.SaludUnificada.Esu.servicio.CatalogoFarmacologicoServicio;
@@ -58,10 +59,13 @@ public class RecetaControlador {
     }
 
     @GetMapping("/recetas/validar/{codigo}")
-    @Operation(summary = "Validar y consultar receta medica digital por codigo o hash para dispensacion farmaceutica")
-    public ResponseEntity<RecetaDigitalDtoResponse> validarRecetaPorCodigo(@PathVariable String codigo) {
-        RecetaDigital receta = recetaServicio.obtenerPorCodigoOHash(codigo);
-        return ResponseEntity.ok(recetaDigitalMapper.toDto(receta));
+    @PreAuthorize("hasAnyRole('FARMACIA', 'ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
+    @Operation(summary = "Validar y consultar receta medica digital por codigo opaco o hash para dispensacion farmaceutica")
+    public ResponseEntity<RecetaValidacionDtoResponse> validarRecetaPorCodigo(@PathVariable String codigo) {
+        if (codigo == null || codigo.trim().length() < 16 || codigo.trim().matches("^\\d+$")) {
+            throw new IllegalArgumentException("El código de validación de receta debe ser un identificador opaco o hash de alta entropía.");
+        }
+        return ResponseEntity.ok(recetaServicio.validarRecetaParaDispensacion(codigo.trim()));
     }
 
     @PostMapping("/recetas/dispensar")
@@ -155,8 +159,8 @@ public class RecetaControlador {
 
     @GetMapping("/recetas/cie10/{codigo}")
     @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL')")
-    public ResponseEntity<List<RecetaDigitalDtoResponse>> listarPorCie10(@PathVariable String codigo) {
-        List<RecetaDigital> recetas = recetaServicio.listarPorCodigoCie10(codigo);
+    public ResponseEntity<List<RecetaDigitalDtoResponse>> listarPorCie10(@PathVariable String codigo, Principal principal) {
+        List<RecetaDigital> recetas = recetaServicio.listarPorCodigoCie10ParaProfesional(codigo, principal != null ? principal.getName() : null);
         return ResponseEntity.ok(recetas.stream().map(recetaDigitalMapper::toDto).collect(Collectors.toList()));
     }
 }

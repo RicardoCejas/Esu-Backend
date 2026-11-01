@@ -9,6 +9,8 @@ import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.SaludUnificada.Esu.repositorio.RefreshTokenRepositorio;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,6 +26,9 @@ public class UsuarioServicio implements IUsuarioServicio {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    private RefreshTokenRepositorio refreshTokenRepositorio;
 
     @Override
     public UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuarioDto) {
@@ -79,29 +84,41 @@ public class UsuarioServicio implements IUsuarioServicio {
     }
 
     @Override
+    @Transactional
     public UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo) {
         Usuario usuario = obtenerEntidadUsuarioPorId(id);
         usuario.setEstadoActivo(activo);
         if (!activo) {
             usuario.revocarSesiones();
+            if (refreshTokenRepositorio != null) {
+                refreshTokenRepositorio.revocarTodosPorUsuarioId(usuario.getId());
+            }
         }
         Usuario guardado = usuarioRepositorio.save(usuario);
         return usuarioMapper.paraDto(guardado);
     }
 
     @Override
+    @Transactional
     public void revocarSesiones(Long id) {
         Usuario usuario = obtenerEntidadUsuarioPorId(id);
         usuario.revocarSesiones();
         usuarioRepositorio.save(usuario);
+        if (refreshTokenRepositorio != null) {
+            refreshTokenRepositorio.revocarTodosPorUsuarioId(id);
+        }
     }
 
     @Override
+    @Transactional
     public void revocarSesionesPorEmail(String email) {
         if (email == null || email.isBlank()) return;
         usuarioRepositorio.findByEmail(email.trim().toLowerCase()).ifPresent(u -> {
             u.revocarSesiones();
             usuarioRepositorio.save(u);
+            if (refreshTokenRepositorio != null) {
+                refreshTokenRepositorio.revocarTodosPorUsuarioId(u.getId());
+            }
         });
     }
 }

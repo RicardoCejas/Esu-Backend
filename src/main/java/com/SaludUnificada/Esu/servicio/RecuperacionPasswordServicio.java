@@ -6,6 +6,8 @@ import com.SaludUnificada.Esu.entidad.TokenRecuperacion;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.repositorio.TokenRecuperacionRepositorio;
+import com.SaludUnificada.Esu.servicio.RefreshTokenServicio;
+import com.SaludUnificada.Esu.repositorio.RefreshTokenRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,9 @@ public class RecuperacionPasswordServicio {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired(required = false)
+    private RefreshTokenRepositorio refreshTokenRepositorio;
+
     @Transactional
     public void solicitarRecuperacion(SolicitarRecuperacionDtoRequest request) {
         String email = request.getEmail().trim().toLowerCase();
@@ -60,9 +65,10 @@ public class RecuperacionPasswordServicio {
         }
 
         String tokenStr = UUID.randomUUID().toString();
+        String tokenHash = RefreshTokenServicio.hashToken(tokenStr);
 
         TokenRecuperacion token = new TokenRecuperacion();
-        token.setToken(tokenStr);
+        token.setToken(tokenHash);
         token.setUsuario(usuario);
         token.setFechaExpiracion(LocalDateTime.now().plusMinutes(EXPIRACION_MINUTOS));
         token.setUsado(false);
@@ -80,8 +86,10 @@ public class RecuperacionPasswordServicio {
     @Transactional
     public void resetearPassword(ResetearPasswordDtoRequest request) {
         String tokenStr = request.getToken().trim();
+        String tokenHash = RefreshTokenServicio.hashToken(tokenStr);
 
-        TokenRecuperacion token = tokenRepositorio.findByToken(tokenStr)
+        TokenRecuperacion token = tokenRepositorio.findByToken(tokenHash)
+                .or(() -> tokenRepositorio.findByToken(tokenStr))
                 .orElseThrow(() -> new IllegalArgumentException("El token de recuperaciÃ³n ingresado no es vÃ¡lido o no existe."));
 
         if (Boolean.TRUE.equals(token.getUsado())) {
@@ -103,6 +111,10 @@ public class RecuperacionPasswordServicio {
         usuario.setFechaActualizacionPassword(LocalDateTime.now());
         usuario.revocarSesiones(); // Invalida todas las sesiones previas incrementando tokenVersion
         usuarioRepositorio.save(usuario);
+
+        if (refreshTokenRepositorio != null) {
+            refreshTokenRepositorio.revocarTodosPorUsuarioId(usuario.getId());
+        }
 
         // InvalidaciÃ³n inmediata del token
         token.setUsado(true);

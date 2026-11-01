@@ -185,7 +185,7 @@ class AuthControladorTest {
         usuario.setEmailVerificado(false);
         usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(12));
         usuario.setTokenVerificacionUsado(false);
-        when(usuarioRepositorio.findByTokenVerificacion("token-valido-123")).thenReturn(Optional.of(usuario));
+        when(usuarioRepositorio.findByTokenVerificacion(anyString())).thenReturn(Optional.of(usuario));
 
         var res = authControlador.verificarEmail("token-valido-123");
 

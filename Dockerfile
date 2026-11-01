@@ -23,6 +23,6 @@ EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=prod
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
-  CMD curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"' || exit 1
+  CMD curl -fsS http://127.0.0.1:${PORT:-8080}/actuator/health | grep -q '"status":"UP"' || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
