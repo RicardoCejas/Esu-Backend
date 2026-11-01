@@ -60,6 +60,7 @@ public class SecurityConfig {
                 : (allowedOriginsConfig != null ? allowedOriginsConfig : "");
         List<String> origins = Arrays.stream(rawOrigins.split(","))
                 .map(String::trim)
+                .map(s -> s.replaceAll("/+$", ""))
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
         configuration.setAllowedOrigins(origins);
