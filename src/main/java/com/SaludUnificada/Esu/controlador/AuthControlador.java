@@ -20,6 +20,7 @@ import com.SaludUnificada.Esu.servicio.RefreshTokenServicio;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -47,6 +48,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthControlador {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthControlador.class);
+
     private final AuthenticationManager authenticationManager;
     private final UsuarioRepositorio usuarioRepositorio;
     private final PacienteRepositorio pacienteRepositorio;
@@ -65,6 +68,14 @@ public class AuthControlador {
     @Autowired(required = false)
     public void setGoogleTokenVerifierService(com.SaludUnificada.Esu.servicio.GoogleTokenVerifierService googleTokenVerifierService) {
         this.googleTokenVerifierService = googleTokenVerifierService;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.servicio.GoogleAuthServicio googleAuthServicio;
+
+    @Autowired(required = false)
+    public void setGoogleAuthServicio(com.SaludUnificada.Esu.servicio.GoogleAuthServicio googleAuthServicio) {
+        this.googleAuthServicio = googleAuthServicio;
     }
 
     @Value("${spring.profiles.active:local}")
@@ -177,12 +188,21 @@ public class AuthControlador {
             fijarCookieRefreshToken(servletResponse, rt.getToken());
         }
 
+        Paciente paciente = usuario.getPaciente();
+        if (paciente == null && usuario.getId() != null) {
+            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
+                .nombre(paciente != null ? paciente.getNombre() : null)
+                .apellido(paciente != null ? paciente.getApellido() : null)
+                .dni(paciente != null ? paciente.getDni() : null)
+                .emailVerificado(usuario.getEmailVerificado())
                 .build();
 
         return ResponseEntity.ok(response);
@@ -221,31 +241,26 @@ public class AuthControlador {
                         "El correo electrónico ya se encuentra registrado mediante cuenta local. Por motivos de seguridad, inicie sesión con su contraseña tradicional.");
             }
 
-            // 3. Crear usuario nuevo con rol público por defecto (PACIENTE)
-            usuario = new Usuario();
-            usuario.setEmail(email);
-            usuario.setGoogleSub(googleSub);
-            usuario.setAuthProvider("GOOGLE");
-            usuario.setRol("PACIENTE");
-            usuario.setEstadoActivo(true);
-            usuario.setEmailVerificado(true);
-            usuario.setFechaDeAlta(LocalDate.now());
-            usuario.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-            usuario = usuarioRepositorio.save(usuario);
-
-            // Crear ficha de paciente asociada
-            try {
-                Paciente paciente = new Paciente();
-                String nombre = payload.getGivenName() != null ? payload.getGivenName() : (payload.getName() != null ? payload.getName() : "Usuario");
-                String apellido = payload.getFamilyName() != null ? payload.getFamilyName() : "";
-                paciente.setNombre(nombre);
-                paciente.setApellido(apellido);
-                paciente.setDni("G-" + (googleSub.length() > 8 ? googleSub.substring(googleSub.length() - 8) : googleSub));
-                paciente.setTelefono("");
-                paciente.setUsuario(usuario);
-                pacienteRepositorio.save(paciente);
-            } catch (Exception e) {
-                // Silencioso si falla la ficha inicial opcional
+            // 3. Crear usuario nuevo con rol público por defecto (PACIENTE) de forma transaccional con su perfil de Paciente
+            if (googleAuthServicio != null) {
+                try {
+                    usuario = googleAuthServicio.registrarUsuarioConPaciente(payload);
+                } catch (Exception e) {
+                    log.error("Fallo al registrar usuario Google con perfil de paciente: {}", e.getMessage());
+                    throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error al crear el perfil de paciente para la cuenta de Google. Intente nuevamente.");
+                }
+            } else {
+                usuario = new Usuario();
+                usuario.setEmail(email);
+                usuario.setGoogleSub(googleSub);
+                usuario.setAuthProvider("GOOGLE");
+                usuario.setRol("PACIENTE");
+                usuario.setEstadoActivo(true);
+                usuario.setEmailVerificado(true);
+                usuario.setFechaDeAlta(LocalDate.now());
+                usuario.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                usuario = usuarioRepositorio.save(usuario);
             }
         }
 
@@ -272,12 +287,21 @@ public class AuthControlador {
             fijarCookieRefreshToken(servletResponse, rt.getToken());
         }
 
+        Paciente pacienteGoogle = usuario.getPaciente();
+        if (pacienteGoogle == null && usuario.getId() != null) {
+            pacienteGoogle = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
+                .nombre(pacienteGoogle != null ? pacienteGoogle.getNombre() : null)
+                .apellido(pacienteGoogle != null ? pacienteGoogle.getApellido() : null)
+                .dni(pacienteGoogle != null ? pacienteGoogle.getDni() : null)
+                .emailVerificado(usuario.getEmailVerificado())
                 .build();
 
         return ResponseEntity.ok(response);

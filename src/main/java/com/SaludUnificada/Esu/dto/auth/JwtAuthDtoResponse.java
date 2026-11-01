@@ -18,4 +18,8 @@ public class JwtAuthDtoResponse {
     private Long usuarioId;
     private String email;
     private String rol;
+    private String nombre;
+    private String apellido;
+    private String dni;
+    private Boolean emailVerificado;
 }
