@@ -107,7 +107,7 @@ public class RecetaControlador {
     }
 
     @GetMapping("/recetas/mis-recetas")
-    @PreAuthorize("hasRole('PACIENTE')")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN', 'DEV')")
     @Operation(summary = "Listar recetas medicas digitales del paciente autenticado")
     public ResponseEntity<List<RecetaDigitalDtoResponse>> listarMisRecetas(Principal principal, @RequestParam(required = false) String estado) {
         if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

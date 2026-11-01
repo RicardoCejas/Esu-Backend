@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Map;
 
 public interface IPacienteServicio {
     PacienteDtoResponse crearPaciente(PacienteDtoRequest paciente);
@@ -19,6 +20,8 @@ public interface IPacienteServicio {
     List<PacienteDtoResponse> buscarPorApellidoParcial(String apellido);
     Paciente obtenerEntidadPacientePorId(Long id);
     PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado);
+    PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado, String dni);
+    PacienteDtoResponse actualizarMiPerfilPorEmail(String email, Map<String, String> body);
     PacienteDtoResponse obtenerPerfilAutenticado(String email);
     void fusionarPacientes(Long pacienteOrigenId, Long pacienteDestinoId, String motivo, String emailAdmin);
 }

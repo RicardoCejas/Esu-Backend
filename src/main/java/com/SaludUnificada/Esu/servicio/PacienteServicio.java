@@ -53,6 +53,9 @@ public class PacienteServicio implements IPacienteServicio {
     @Autowired(required = false)
     private AuditoriaFusionPacienteRepositorio auditoriaFusionPacienteRepositorio;
 
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.UsuarioRepositorio usuarioRepositorio;
+
     @Override
     public PacienteDtoResponse crearPaciente(PacienteDtoRequest pacienteDto) {
         String dniLimpio = (pacienteDto.getDni() != null) ? pacienteDto.getDni().replaceAll("[^0-9a-zA-Z]", "").trim() : "";
@@ -123,6 +126,7 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     public Paciente obtenerEntidadPacientePorId(Long id) {
         return pacienteRepositorio.findById(id)
+                .or(() -> usuarioRepositorio != null ? usuarioRepositorio.findById(id).map(com.SaludUnificada.Esu.entidad.Usuario::getPaciente).filter(java.util.Objects::nonNull) : java.util.Optional.empty())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id));
     }
 
@@ -136,10 +140,57 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     @Transactional
     public PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado) {
+        return actualizarDatosContacto(id, telefono, obraSocial, nroAfiliado, null);
+    }
+
+    @Override
+    @Transactional
+    public PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado, String dni) {
         Paciente paciente = obtenerEntidadPacientePorId(id);
         if (telefono != null) paciente.setTelefono(telefono.replaceAll("[^0-9+ ]", "").trim());
         if (obraSocial != null && !obraSocial.isBlank()) paciente.setObraSocial(obraSocial.trim());
         if (nroAfiliado != null && !nroAfiliado.isBlank()) paciente.setNroAfiliado(nroAfiliado.trim());
+        if (dni != null && !dni.isBlank()) {
+            String dniLimpio = dni.replaceAll("[^0-9a-zA-Z-]", "").trim();
+            if (!dniLimpio.equalsIgnoreCase(paciente.getDni())) {
+                pacienteRepositorio.findByDni(dniLimpio).ifPresent(otro -> {
+                    if (!otro.getId().equals(paciente.getId())) {
+                        throw new IllegalArgumentException("El DNI ingresado ya pertenece a otro paciente registrado.");
+                    }
+                });
+                paciente.setDni(dniLimpio);
+            }
+        }
+        Paciente guardado = pacienteRepositorio.save(paciente);
+        return pacienteMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public PacienteDtoResponse actualizarMiPerfilPorEmail(String email, java.util.Map<String, String> body) {
+        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(email)
+                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+        if (body == null) return pacienteMapper.paraDto(paciente);
+
+        String tel = body.get("telefono");
+        String os = body.get("obraSocial");
+        String af = body.getOrDefault("nroAfiliado", body.get("numeroAfiliado"));
+        String dni = body.get("dni");
+
+        if (tel != null) paciente.setTelefono(tel.replaceAll("[^0-9+ ]", "").trim());
+        if (os != null && !os.isBlank()) paciente.setObraSocial(os.trim());
+        if (af != null && !af.isBlank()) paciente.setNroAfiliado(af.trim());
+        if (dni != null && !dni.isBlank()) {
+            String dniLimpio = dni.replaceAll("[^0-9a-zA-Z-]", "").trim();
+            if (!dniLimpio.equalsIgnoreCase(paciente.getDni())) {
+                pacienteRepositorio.findByDni(dniLimpio).ifPresent(otro -> {
+                    if (!otro.getId().equals(paciente.getId())) {
+                        throw new IllegalArgumentException("El DNI ingresado ya pertenece a otro paciente registrado.");
+                    }
+                });
+                paciente.setDni(dniLimpio);
+            }
+        }
         Paciente guardado = pacienteRepositorio.save(paciente);
         return pacienteMapper.paraDto(guardado);
     }
