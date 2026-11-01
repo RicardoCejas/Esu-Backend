@@ -37,7 +37,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final Environment environment;
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,https://cruzdeleje.gob.ar}")
+    @Value("${app.cors.allowed-origins:}")
     private String allowedOriginsConfig;
 
     @Bean
@@ -53,7 +53,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
+        boolean isDevOrLocal = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(p -> p.equalsIgnoreCase("dev") || p.equalsIgnoreCase("local") || p.equalsIgnoreCase("test"));
+        String rawOrigins = (allowedOriginsConfig == null || allowedOriginsConfig.isBlank()) && isDevOrLocal
+                ? "http://localhost:5173,http://127.0.0.1:5173"
+                : (allowedOriginsConfig != null ? allowedOriginsConfig : "");
+        List<String> origins = Arrays.stream(rawOrigins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
@@ -124,7 +129,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/usuarios/**").hasRole("ADMIN");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/centros-salud/**").permitAll();
-                        auth.requestMatchers("/api/centros-salud/**").hasRole("ADMIN");
+                        auth.requestMatchers("/api/centros-salud/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers("/api/medicos/asignar-consultorio").hasAnyRole("PROFESIONAL", "ADMIN");
                         auth.requestMatchers(HttpMethod.GET, "/api/medicos/**").permitAll();
@@ -135,7 +140,8 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/pacientes/fusionar").hasRole("ADMIN");
                         auth.requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
 
-                        auth.requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.GET, "/api/turnos/disponibles").permitAll();
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN");
 
@@ -143,8 +149,9 @@ public class SecurityConfig {
                         auth.requestMatchers(HttpMethod.DELETE, "/api/historias-clinicas/**").denyAll();
                         auth.requestMatchers("/api/historias-clinicas/**").hasAnyRole("PROFESIONAL", "MEDICO", "PACIENTE");
 
-                        auth.requestMatchers("/api/recetas/dispensar").hasRole("FARMACIA");
-                        auth.requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "FARMACIA");
+                        auth.requestMatchers(HttpMethod.GET, "/api/recetas/validar/**").permitAll();
+                        auth.requestMatchers("/api/recetas/dispensar").hasAnyRole("FARMACIA", "ADMIN", "MEDICO", "PROFESIONAL", "RECEPCIONISTA");
+                        auth.requestMatchers("/api/recetas/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "FARMACIA", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/evoluciones/**").hasAnyRole("PROFESIONAL", "MEDICO");
 
                         auth.requestMatchers("/api/estudios/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO");

@@ -12,4 +12,10 @@ import lombok.Setter;
 public class EspecialidadDtoResponse {
     private Long id;
     private String nombre;
+    private String descripcion;
+
+    public EspecialidadDtoResponse(Long id, String nombre) {
+        this.id = id;
+        this.nombre = nombre;
+    }
 }

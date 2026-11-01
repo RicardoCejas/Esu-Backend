@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
 import com.SaludUnificada.Esu.dto.response.RecordatorioTurnoDtoResponse;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.servicio.ITurnoServicio;
@@ -31,6 +32,7 @@ import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/turnos")
@@ -58,6 +60,14 @@ public class TurnoControlador {
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
     }
 
+    @PostMapping("/mostrador")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN', 'MEDICO', 'PROFESIONAL')")
+    @Operation(summary = "Registrar turno presencial de mostrador en recepcion")
+    public ResponseEntity<TurnoDtoResponse> crearTurnoMostrador(@Valid @RequestBody TurnoMostradorDtoRequest request, Principal principal) {
+        TurnoDtoResponse nuevoTurno = turnoServicio.crearTurnoMostrador(request, principal != null ? principal.getName() : "RECEPCION");
+        return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
+    }
+
     @PostMapping("/crear")
     @PreAuthorize("hasAnyRole('PACIENTE', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL', 'ADMIN')")
     public ResponseEntity<TurnoDtoResponse> crearTurno(@Valid @RequestBody TurnoDtoRequest turnoDto, Principal principal) {
@@ -66,7 +76,7 @@ public class TurnoControlador {
     }
 
     @GetMapping("/disponibles")
-    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Consultar horarios disponibles reales para un profesional y fecha")
     public ResponseEntity<List<LocalDateTime>> obtenerDisponibilidad(
             @RequestParam Long profesionalId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
@@ -104,6 +114,12 @@ public class TurnoControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
+    public ResponseEntity<TurnoDtoResponse> cancelarTurnoPorDelete(@PathVariable Long id, Principal principal) {
+        return ResponseEntity.ok(turnoServicio.cancelarTurno(id, principal != null ? principal.getName() : null));
+    }
+
     @GetMapping("/filtrar")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     public ResponseEntity<List<TurnoDtoResponse>> filtrarTurnos(
@@ -131,6 +147,17 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.cancelarTurno(id, principal != null ? principal.getName() : null));
     }
 
+    @PutMapping("/{id}/cancelar-mostrador")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @Operation(summary = "Cancelar turno desde mostrador o bloqueo medico con justificativo auditable")
+    public ResponseEntity<TurnoDtoResponse> cancelarTurnoMostrador(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> payload,
+            Principal principal) {
+        String justificativo = payload != null ? payload.getOrDefault("justificativo", payload.get("motivo")) : null;
+        return ResponseEntity.ok(turnoServicio.cancelarTurnoMostrador(id, justificativo, principal != null ? principal.getName() : "RECEPCION"));
+    }
+
     @PutMapping("/{id}/reprogramar")
     @PreAuthorize("@securityPolicy.canAccessTurno(#id)")
     public ResponseEntity<TurnoDtoResponse> reprogramarTurno(
@@ -146,7 +173,29 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.realizarCheckIn(id, principal != null ? principal.getName() : "RECEPCION"));
     }
 
-    @PostMapping("/{id}/copago")
+    @PutMapping("/{id}/llamar")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @Operation(summary = "Llamar paciente en sala de espera a consultorio")
+    public ResponseEntity<TurnoDtoResponse> llamarPaciente(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> payload,
+            Principal principal) {
+        String consultorio = payload != null ? payload.get("consultorio") : null;
+        return ResponseEntity.ok(turnoServicio.llamarPaciente(id, consultorio, principal != null ? principal.getName() : null));
+    }
+
+    @PatchMapping("/{id}/estado")
+    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @Operation(summary = "Actualizar estado operativo de un turno")
+    public ResponseEntity<TurnoDtoResponse> actualizarEstado(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload,
+            Principal principal) {
+        String estado = payload != null ? payload.get("estado") : null;
+        return ResponseEntity.ok(turnoServicio.actualizarEstadoTurno(id, estado, principal != null ? principal.getName() : null));
+    }
+
+    @RequestMapping(value = "/{id}/copago", method = {RequestMethod.POST, RequestMethod.PUT})
     @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN')")
     public ResponseEntity<TurnoDtoResponse> registrarCopago(@PathVariable Long id, @Valid @RequestBody CopagoDtoRequest copagoDto) {
         return ResponseEntity.ok(turnoServicio.registrarCopago(id, copagoDto));

@@ -2,7 +2,9 @@ package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.ProfesionalDtoRequest;
 import com.SaludUnificada.Esu.dto.response.ProfesionalDtoResponse;
+import com.SaludUnificada.Esu.entidad.Especialidad;
 import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
@@ -11,14 +13,18 @@ import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +37,12 @@ public class ProfesionalServicio implements IProfesionalServicio {
 
     @Autowired(required = false)
     private UsuarioRepositorio usuarioRepositorio;
+
+    @Autowired(required = false)
+    private IEspecialidadServicio especialidadServicio;
+
+    @Autowired(required = false)
+    private PasswordEncoder passwordEncoder;
 
     @Autowired(required = false)
     private Clock clock;
@@ -56,8 +68,60 @@ public class ProfesionalServicio implements IProfesionalServicio {
         }
         profesionalDto.setMatricula(matriculaLimpia);
         Profesional profesional = profesionalMapper.paraEntidad(profesionalDto);
+
+        if (profesionalDto.getEmail() != null && !profesionalDto.getEmail().isBlank() && usuarioRepositorio != null) {
+            String emailNormalizado = profesionalDto.getEmail().trim().toLowerCase();
+            if (usuarioRepositorio.findByEmail(emailNormalizado).isPresent()) {
+                throw new ReglaNegocioException("Ya existe una cuenta registrada con el email: " + emailNormalizado);
+            }
+            Usuario usuario = new Usuario();
+            usuario.setEmail(emailNormalizado);
+            String rawPass = (profesionalDto.getPassword() != null && !profesionalDto.getPassword().isBlank())
+                    ? profesionalDto.getPassword()
+                    : matriculaLimpia;
+            usuario.setPassword(passwordEncoder != null ? passwordEncoder.encode(rawPass) : rawPass);
+            usuario.setRol("MEDICO");
+            usuario.setEstadoActivo(true);
+            usuario.setEmailVerificado(true);
+            usuario.setFechaDeAlta(LocalDate.now());
+            profesional.setUsuario(usuario);
+        }
+
         Profesional profesionalGuardado = profesionalRepositorio.save(profesional);
         return profesionalMapper.paraDto(profesionalGuardado);
+    }
+
+    @Override
+    @Transactional
+    public ProfesionalDtoResponse actualizarProfesional(Long id, ProfesionalDtoRequest profesionalDto) {
+        Profesional profesional = obtenerEntidadProfesionalPorId(id);
+
+        if (profesionalDto.getNombre() != null && !profesionalDto.getNombre().isBlank()) {
+            profesional.setNombre(profesionalDto.getNombre().trim());
+        }
+        if (profesionalDto.getApellido() != null && !profesionalDto.getApellido().isBlank()) {
+            profesional.setApellido(profesionalDto.getApellido().trim());
+        }
+        if (profesionalDto.getMatricula() != null && !profesionalDto.getMatricula().isBlank()) {
+            String nuevaMatricula = profesionalDto.getMatricula().trim().toUpperCase();
+            if (!profesional.getMatricula().equalsIgnoreCase(nuevaMatricula) && profesionalRepositorio.existsByMatricula(nuevaMatricula)) {
+                throw new ReglaNegocioException("Ya existe otro profesional con la matricula: " + nuevaMatricula);
+            }
+            profesional.setMatricula(nuevaMatricula);
+        }
+        if (profesionalDto.getTelefono() != null) {
+            profesional.setTelefono(profesionalDto.getTelefono().trim());
+        }
+        if (profesionalDto.getEspecialidadId() != null && especialidadServicio != null) {
+            Especialidad especialidad = especialidadServicio.obtenerEntidadEspecialidadPorId(profesionalDto.getEspecialidadId());
+            profesional.setEspecialidades(new HashSet<>(Set.of(especialidad)));
+        }
+        if (profesionalDto.getCentrosSaludIds() != null && !profesionalDto.getCentrosSaludIds().isEmpty()) {
+            profesional.setCentrosSaludIds(new HashSet<>(profesionalDto.getCentrosSaludIds()));
+        }
+
+        Profesional guardado = profesionalRepositorio.save(profesional);
+        return profesionalMapper.paraDto(guardado);
     }
 
     @Override
@@ -89,6 +153,15 @@ public class ProfesionalServicio implements IProfesionalServicio {
     @Transactional(readOnly = true)
     public List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId) {
         return profesionalRepositorio.findByEspecialidades_Id(especialidadId).stream()
+                .map(profesionalMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProfesionalDtoResponse> filtrarPorCentro(Long centroId) {
+        return profesionalRepositorio.findAll().stream()
+                .filter(p -> p.getCentrosSaludIds() != null && p.getCentrosSaludIds().contains(centroId))
                 .map(profesionalMapper::paraDto)
                 .collect(Collectors.toList());
     }

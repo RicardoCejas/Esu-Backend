@@ -61,6 +61,8 @@ public class PlantillaEvolucionServicio {
             Especialidad esp = especialidadRepositorio.findById(request.getEspecialidadId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + request.getEspecialidadId()));
             p.setEspecialidad(esp);
+        } else if (request.getEspecialidad() != null && !request.getEspecialidad().isBlank()) {
+            p.setEspecialidad(obtenerOCrearEspecialidad(request.getEspecialidad().trim()));
         }
 
         PlantillaEvolucion guardada = plantillaRepositorio.save(p);
@@ -84,6 +86,8 @@ public class PlantillaEvolucionServicio {
             Especialidad esp = especialidadRepositorio.findById(request.getEspecialidadId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + request.getEspecialidadId()));
             p.setEspecialidad(esp);
+        } else if (request.getEspecialidad() != null && !request.getEspecialidad().isBlank()) {
+            p.setEspecialidad(obtenerOCrearEspecialidad(request.getEspecialidad().trim()));
         }
 
         PlantillaEvolucion guardada = plantillaRepositorio.save(p);
@@ -105,13 +109,18 @@ public class PlantillaEvolucionServicio {
     }
 
     private PlantillaEvolucionDtoResponse mapearADto(PlantillaEvolucion p) {
+        String espNombre = p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : "Medicina General";
         return PlantillaEvolucionDtoResponse.builder()
             .id(p.getId())
             .titulo(p.getTitulo())
             .especialidadId(p.getEspecialidad() != null ? p.getEspecialidad().getId() : null)
-            .especialidadNombre(p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : "General")
+            .especialidadNombre(espNombre)
+            .especialidad(espNombre)
+            .motivo(p.getTitulo())
             .estructuraAnamnesis(p.getEstructuraAnamnesis())
+            .anamnesis(p.getEstructuraAnamnesis())
             .estructuraExamenFisico(p.getEstructuraExamenFisico())
+            .examenFisico(p.getEstructuraExamenFisico())
             .tratamientoSugerido(p.getTratamientoSugerido())
             .esPublica(p.getEsPublica())
             .activo(p.getActivo())

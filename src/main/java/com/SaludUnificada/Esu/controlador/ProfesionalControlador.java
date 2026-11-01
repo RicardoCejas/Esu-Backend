@@ -18,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/profesionales")
@@ -47,36 +48,72 @@ public class ProfesionalControlador {
         return ResponseEntity.ok(resultado);
     }
 
-    @PostMapping("/crear")
+    @PostMapping({"", "/crear"})
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Registrar nuevo profesional médico")
     public ResponseEntity<ProfesionalDtoResponse> crearProfesional(@Valid @RequestBody ProfesionalDtoRequest profesionalDto) {
         ProfesionalDtoResponse nuevoProfesional = profesionalServicio.crearProfesional(profesionalDto);
         return new ResponseEntity<>(nuevoProfesional, HttpStatus.CREATED);
     }
 
-    @GetMapping("/obtener/{id}")
+    @PutMapping("/{id:\\d+}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Actualizar datos de un profesional médico")
+    public ResponseEntity<ProfesionalDtoResponse> actualizarProfesional(
+            @PathVariable Long id,
+            @Valid @RequestBody ProfesionalDtoRequest profesionalDto) {
+        return ResponseEntity.ok(profesionalServicio.actualizarProfesional(id, profesionalDto));
+    }
+
+    @GetMapping({"/{id:\\d+}", "/obtener/{id:\\d+}"})
+    @Operation(summary = "Obtener profesional por ID")
     public ResponseEntity<ProfesionalDtoResponse> obtenerProfesionalPorId(@PathVariable Long id) {
         return ResponseEntity.ok(profesionalServicio.obtenerProfesionalPorId(id));
     }
 
     @GetMapping({"", "/obtener/todos"})
+    @Operation(summary = "Listar todos los profesionales médicos")
     public ResponseEntity<List<ProfesionalDtoResponse>> listarTodos() {
         return ResponseEntity.ok(profesionalServicio.listarTodos());
     }
 
-    @DeleteMapping("/eliminar/{id}")
+    @DeleteMapping({"/{id:\\d+}", "/eliminar/{id:\\d+}"})
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Eliminar profesional médico")
     public ResponseEntity<Void> eliminarProfesional(@PathVariable Long id) {
         profesionalServicio.eliminarProfesional(id);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/filtrar/especialidad/{especialidadId}")
+    @GetMapping({"/especialidad/{especialidadId:\\d+}", "/filtrar/especialidad/{especialidadId:\\d+}"})
+    @Operation(summary = "Filtrar profesionales por especialidad")
     public ResponseEntity<List<ProfesionalDtoResponse>> filtrarPorEspecialidad(@PathVariable Long especialidadId) {
         return ResponseEntity.ok(profesionalServicio.filtrarPorEspecialidad(especialidadId));
     }
-    @PatchMapping("/{id}/estado")
+
+    @GetMapping("/centro/{centroId:\\d+}")
+    @Operation(summary = "Filtrar profesionales adscriptos a un centro de salud")
+    public ResponseEntity<List<ProfesionalDtoResponse>> filtrarPorCentro(@PathVariable Long centroId) {
+        return ResponseEntity.ok(profesionalServicio.filtrarPorCentro(centroId));
+    }
+
+    @PostMapping("/{id:\\d+}/centros/{centroId:\\d+}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Vincular profesional a un centro de salud")
+    public ResponseEntity<Set<Long>> vincularCentro(@PathVariable Long id, @PathVariable Long centroId) {
+        return ResponseEntity.ok(profesionalServicio.vincularCentro(id, centroId));
+    }
+
+    @DeleteMapping("/{id:\\d+}/centros/{centroId:\\d+}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Desvincular profesional de un centro de salud")
+    public ResponseEntity<Set<Long>> desvincularCentro(@PathVariable Long id, @PathVariable Long centroId) {
+        return ResponseEntity.ok(profesionalServicio.desvincularCentro(id, centroId));
+    }
+
+    @PatchMapping("/{id:\\d+}/estado")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @Operation(summary = "Activar o desactivar un profesional médico")
     public ResponseEntity<ProfesionalDtoResponse> cambiarEstado(
             @PathVariable Long id,
             @RequestParam boolean activo) {

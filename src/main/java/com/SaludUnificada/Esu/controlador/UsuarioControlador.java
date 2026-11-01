@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/usuarios")
@@ -23,7 +24,7 @@ public class UsuarioControlador {
     private final IUsuarioServicio usuarioServicio;
     private final CarnetYFamiliarServicio carnetYFamiliarServicio;
 
-    @PostMapping("/crear")
+    @PostMapping({"", "/crear"})
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UsuarioDtoResponse> crearUsuario(@Valid @RequestBody UsuarioDtoRequest usuarioDto) {
         UsuarioDtoResponse nuevoUsuario = usuarioServicio.crearUsuario(usuarioDto);
@@ -36,7 +37,7 @@ public class UsuarioControlador {
         return ResponseEntity.ok(usuarioServicio.obtenerUsuarioPorId(id));
     }
 
-    @GetMapping("/obtener/todos")
+    @GetMapping({"", "/obtener/todos"})
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UsuarioDtoResponse>> listarTodos() {
         return ResponseEntity.ok(usuarioServicio.listarTodos());
@@ -77,8 +78,12 @@ public class UsuarioControlador {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UsuarioDtoResponse> cambiarEstado(
             @PathVariable Long id,
-            @RequestParam boolean activo) {
-        return ResponseEntity.ok(usuarioServicio.cambiarEstadoActivo(id, activo));
+            @RequestParam(required = false) Boolean activo,
+            @RequestBody(required = false) Map<String, Object> body) {
+        boolean nuevoEstado = activo != null
+                ? activo
+                : (body != null && body.get("activo") instanceof Boolean b ? b : true);
+        return ResponseEntity.ok(usuarioServicio.cambiarEstadoActivo(id, nuevoEstado));
     }
 
     @PostMapping("/me/revocar-sesiones")

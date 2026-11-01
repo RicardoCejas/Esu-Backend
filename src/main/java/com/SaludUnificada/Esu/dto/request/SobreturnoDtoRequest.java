@@ -20,13 +20,19 @@ public class SobreturnoDtoRequest {
     @Schema(description = "ID del médico que atenderá el sobreturno", example = "1")
     private Long profesionalId;
 
-    @NotNull(message = "El ID del paciente es obligatorio")
     @Schema(description = "ID del paciente a ingresar como sobreturno", example = "5")
     private Long pacienteId;
 
-    @NotNull(message = "La fecha y hora del sobreturno son obligatorias")
     @Schema(description = "Fecha y hora estimada de atención (ISO DateTime)", example = "2026-10-26T11:45:00")
     private LocalDateTime fechaHora;
+
+    private String fecha;
+    private String hora;
+    private String pacienteDni;
+    private String pacienteNombre;
+    private String pacienteTelefono;
+    private String obraSocial;
+    private Long centroSaludId;
 
     @NotBlank(message = "El motivo de sobreturno es obligatorio")
     @Size(min = 3, max = 255, message = "El motivo debe tener entre 3 y 255 caracteres")

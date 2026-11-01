@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import java.util.List;
 public interface ITurnoServicio {
     TurnoDtoResponse crearTurno(TurnoDtoRequest turno, String emailAutenticado);
     TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request);
+    TurnoDtoResponse crearTurnoMostrador(TurnoMostradorDtoRequest request, String emailRecepcionista);
     List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
     TurnoDtoResponse obtenerTurnoPorId(Long id);
     List<TurnoDtoResponse> listarTodos();
@@ -25,10 +27,13 @@ public interface ITurnoServicio {
     List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId);
     List<TurnoDtoResponse> obtenerHistorialTurnosPaciente(Long pacienteId);
     TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado);
+    TurnoDtoResponse cancelarTurnoMostrador(Long id, String justificativo, String emailRecepcionista);
     TurnoDtoResponse confirmarTurno(Long id, String emailAutenticado);
     TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado);
 
     TurnoDtoResponse realizarCheckIn(Long turnoId, String emailRecepcionista);
+    TurnoDtoResponse llamarPaciente(Long turnoId, String consultorio, String emailPersonal);
+    TurnoDtoResponse actualizarEstadoTurno(Long turnoId, String nuevoEstado, String emailPersonal);
     TurnoDtoResponse registrarCopago(Long turnoId, CopagoDtoRequest copagoDto);
     TurnoDtoResponse atenderTurno(Long turnoId, AtencionTurnoDtoRequest atencionDto, String emailProfesional);
 

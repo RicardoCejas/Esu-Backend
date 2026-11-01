@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.Set;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,4 +27,18 @@ public class ProfesionalDtoRequest {
 
     @NotNull(message = "El ID de la especialidad es obligatorio")
     private Long especialidadId;
+
+    private Set<Long> centrosSaludIds;
+
+    private String email;
+
+    private String password;
+
+    public ProfesionalDtoRequest(String nombre, String apellido, String matricula, String telefono, Long especialidadId) {
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.matricula = matricula;
+        this.telefono = telefono;
+        this.especialidadId = especialidadId;
+    }
 }

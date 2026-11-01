@@ -57,9 +57,16 @@ public class RecetaControlador {
         ));
     }
 
+    @GetMapping("/recetas/validar/{codigo}")
+    @Operation(summary = "Validar y consultar receta medica digital por codigo o hash para dispensacion farmaceutica")
+    public ResponseEntity<RecetaDigitalDtoResponse> validarRecetaPorCodigo(@PathVariable String codigo) {
+        RecetaDigital receta = recetaServicio.obtenerPorCodigoOHash(codigo);
+        return ResponseEntity.ok(recetaDigitalMapper.toDto(receta));
+    }
+
     @PostMapping("/recetas/dispensar")
-    @PreAuthorize("hasRole('FARMACIA')")
-    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas (Exclusivo Farmacias)")
+    @PreAuthorize("hasAnyRole('FARMACIA', 'ADMIN', 'MEDICO', 'PROFESIONAL', 'RECEPCIONISTA')")
+    @Operation(summary = "Endpoint transaccional de dispensacion farmaceutica de recetas medicas")
     public ResponseEntity<DispensarRecetaDtoResponse> dispensarReceta(@Valid @RequestBody DispensarRecetaDtoRequest request) {
         return ResponseEntity.ok(recetaServicio.dispensarReceta(request));
     }

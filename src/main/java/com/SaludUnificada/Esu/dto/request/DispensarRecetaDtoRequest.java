@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,9 +11,11 @@ import lombok.Setter;
 @NoArgsConstructor
 public class DispensarRecetaDtoRequest {
 
+    @JsonAlias({"codigoReceta", "codigo"})
     @NotBlank(message = "El código o hash de la receta es obligatorio para dispensar")
     private String codigoOQr;
 
+    @JsonAlias("farmaciaMatricula")
     @NotBlank(message = "La matrícula o identificación de la farmacia dispensadora es obligatoria")
     private String matriculaFarmacia;
 

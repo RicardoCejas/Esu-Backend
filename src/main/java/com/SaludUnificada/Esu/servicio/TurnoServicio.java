@@ -3,71 +3,48 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
-
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
-
+import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
-
+import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
+import com.SaludUnificada.Esu.entidad.DisponibilidadProfesional;
 import com.SaludUnificada.Esu.entidad.Paciente;
-
 import com.SaludUnificada.Esu.entidad.Profesional;
-
 import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
-
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.entidad.TurnoEstado;
-
+import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
-
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
-
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
-
-import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
-
-import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
-
-import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
-
-import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.BloqueoAgendaRepositorio;
 import com.SaludUnificada.Esu.repositorio.DisponibilidadProfesionalRepositorio;
-import com.SaludUnificada.Esu.entidad.DisponibilidadProfesional;
-import com.SaludUnificada.Esu.entidad.BloqueoAgenda;
-import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
+import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
+import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.dao.DataIntegrityViolationException;
 import com.SaludUnificada.Esu.seguridad.MascaraDatosUtil;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.beans.factory.annotation.Value;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-
 import java.time.LocalDate;
-
 import java.time.LocalDateTime;
-
 import java.time.LocalTime;
-
 import java.time.ZoneId;
-
 import java.util.ArrayList;
-
 import java.util.List;
 import java.util.Optional;
-
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -79,28 +56,19 @@ public class TurnoServicio implements ITurnoServicio {
     public static final int LIMITE_SOBRETURNOS_DIARIOS = 3;
 
     private final TurnoRepositorio turnoRepositorio;
-
     private final TurnoMapper turnoMapper;
-
     private final PacienteRepositorio pacienteRepositorio;
-
     private final ProfesionalRepositorio profesionalRepositorio;
-
     private final Clock clock;
-
     private final ZoneId zoneId;
-
     private final RecordatorioTurnoRepositorio recordatorioRepositorio;
-
     private final LocalTime apertura;
-
     private final LocalTime cierre;
-
     private final int duracionSlotMinutos;
 
     @Autowired(required = false)
-
     private EmailNotificacionServicio emailNotificacionServicio;
+
     @Autowired(required = false)
     private NotificacionUsuarioServicio notificacionUsuarioServicio;
 
@@ -123,49 +91,28 @@ public class TurnoServicio implements ITurnoServicio {
     private String frontendUrl;
 
     public TurnoServicio(TurnoRepositorio turnoRepositorio, TurnoMapper turnoMapper,
-
                          PacienteRepositorio pacienteRepositorio, ProfesionalRepositorio profesionalRepositorio,
-
                          RecordatorioTurnoRepositorio recordatorioRepositorio, Clock clock, ZoneId turnosZoneId,
-
                          @Value("${esu.turnos.open:08:00}") LocalTime apertura,
-
                          @Value("${esu.turnos.close:17:00}") LocalTime cierre,
-
                          @Value("${esu.turnos.slot-minutes:30}") int duracionSlotMinutos) {
-
         if (duracionSlotMinutos <= 0 || !cierre.isAfter(apertura)) {
-
             throw new IllegalArgumentException("Turno configuration requires a positive slot duration and close time after open time.");
-
         }
-
         this.turnoRepositorio = turnoRepositorio;
-
         this.turnoMapper = turnoMapper;
-
         this.pacienteRepositorio = pacienteRepositorio;
-
         this.profesionalRepositorio = profesionalRepositorio;
-
         this.recordatorioRepositorio = recordatorioRepositorio;
-
         this.clock = clock;
-
         this.zoneId = turnosZoneId;
-
         this.apertura = apertura;
-
         this.cierre = cierre;
-
         this.duracionSlotMinutos = duracionSlotMinutos;
-
     }
 
     @Override
-
     @Transactional
-
     public TurnoDtoResponse crearTurno(TurnoDtoRequest turnoDto, String emailAutenticado) {
         if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
             String key = turnoDto.getIdempotencyKey().trim();
@@ -213,9 +160,7 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
-
             throw new IllegalStateException("El horario solicitado ya no está disponible.");
-
         }
 
         Paciente paciente;
@@ -256,13 +201,9 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         turno.setFechaHora(fechaHora);
-
         turno.setMotivoTurno(turnoDto.getMotivoTurno());
-
         turno.setEstado("PENDIENTE");
-
         turno.setPaciente(paciente);
-
         turno.setProfesional(profesional);
 
         Long centroId = turnoDto.getCentroSaludId();
@@ -300,7 +241,7 @@ public class TurnoServicio implements ITurnoServicio {
                 Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
                 if (recuperado.isPresent()) {
                     validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, false, emailAutenticado, key);
-                    log.info("ColisiÃ³n simultÃ¡nea resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    log.info("Colisión simultánea resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
                     return turnoMapper.paraDto(recuperado.get());
                 }
             }
@@ -312,46 +253,61 @@ public class TurnoServicio implements ITurnoServicio {
                 recordatorioRepositorio.deleteByTurnoId(guardado.getId());
                 recordatorioRepositorio.save(new RecordatorioTurno(guardado));
             } catch (Exception ex) {
-                log.error("Fallo al persistir recordatorio para el turno ID={}: {}. El reconciliador programado lo recuperarÃƒÂ¡.", guardado.getId(), ex.getMessage());
+                log.error("Fallo al persistir recordatorio para el turno ID={}: {}. El reconciliador programado lo recuperará.", guardado.getId(), ex.getMessage());
             }
         }
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Solicitado",
-                "Su turno mÃƒÂ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado y se encuentra pendiente de confirmaciÃƒÂ³n.",
+                "Su turno médico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado y se encuentra pendiente de confirmación.",
                 "TURNO",
                 "/mis-turnos"
             );
         }
 
         return turnoMapper.paraDto(guardado);
-
     }
 
     @Override
-
     @Transactional
-
     public TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request) {
         String emailAut = null;
         Authentication authSob = SecurityContextHolder.getContext().getAuthentication();
         if (authSob != null && authSob.isAuthenticated() && !"anonymousUser".equals(authSob.getName())) {
             emailAut = authSob.getName();
         }
+
+        LocalDateTime ahora = ahora();
+        LocalDateTime fechaHora = request.getFechaHora();
+        if (fechaHora == null) {
+            LocalDate fechaBase = (request.getFecha() != null && !request.getFecha().isBlank())
+                    ? LocalDate.parse(request.getFecha().trim())
+                    : hoy();
+            LocalTime horaBase = (request.getHora() != null && !request.getHora().isBlank())
+                    ? LocalTime.parse(request.getHora().trim())
+                    : proximoSlotJornada(ahora.toLocalTime());
+            fechaHora = fechaBase.atTime(horaBase);
+            if (!fechaHora.isAfter(ahora)) {
+                fechaHora = fechaBase.isAfter(hoy()) ? fechaBase.atTime(apertura) : ahora.toLocalDate().atTime(proximoSlotJornada(ahora.toLocalTime()));
+                if (!fechaHora.isAfter(ahora)) {
+                    fechaHora = ahora.toLocalDate().plusDays(1).atTime(apertura);
+                }
+            }
+        }
+        fechaHora = fechaHora.withSecond(0).withNano(0);
+
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             String key = request.getIdempotencyKey().trim();
             Optional<Turno> previo = turnoRepositorio.findByIdempotencyKey(key);
             if (previo.isPresent()) {
-                validarCoincidenciaYAutorizacionIdempotencia(previo.get(), request.getPacienteId(), request.getProfesionalId(), request.getFechaHora().withSecond(0).withNano(0), true, emailAut, key);
+                validarCoincidenciaYAutorizacionIdempotencia(previo.get(), request.getPacienteId(), request.getProfesionalId(), fechaHora, true, emailAut, key);
                 log.info("Sobreturno ya procesado previamente con idempotencyKey={}. Devolviendo instancia existente ID={}.",
                         key, previo.get().getId());
                 return turnoMapper.paraDto(previo.get());
             }
         }
 
-        LocalDateTime ahora = ahora();
-        LocalDateTime fechaHora = request.getFechaHora().withSecond(0).withNano(0);
         if (fechaHora.isBefore(ahora)) {
             throw new ReglaNegocioException("No es posible solicitar sobreturnos en fechas u horarios pasados.");
         }
@@ -373,8 +329,13 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
 
-        Paciente paciente = pacienteRepositorio.findById(request.getPacienteId())
-                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + request.getPacienteId()));
+        Paciente paciente = resolverOCrearPaciente(
+                request.getPacienteId(),
+                request.getPacienteDni(),
+                request.getPacienteNombre(),
+                request.getPacienteTelefono(),
+                request.getObraSocial()
+        );
 
         if (turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(paciente.getId(), fechaHora, CANCELADO)) {
             throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo día y horario.");
@@ -395,7 +356,7 @@ public class TurnoServicio implements ITurnoServicio {
         sobreturno.setMotivoTurno(request.getMotivoSobreturno());
         sobreturno.setEsSobreturno(true);
         sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
-        Long centroId = 1L;
+        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
         sobreturno.setCentroSaludId(centroId);
         sobreturno.setCentroSaludNombre(resolverNombreCentro(centroId));
         sobreturno.setConsultorioNumero("Consultorio Guardia / Sobreturnos");
@@ -415,7 +376,7 @@ public class TurnoServicio implements ITurnoServicio {
                 Optional<Turno> recuperado = turnoRepositorio.findByIdempotencyKey(key);
                 if (recuperado.isPresent()) {
                     validarCoincidenciaYAutorizacionIdempotencia(recuperado.get(), paciente.getId(), profesional.getId(), fechaHora, true, emailAut, key);
-                    log.info("ColisiÃ³n simultÃ¡nea de sobreturno resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
+                    log.info("Colisión simultánea de sobreturno resuelta concurrentemente por idempotencyKey={}. Devolviendo turno ID={}.", key, recuperado.get().getId());
                     return turnoMapper.paraDto(recuperado.get());
                 }
             }
@@ -435,7 +396,7 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Sobreturno Solicitado",
-                "Su sobreturno mÃƒÂ©dico de urgencia para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado exitosamente.",
+                "Su sobreturno médico de urgencia para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " fue registrado exitosamente.",
                 "TURNO",
                 "/mis-turnos"
             );
@@ -445,15 +406,125 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
+    @Transactional
+    public TurnoDtoResponse crearTurnoMostrador(TurnoMostradorDtoRequest request, String emailRecepcionista) {
+        Profesional profesional = profesionalRepositorio.findById(request.getProfesionalId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
+        Paciente paciente = resolverOCrearPaciente(
+                request.getPacienteId(),
+                request.getPacienteDni(),
+                request.getPacienteNombre(),
+                request.getPacienteTelefono(),
+                request.getObraSocial()
+        );
+
+        LocalDateTime fechaHora = request.getFechaHora();
+        if (fechaHora == null) {
+            LocalDate fecha = (request.getFecha() != null && !request.getFecha().isBlank())
+                    ? LocalDate.parse(request.getFecha().trim())
+                    : hoy();
+            LocalTime hora = (request.getHora() != null && !request.getHora().isBlank())
+                    ? LocalTime.parse(request.getHora().trim())
+                    : proximoSlotJornada(ahora().toLocalTime());
+            fechaHora = fecha.atTime(hora);
+        }
+        fechaHora = fechaHora.withSecond(0).withNano(0);
+
+        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+            throw new IllegalStateException("El profesional ya posee un turno asignado en ese horario.");
+        }
+
+        Turno turno = new Turno();
+        turno.setFechaHora(fechaHora);
+        turno.setEstado("CONFIRMADO");
+        turno.setMotivoTurno(request.getMotivoTurno() != null && !request.getMotivoTurno().isBlank()
+                ? request.getMotivoTurno().trim()
+                : "Turno presencial asignado en mostrador");
+        turno.setEsSobreturno(false);
+        turno.setProfesional(profesional);
+        turno.setPaciente(paciente);
+
+        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        turno.setCentroSaludId(centroId);
+        turno.setCentroSaludNombre(request.getCentroSaludNombre() != null && !request.getCentroSaludNombre().isBlank()
+                ? request.getCentroSaludNombre()
+                : resolverNombreCentro(centroId));
+        turno.setConsultorioNumero(request.getConsultorioNumero() != null && !request.getConsultorioNumero().isBlank()
+                ? request.getConsultorioNumero()
+                : "Consultorio 102");
+
+        if (request.getCopagoMonto() != null) {
+            turno.setMontoCopago(request.getCopagoMonto());
+            turno.setFechaCopago(ahora());
+            turno.setMetodoPago("EFECTIVO");
+        }
+        if (request.getNumeroBono() != null && !request.getNumeroBono().isBlank()) {
+            turno.setNumeroBono(request.getNumeroBono().trim());
+        }
+
+        Turno guardado = turnoRepositorio.save(turno);
+        return turnoMapper.paraDto(guardado);
+    }
+
+    private Paciente resolverOCrearPaciente(Long pacienteId, String dni, String nombreCompleto, String telefono, String obraSocial) {
+        if (pacienteId != null) {
+            Optional<Paciente> porId = pacienteRepositorio.findById(pacienteId);
+            if (porId.isPresent()) {
+                Paciente p = porId.get();
+                if (obraSocial != null && !obraSocial.isBlank() && (p.getObraSocial() == null || p.getObraSocial().isBlank())) {
+                    p.setObraSocial(obraSocial.trim());
+                    pacienteRepositorio.save(p);
+                }
+                return p;
+            }
+            if (dni == null || dni.isBlank()) {
+                throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId);
+            }
+        }
+
+        if (dni != null && !dni.isBlank()) {
+            Optional<Paciente> porDni = pacienteRepositorio.findByDni(dni.trim());
+            if (porDni.isPresent()) {
+                return porDni.get();
+            }
+            Paciente nuevo = new Paciente();
+            String full = nombreCompleto != null ? nombreCompleto.trim() : "Paciente Mostrador";
+            int spaceIdx = full.indexOf(' ');
+            if (spaceIdx > 0) {
+                nuevo.setNombre(full.substring(0, spaceIdx).trim());
+                nuevo.setApellido(full.substring(spaceIdx + 1).trim());
+            } else {
+                nuevo.setNombre(full);
+                nuevo.setApellido("-");
+            }
+            nuevo.setDni(dni.trim());
+            nuevo.setTelefono(telefono != null && !telefono.isBlank() ? telefono.trim() : "03549-150000");
+            nuevo.setObraSocial(obraSocial != null && !obraSocial.isBlank() ? obraSocial.trim() : "Particular");
+            return pacienteRepositorio.save(nuevo);
+        }
+
+        throw new NoEncontradoExcepcion("Paciente no encontrado");
+    }
+
+    private LocalTime proximoSlotJornada(LocalTime referencia) {
+        if (referencia.isBefore(apertura)) {
+            return apertura;
+        }
+        long minsDesdeApertura = java.time.Duration.between(apertura, referencia).toMinutes();
+        long slotsPasados = (minsDesdeApertura / duracionSlotMinutos) + 1;
+        LocalTime candidato = apertura.plusMinutes(slotsPasados * duracionSlotMinutos).withSecond(0).withNano(0);
+        if (candidato.plusMinutes(duracionSlotMinutos).isAfter(cierre)) {
+            return apertura;
+        }
+        return candidato;
+    }
+
+    @Override
     @Transactional(readOnly = true)
-
     public List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha) {
-
         if (!profesionalRepositorio.existsById(profesionalId)) {
-
             throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId);
-
         }
 
         if (fecha.isBefore(hoy())) {
@@ -486,7 +557,6 @@ public class TurnoServicio implements ITurnoServicio {
                 : List.of();
 
         if (disponibilidadRepositorio != null) {
-            // Regla explÃƒÂ­cita y segura: si no posee franjas configuradas para este día de la semana, la agenda se considera cerrada.
             if (disponibilidades.isEmpty()) {
                 return List.of();
             }
@@ -520,7 +590,6 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         return disponibles;
-
     }
 
     private LocalDateTime ahora() {
@@ -532,47 +601,29 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     private void validarHorario(LocalDateTime fechaHora) {
-
         LocalDateTime ahora = ahora();
-
         boolean diaHabil = feriadoServicio != null ? feriadoServicio.esDiaHabil(fechaHora.toLocalDate()) : (fechaHora.getDayOfWeek().getValue() <= 5);
-
         long minutosDesdeApertura = java.time.Duration.between(apertura, fechaHora.toLocalTime()).toMinutes();
-
         boolean dentroDeJornada = !fechaHora.toLocalTime().isBefore(apertura)
-
                 && !fechaHora.toLocalTime().plusMinutes(duracionSlotMinutos).isAfter(cierre)
-
                 && minutosDesdeApertura % duracionSlotMinutos == 0
-
                 && fechaHora.getSecond() == 0 && fechaHora.getNano() == 0;
 
         if (!fechaHora.isAfter(ahora) || !diaHabil || !dentroDeJornada) {
-
-            throw new IllegalArgumentException("El turno debe ser futuro, en día hÃƒÂ¡bil y respetar la jornada y duraciÃƒÂ³n de slots configuradas.");
-
+            throw new IllegalArgumentException("El turno debe ser futuro, en día hábil y respetar la jornada y duración de slots configuradas.");
         }
-
     }
 
     @Override
-
     @Transactional(readOnly = true)
-
     public TurnoDtoResponse obtenerTurnoPorId(Long id) {
-
         Turno turno = turnoRepositorio.findById(id)
-
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
-
         return turnoMapper.paraDto(turno);
-
     }
 
     @Override
-
     @Transactional(readOnly = true)
-
     public List<TurnoDtoResponse> listarTodos() {
         return turnoRepositorio.findAll().stream().map(turnoMapper::paraDto).collect(Collectors.toList());
     }
@@ -584,77 +635,46 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
-
     @Transactional
-
     public void eliminarTurno(Long id) {
-
         if (turnoRepositorio.existsById(id)) {
-
             turnoRepositorio.deleteById(id);
-
         } else {
-
             throw new NoEncontradoExcepcion("Turno no encontrado con ID: " + id);
-
         }
-
     }
 
     @Override
-
     @Transactional(readOnly = true)
-
     public List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora) {
-
         return turnoRepositorio.findByProfesionalIdAndFechaHora(profesionalId, fechaHora).stream()
-
                 .map(turnoMapper::paraDto)
-
                 .collect(Collectors.toList());
-
     }
 
     @Override
-
     @Transactional(readOnly = true)
-
     public List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId) {
-
         return turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId).stream()
-
                 .map(turnoMapper::paraDto).collect(Collectors.toList());
-
     }
 
     @Override
-
     @Transactional(rollbackFor = Exception.class)
-
     public TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado) {
-
         Turno turno = turnoRepositorio.findById(id)
-
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
 
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {
-
             Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
-
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
-
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para cancelar el turno de otro paciente.");
-
+                throw new AccessDeniedException("No posee autorización para cancelar el turno de otro paciente.");
             }
-
         }
 
         if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
-
             throw new IllegalStateException("El turno ya se encuentra cancelado.");
-
         }
-
         if ("ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
             throw new IllegalStateException("No se puede cancelar un turno que ya fue atendido.");
         }
@@ -663,16 +683,37 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         LocalDateTime ahora = ahora();
-
         if (turno.getFechaHora().isBefore(ahora.plusHours(2))) {
-
-            throw new IllegalArgumentException("La cancelaciÃƒÂ³n debe realizarse con un mÃƒÂ­nimo de 2 horas de anticipaciÃƒÂ³n al horario del turno.");
-
+            throw new IllegalArgumentException("La cancelación debe realizarse con un mínimo de 2 horas de anticipación al horario del turno.");
         }
 
+        return ejecutarCancelacion(turno, emailAutenticado != null ? "Cancelado por usuario: " + emailAutenticado : "Cancelado por administracion", ahora);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TurnoDtoResponse cancelarTurnoMostrador(Long id, String justificativo, String emailRecepcionista) {
+        Turno turno = turnoRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
+
+        if ("CANCELADO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("El turno ya se encuentra cancelado.");
+        }
+        if ("ATENDIDO".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("No se puede cancelar un turno que ya fue atendido.");
+        }
+
+        String motivo = (justificativo != null && !justificativo.isBlank())
+                ? justificativo.trim()
+                : "Cancelado en mostrador por " + (emailRecepcionista != null ? emailRecepcionista : "RECEPCION");
+
+        return ejecutarCancelacion(turno, motivo, ahora());
+    }
+
+    private TurnoDtoResponse ejecutarCancelacion(Turno turno, String motivo, LocalDateTime ahora) {
         turno.setEstado("CANCELADO");
         turno.setFechaCancelacion(ahora);
-        turno.setMotivoCancelacion(emailAutenticado != null ? "Cancelado por usuario: " + emailAutenticado : "Cancelado por administracion");
+        turno.setMotivoCancelacion(motivo);
         Turno guardado = turnoRepositorio.save(turno);
         if (recordatorioRepositorio != null) {
             try {
@@ -701,7 +742,7 @@ public class TurnoServicio implements ITurnoServicio {
                             try {
                                 emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
                             } catch (Exception ex) {
-                                log.warn("Fallo al despachar email de cancelaciÃƒÂ³n post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                                log.warn("Fallo al despachar email de cancelación post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
                             }
                         }
                     }
@@ -710,13 +751,12 @@ public class TurnoServicio implements ITurnoServicio {
                 try {
                     emailNotificacionServicio.enviarCancelacionTurno(guardado, guardado.getMotivoCancelacion());
                 } catch (Exception ex) {
-                    log.warn("Fallo al despachar email de cancelaciÃƒÂ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                    log.warn("Fallo al despachar email de cancelación para turno ID={}: {}", guardado.getId(), ex.getMessage());
                 }
             }
         }
 
         return turnoMapper.paraDto(guardado);
-
     }
 
     @Override
@@ -739,7 +779,7 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Confirmado",
-                "Su turno mÃƒÂ©dico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido confirmado.",
+                "Su turno médico para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " ha sido confirmado.",
                 "TURNO",
                 "/mis-turnos"
             );
@@ -754,7 +794,7 @@ public class TurnoServicio implements ITurnoServicio {
                             try {
                                 emailNotificacionServicio.enviarConfirmacionTurno(guardado);
                             } catch (Exception ex) {
-                                log.warn("Fallo al despachar email de confirmaciÃ³n post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                                log.warn("Fallo al despachar email de confirmación post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
                             }
                         }
                     }
@@ -763,7 +803,7 @@ public class TurnoServicio implements ITurnoServicio {
                 try {
                     emailNotificacionServicio.enviarConfirmacionTurno(guardado);
                 } catch (Exception ex) {
-                    log.warn("Fallo al despachar email de confirmaciÃƒÂ³n para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                    log.warn("Fallo al despachar email de confirmación para turno ID={}: {}", guardado.getId(), ex.getMessage());
                 }
             }
         }
@@ -772,25 +812,16 @@ public class TurnoServicio implements ITurnoServicio {
     }
 
     @Override
-
     @Transactional(rollbackFor = Exception.class)
-
     public TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado) {
-
         Turno turno = turnoRepositorio.findById(id)
-
                 .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + id));
 
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {
-
             Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
-
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
-
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para reprogramar el turno de otro paciente.");
-
+                throw new AccessDeniedException("No posee autorización para reprogramar el turno de otro paciente.");
             }
-
         }
 
         if ("CANCELADO".equalsIgnoreCase(turno.getEstado()) || "ATENDIDO".equalsIgnoreCase(turno.getEstado()) || "AUSENTE".equalsIgnoreCase(turno.getEstado())) {
@@ -846,14 +877,13 @@ public class TurnoServicio implements ITurnoServicio {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
                 "Turno Confirmado",
-                "Su turno mÃƒÂ©dico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                "Su turno médico ha sido confirmado para el " + guardado.getFechaHora().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                 "TURNO",
                 "/mis-turnos"
             );
         }
 
         return turnoMapper.paraDto(guardado);
-
     }
 
     @Override
@@ -871,7 +901,7 @@ public class TurnoServicio implements ITurnoServicio {
                 throw new IllegalStateException("El turno ya fue atendido previamente.");
             }
             if ("EN_SALA_DE_ESPERA".equalsIgnoreCase(turno.getEstado())) {
-                throw new IllegalStateException("El paciente ya realizÃƒÂ³ el check-in y se encuentra en sala de espera.");
+                throw new IllegalStateException("El paciente ya realizó el check-in y se encuentra en sala de espera.");
             }
             throw new ReglaNegocioException("Transicion de estado invalida para check-in.");
         }
@@ -882,6 +912,53 @@ public class TurnoServicio implements ITurnoServicio {
 
         Turno guardado = turnoRepositorio.save(turno);
         return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public TurnoDtoResponse llamarPaciente(Long turnoId, String consultorio, String emailPersonal) {
+        Turno turno = turnoRepositorio.findById(turnoId)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+
+        if ("CANCELADO".equalsIgnoreCase(turno.getEstado()) || "ATENDIDO".equalsIgnoreCase(turno.getEstado()) || "AUSENTE".equalsIgnoreCase(turno.getEstado())) {
+            throw new IllegalStateException("No se puede llamar a consultorio un turno en estado terminal (" + turno.getEstado() + ").");
+        }
+
+        if (consultorio != null && !consultorio.isBlank()) {
+            turno.setConsultorioNumero(consultorio.trim());
+        }
+        if (turno.getFechaCheckIn() == null) {
+            turno.setFechaCheckIn(ahora());
+        }
+        turno.setEstado("ATENDIENDO");
+        Turno guardado = turnoRepositorio.save(turno);
+        return turnoMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
+    public TurnoDtoResponse actualizarEstadoTurno(Long turnoId, String nuevoEstado, String emailPersonal) {
+        if (nuevoEstado == null || nuevoEstado.isBlank()) {
+            throw new IllegalArgumentException("El nuevo estado del turno es obligatorio.");
+        }
+        String clean = nuevoEstado.trim().toUpperCase();
+        return switch (clean) {
+            case "CONFIRMADO" -> confirmarTurno(turnoId, emailPersonal);
+            case "EN_SALA_DE_ESPERA", "EN_ESPERA" -> realizarCheckIn(turnoId, emailPersonal);
+            case "ATENDIENDO" -> llamarPaciente(turnoId, null, emailPersonal);
+            case "ATENDIDO", "COMPLETADO", "FINALIZADO" -> {
+                Turno turno = turnoRepositorio.findById(turnoId)
+                        .orElseThrow(() -> new NoEncontradoExcepcion("Turno no encontrado con ID: " + turnoId));
+                turno.setEstado("ATENDIDO");
+                if (turno.getFechaAtencion() == null) {
+                    turno.setFechaAtencion(ahora());
+                }
+                yield turnoMapper.paraDto(turnoRepositorio.save(turno));
+            }
+            case "AUSENTE" -> marcarAusente(turnoId, emailPersonal);
+            case "CANCELADO", "CANCELADO_POR_MEDICO" -> cancelarTurnoMostrador(turnoId, "Cambio de estado a " + clean, emailPersonal);
+            default -> throw new IllegalArgumentException("Estado de turno no reconocido: " + nuevoEstado);
+        };
     }
 
     @Override
@@ -896,8 +973,24 @@ public class TurnoServicio implements ITurnoServicio {
 
         turno.setMontoCopago(copagoDto.getMonto());
         turno.setNumeroBono(copagoDto.getNumeroBono());
-        turno.setMetodoPago(copagoDto.getMetodoPago() != null ? copagoDto.getMetodoPago().trim().toUpperCase() : null);
+        turno.setMetodoPago(copagoDto.getMetodoPago() != null ? copagoDto.getMetodoPago().trim().toUpperCase() : "EFECTIVO");
         turno.setFechaCopago(ahora());
+
+        if (turno.getPaciente() != null) {
+            Paciente p = turno.getPaciente();
+            boolean changed = false;
+            if (copagoDto.getObraSocial() != null && !copagoDto.getObraSocial().isBlank()) {
+                p.setObraSocial(copagoDto.getObraSocial().trim());
+                changed = true;
+            }
+            if (copagoDto.getNumeroAfiliado() != null && !copagoDto.getNumeroAfiliado().isBlank()) {
+                p.setNroAfiliado(copagoDto.getNumeroAfiliado().trim());
+                changed = true;
+            }
+            if (changed && pacienteRepositorio != null) {
+                pacienteRepositorio.save(p);
+            }
+        }
 
         Turno guardado = turnoRepositorio.save(turno);
         return turnoMapper.paraDto(guardado);
@@ -922,14 +1015,13 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("El turno no posee un profesional asignado.");
         }
 
-        
         if (emailProfesional != null && !emailProfesional.isBlank()) {
             if (turno.getProfesional() != null && turno.getProfesional().getUsuario() != null) {
                 if (!turno.getProfesional().getUsuario().getEmail().equalsIgnoreCase(emailProfesional)) {
                     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                     boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
                     if (!isAdmin) {
-                        throw new AccessDeniedException("No posee autorizaciÃƒÂ³n para atender un turno asignado a otro profesional.");
+                        throw new AccessDeniedException("No posee autorización para atender un turno asignado a otro profesional.");
                     }
                 }
             }
@@ -955,17 +1047,18 @@ public class TurnoServicio implements ITurnoServicio {
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {
             Paciente paciente = pacienteRepositorio.findByUsuarioEmail(emailAutenticado).orElse(null);
             if (paciente != null && turno.getPaciente() != null && !turno.getPaciente().getId().equals(paciente.getId())) {
-                throw new org.springframework.security.access.AccessDeniedException("No posee autorizaciÃƒÂ³n para descargar certificados de otro paciente.");
+                throw new AccessDeniedException("No posee autorización para descargar certificados de otro paciente.");
             }
         }
 
         if (documentoPdfServicio == null) {
-            throw new IllegalStateException("Servicio de generaciÃƒÂ³n PDF no disponible.");
+            throw new IllegalStateException("Servicio de generación PDF no disponible.");
         }
 
         String baseFrontend = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.replaceAll("/+$", "") : "http://localhost:5173";
         return documentoPdfServicio.generarCertificadoAsistenciaPdf(turno, baseFrontend + "/validar-documento?codigo=" + turno.getId());
     }
+
     @Override
     @Transactional(readOnly = true)
     public List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId) {
@@ -985,6 +1078,7 @@ public class TurnoServicio implements ITurnoServicio {
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
+
     @Override
     @Transactional
     public TurnoDtoResponse marcarAusente(Long turnoId, String emailPersonal) {
@@ -1043,7 +1137,6 @@ public class TurnoServicio implements ITurnoServicio {
                 .orElseThrow(() -> new NoEncontradoExcepcion("No se encontró perfil profesional para el usuario: " + emailProfesional));
         return obtenerAgendaProfesional(profesional.getId(), centroSaludId, fecha);
     }
-
 
     private void validarCoincidenciaYAutorizacionIdempotencia(Turno previo, Long pacienteId, Long profesionalId, LocalDateTime fechaHora, boolean esSobreturno, String emailAutenticado, String key) {
         if (emailAutenticado != null && !emailAutenticado.isBlank()) {

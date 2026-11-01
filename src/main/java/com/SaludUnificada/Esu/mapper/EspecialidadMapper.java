@@ -11,6 +11,9 @@ public class EspecialidadMapper {
     public Especialidad paraEntidad(EspecialidadDtoRequest dto) {
         Especialidad especialidad = new Especialidad();
         especialidad.setNombre(dto.getNombre());
+        if (dto.getDescripcion() != null && !dto.getDescripcion().isBlank()) {
+            especialidad.setDescripcion(dto.getDescripcion().trim());
+        }
         return especialidad;
     }
 
@@ -18,6 +21,9 @@ public class EspecialidadMapper {
         EspecialidadDtoResponse dto = new EspecialidadDtoResponse();
         dto.setId(especialidad.getId());
         dto.setNombre(especialidad.getNombre());
+        dto.setDescripcion(especialidad.getDescripcion() != null && !especialidad.getDescripcion().isBlank()
+                ? especialidad.getDescripcion()
+                : "Atención médica especializada en " + especialidad.getNombre() + ".");
         return dto;
     }
 }
