@@ -168,11 +168,23 @@ public class PacienteControlador {
             @RequestParam(required = false) String telefono,
             @RequestParam(required = false) String obraSocial,
             @RequestParam(required = false) String nroAfiliado,
+            @RequestParam(required = false) String dni,
             @RequestBody(required = false) Map<String, String> body) {
         String tel = (telefono != null) ? telefono : (body != null ? body.get("telefono") : null);
         String os = (obraSocial != null) ? obraSocial : (body != null ? body.get("obraSocial") : null);
         String af = (nroAfiliado != null) ? nroAfiliado : (body != null ? body.getOrDefault("nroAfiliado", body.get("numeroAfiliado")) : null);
-        return ResponseEntity.ok(pacienteServicio.actualizarDatosContacto(id, tel, os, af));
+        String doc = (dni != null) ? dni : (body != null ? body.get("dni") : null);
+        return ResponseEntity.ok(pacienteServicio.actualizarDatosContacto(id, tel, os, af, doc));
+    }
+
+    @PutMapping("/mi-perfil")
+    @PreAuthorize("hasAnyRole('PACIENTE', 'ADMIN', 'DEV')")
+    @Operation(summary = "Actualizar el perfil y DNI del paciente autenticado")
+    public ResponseEntity<PacienteDtoResponse> actualizarMiPerfil(
+            @RequestBody Map<String, String> body,
+            Principal principal) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return ResponseEntity.ok(pacienteServicio.actualizarMiPerfilPorEmail(principal.getName(), body));
     }
 
     @PostMapping("/fusionar")
