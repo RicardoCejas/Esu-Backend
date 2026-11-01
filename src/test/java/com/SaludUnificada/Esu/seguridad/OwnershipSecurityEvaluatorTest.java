@@ -110,7 +110,15 @@ class OwnershipSecurityEvaluatorTest {
         when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
 
         assertTrue(evaluator.canAccessPatient(10L));
+        assertTrue(evaluator.isCurrentPatient(10L));
+
+        // AISLAMIENTO: No debe permitir acceso si el ID consultado coincide con Usuario.id (3L)
+        assertFalse(evaluator.canAccessPatient(3L));
+        assertFalse(evaluator.isCurrentPatient(3L));
+
+        // No debe permitir acceso a otro paciente (99L)
         assertFalse(evaluator.canAccessPatient(99L));
+        assertFalse(evaluator.isCurrentPatient(99L));
     }
 
     @Test

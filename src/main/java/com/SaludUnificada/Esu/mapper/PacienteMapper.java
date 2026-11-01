@@ -38,13 +38,17 @@ public class PacienteMapper {
         Usuario usuario = new Usuario();
         usuario.setEmail(dto.getEmail() != null && !dto.getEmail().isBlank() ? dto.getEmail().trim().toLowerCase() : dto.getDni() + "@esu.com");
 
-        String clavePlana = (dto.getPassword() != null && !dto.getPassword().isBlank())
-                ? dto.getPassword()
-                : dto.getDni();
-        usuario.setPassword(passwordEncoder.encode(clavePlana));
+        boolean tienePasswordExplicita = dto.getPassword() != null && !dto.getPassword().isBlank();
+        if (tienePasswordExplicita) {
+            usuario.setPassword(passwordEncoder.encode(dto.getPassword()));
+            usuario.setEmailVerificado(false);
+        } else {
+            String claveInusable = java.util.UUID.randomUUID().toString() + "-NO-LOGIN";
+            usuario.setPassword(passwordEncoder.encode(claveInusable));
+            usuario.setEmailVerificado(false);
+        }
         usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
-        usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
 
         paciente.setUsuario(usuario);

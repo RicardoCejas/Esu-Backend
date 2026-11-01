@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -15,6 +16,7 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.Arrays;
 
 @Slf4j
 @Service
@@ -22,6 +24,12 @@ public class GoogleTokenVerifierService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private Environment environment;
+
+    @Value("${app.auth.google.enabled:false}")
+    private boolean googleAuthEnabled = false;
 
     @Value("${google.client.id:}")
     private String configuredClientId;
@@ -49,6 +57,25 @@ public class GoogleTokenVerifierService {
     public GoogleIdTokenPayload verificarToken(String idToken) {
         if (idToken == null || idToken.trim().isEmpty()) {
             throw new BadCredentialsException("El token de Google no puede estar vacío.");
+        }
+
+        // Simulación controlada para desarrollo local cuando no se dispone de credenciales OAuth reales
+        if (idToken.startsWith("dev-google-token:")) {
+            boolean isDev = environment == null || Arrays.stream(environment.getActiveProfiles())
+                    .anyMatch(p -> p.equalsIgnoreCase("dev") || p.equalsIgnoreCase("local"));
+            if (isDev) {
+                String googleEmail = idToken.substring("dev-google-token:".length()).trim().toLowerCase();
+                if (googleEmail.isBlank()) googleEmail = "paciente.google@gmail.com";
+                String namePart = googleEmail.contains("@") ? googleEmail.split("@")[0] : "Usuario";
+                return GoogleIdTokenPayload.builder()
+                        .sub("google-dev-sub-" + Math.abs(googleEmail.hashCode()))
+                        .email(googleEmail)
+                        .name(namePart.replace(".", " "))
+                        .givenName(namePart)
+                        .familyName("Google")
+                        .emailVerified(true)
+                        .build();
+            }
         }
 
         if (configuredClientId == null || configuredClientId.isBlank()) {
@@ -98,43 +125,45 @@ public class GoogleTokenVerifierService {
             JsonNode emailVerifiedNode = root.path("email_verified");
             boolean emailVerified = emailVerifiedNode.isBoolean() ? emailVerifiedNode.asBoolean() : "true".equalsIgnoreCase(emailVerifiedNode.asText());
             if (!emailVerified) {
-                log.warn("Rechazo de Google Token con email no verificado");
-                throw new BadCredentialsException("El correo electrónico de Google no está verificado.");
+                log.warn("Rechazo de Google Token por email no verificado en Google");
+                throw new BadCredentialsException("El correo de la cuenta de Google no está verificado.");
             }
 
-            // 5. Validar sub obligatorio (identificador único del usuario en Google)
+            // 5. Validar claims de identidad básicos
             String sub = root.path("sub").asText(null);
-            if (sub == null || sub.trim().isEmpty()) {
-                log.warn("Rechazo de Google Token sin sub");
-                throw new BadCredentialsException("El identificador único de Google (sub) es requerido.");
+            if (sub == null || sub.isBlank()) {
+                throw new BadCredentialsException("El token de Google no contiene el identificador único de usuario (sub).");
             }
 
-            // 6. Validar email obligatorio
             String email = root.path("email").asText(null);
-            if (email == null || email.trim().isEmpty()) {
-                throw new BadCredentialsException("El email asociado a la cuenta de Google es requerido.");
+            if (email == null || email.isBlank()) {
+                throw new BadCredentialsException("El token de Google no contiene el correo electrónico del usuario.");
             }
+
+            String name = root.path("name").asText(null);
+            String givenName = root.path("given_name").asText(null);
+            String familyName = root.path("family_name").asText(null);
 
             return GoogleIdTokenPayload.builder()
-                    .sub(sub)
-                    .email(email.trim().toLowerCase())
-                    .emailVerified(true)
-                    .name(root.path("name").asText(null))
-                    .givenName(root.path("given_name").asText(null))
-                    .familyName(root.path("family_name").asText(null))
-                    .aud(aud)
                     .iss(iss)
+                    .aud(aud)
+                    .sub(sub)
+                    .email(email)
+                    .emailVerified(emailVerified)
                     .exp(exp)
+                    .name(name)
+                    .givenName(givenName)
+                    .familyName(familyName)
                     .build();
 
-        } catch (HttpStatusCodeException e) {
-            log.warn("Fallo en validación de token Google con status: {}", e.getStatusCode());
+        } catch (HttpStatusCodeException ex) {
+            log.warn("Fallo HTTP al verificar token contra Google: {} - {}", ex.getStatusCode(), ex.getResponseBodyAsString());
             throw new BadCredentialsException("La credencial de Google no es válida o ha caducado.");
-        } catch (BadCredentialsException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error inesperado validando credencial con proveedor Google: {}", e.getMessage());
-            throw new BadCredentialsException("Error al comunicarse con el proveedor de autenticación Google.");
+        } catch (BadCredentialsException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Excepción inesperada al procesar respuesta del tokeninfo de Google: {}", ex.getMessage());
+            throw new BadCredentialsException("Fallo en la comunicación con el servicio de autenticación de Google.");
         }
     }
 }

@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.Map;
 
@@ -43,6 +44,8 @@ public class TurnoControlador {
 
     private final ITurnoServicio turnoServicio;
     private final RecordatorioTurnoServicio recordatorioTurnoServicio;
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.seguridad.PublicBookingRateLimiter publicBookingRateLimiter;
 
     @Operation(summary = "Registrar sobreturno medico de urgencia en sala")
     @ApiResponses({
@@ -76,9 +79,6 @@ public class TurnoControlador {
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
     }
 
-    private final java.util.Map<String, java.util.concurrent.atomic.AtomicInteger> publicBookingRateLimit = new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.Map<String, Long> publicBookingWindowStart = new java.util.concurrent.ConcurrentHashMap<>();
-
     @PostMapping("/publico/reservar")
     @Operation(summary = "Reserva pública de turnos oficiales con verificación probatoria de identidad del paciente")
     public ResponseEntity<TurnoDtoResponse> reservarTurnoPublico(
@@ -86,15 +86,7 @@ public class TurnoControlador {
             Principal principal,
             jakarta.servlet.http.HttpServletRequest httpRequest) {
 
-        String ip = httpRequest != null ? httpRequest.getRemoteAddr() : "unknown";
-        long now = System.currentTimeMillis();
-        publicBookingWindowStart.compute(ip, (k, start) -> (start == null || now - start > 600_000L) ? now : start);
-        var counter = publicBookingRateLimit.computeIfAbsent(ip, k -> new java.util.concurrent.atomic.AtomicInteger(0));
-        if (now - publicBookingWindowStart.get(ip) > 600_000L) {
-            counter.set(0);
-            publicBookingWindowStart.put(ip, now);
-        }
-        if (counter.incrementAndGet() > 20) {
+        if (publicBookingRateLimiter != null && !publicBookingRateLimiter.permitirReserva(httpRequest)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.TOO_MANY_REQUESTS,
                     "Ha superado el límite de reservas públicas permitidas por período. Por favor aguarde unos minutos o inicie sesión."
@@ -126,13 +118,13 @@ public class TurnoControlador {
     }
 
     @GetMapping({"", "/obtener/todos"})
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
     }
 
     @GetMapping("/paginados")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     public ResponseEntity<Page<TurnoDtoResponse>> listarPaginados(Pageable pageable) {
         return ResponseEntity.ok(turnoServicio.listarPaginados(pageable));
     }

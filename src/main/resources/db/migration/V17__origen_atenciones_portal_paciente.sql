@@ -4,10 +4,10 @@
 -- =============================================================================
 
 -- 1. Ampliar receta_digital con centro emisor, farmacia dispensadora y lugar de retiro sugerido
-ALTER TABLE receta_digital ADD COLUMN IF NOT EXISTS centro_salud_emisor_id BIGINT NULL;
-ALTER TABLE receta_digital ADD COLUMN IF NOT EXISTS centro_salud_emisor_nombre VARCHAR(255) NULL;
-ALTER TABLE receta_digital ADD COLUMN IF NOT EXISTS farmacia_dispensadora_nombre VARCHAR(255) NULL;
-ALTER TABLE receta_digital ADD COLUMN IF NOT EXISTS lugar_retiro_sugerido VARCHAR(255) NULL;
+ALTER TABLE receta_digital ADD COLUMN centro_salud_emisor_id BIGINT NULL;
+ALTER TABLE receta_digital ADD COLUMN centro_salud_emisor_nombre VARCHAR(255) NULL;
+ALTER TABLE receta_digital ADD COLUMN farmacia_dispensadora_nombre VARCHAR(255) NULL;
+ALTER TABLE receta_digital ADD COLUMN lugar_retiro_sugerido VARCHAR(255) NULL;
 
 CREATE INDEX idx_receta_centro_emisor ON receta_digital (centro_salud_emisor_id);
 
@@ -19,8 +19,8 @@ UPDATE receta_digital SET
 WHERE centro_salud_emisor_id IS NULL;
 
 -- 2. Ampliar evolucion_medica con centro de salud de la atención
-ALTER TABLE evolucion_medica ADD COLUMN IF NOT EXISTS centro_salud_id BIGINT NULL;
-ALTER TABLE evolucion_medica ADD COLUMN IF NOT EXISTS centro_salud_nombre VARCHAR(255) NULL;
+ALTER TABLE evolucion_medica ADD COLUMN centro_salud_id BIGINT NULL;
+ALTER TABLE evolucion_medica ADD COLUMN centro_salud_nombre VARCHAR(255) NULL;
 
 CREATE INDEX idx_evolucion_centro_salud ON evolucion_medica (centro_salud_id);
 
@@ -33,8 +33,8 @@ SET
 WHERE em.centro_salud_id IS NULL;
 
 -- 3. Ampliar historia_clinica con centro de salud de atención
-ALTER TABLE historia_clinica ADD COLUMN IF NOT EXISTS centro_salud_id BIGINT NULL;
-ALTER TABLE historia_clinica ADD COLUMN IF NOT EXISTS centro_salud_nombre VARCHAR(255) NULL;
+ALTER TABLE historia_clinica ADD COLUMN centro_salud_id BIGINT NULL;
+ALTER TABLE historia_clinica ADD COLUMN centro_salud_nombre VARCHAR(255) NULL;
 
 UPDATE historia_clinica SET
     centro_salud_id = 1,
@@ -42,9 +42,9 @@ UPDATE historia_clinica SET
 WHERE centro_salud_id IS NULL;
 
 -- 4. Ampliar estudios_adjuntos con centro de salud emisor y profesional
-ALTER TABLE estudios_adjuntos ADD COLUMN IF NOT EXISTS centro_salud_id BIGINT NULL;
-ALTER TABLE estudios_adjuntos ADD COLUMN IF NOT EXISTS centro_salud_nombre VARCHAR(255) NULL;
-ALTER TABLE estudios_adjuntos ADD COLUMN IF NOT EXISTS profesional_nombre VARCHAR(255) NULL;
+ALTER TABLE estudios_adjuntos ADD COLUMN centro_salud_id BIGINT NULL;
+ALTER TABLE estudios_adjuntos ADD COLUMN centro_salud_nombre VARCHAR(255) NULL;
+ALTER TABLE estudios_adjuntos ADD COLUMN profesional_nombre VARCHAR(255) NULL;
 
 UPDATE estudios_adjuntos SET
     centro_salud_id = 1,
@@ -52,8 +52,8 @@ UPDATE estudios_adjuntos SET
 WHERE centro_salud_id IS NULL;
 
 -- 5. Ampliar paciente con centro de referencia habitual explícito
-ALTER TABLE paciente ADD COLUMN IF NOT EXISTS centro_salud_referencia_id BIGINT NULL;
-ALTER TABLE paciente ADD COLUMN IF NOT EXISTS centro_salud_referencia_nombre VARCHAR(255) NULL;
+ALTER TABLE paciente ADD COLUMN centro_salud_referencia_id BIGINT NULL;
+ALTER TABLE paciente ADD COLUMN centro_salud_referencia_nombre VARCHAR(255) NULL;
 
 UPDATE paciente SET
     centro_salud_referencia_id = 1,

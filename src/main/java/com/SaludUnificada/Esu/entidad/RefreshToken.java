@@ -12,8 +12,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "refresh_token", indexes = {
         @Index(name = "idx_refresh_token_usuario", columnList = "usuario_id"),
-        @Index(name = "idx_refresh_token_token", columnList = "token"),
-        @Index(name = "idx_refresh_token_hash", columnList = "token_hash")
+                @Index(name = "idx_refresh_token_hash", columnList = "token_hash")
 })
 @Getter
 @Setter
@@ -33,7 +32,11 @@ public class RefreshToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
-    @Column(nullable = true, length = 128)
+    /**
+     * Token plano transitorio para entrega al cliente en login/rotación.
+     * NO se persiste en base de datos.
+     */
+    @Transient
     private String token;
 
     @Column(name = "fecha_expiracion", nullable = false)

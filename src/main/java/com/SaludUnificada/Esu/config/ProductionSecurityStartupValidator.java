@@ -38,6 +38,9 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.mail.password:}")
     private String mailPassword;
 
+    @Value("${app.auth.google.enabled:false}")
+    private boolean googleAuthEnabled = false;
+
     @Value("${google.client.id:}")
     private String googleClientId;
 
@@ -112,12 +115,14 @@ public class ProductionSecurityStartupValidator {
                 throw new IllegalStateException("FATAL: Contraseña de servidor SMTP vacía o placeholder para entorno productivo ('spring.mail.password').");
             }
 
-            // 6. Validar Google Client ID en producción
-            if (googleClientId == null || googleClientId.trim().isEmpty()
-                    || googleClientId.toLowerCase().contains("placeholder")
-                    || googleClientId.toLowerCase().contains("cambiar")
-                    || googleClientId.toLowerCase().contains("ejemplo")) {
-                throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar obligatoriamente 'GOOGLE_CLIENT_ID' ('google.client.id').");
+            // 6. Validar Google Client ID en producción sólo si está habilitado
+            if (googleAuthEnabled) {
+                if (googleClientId == null || googleClientId.trim().isEmpty()
+                        || googleClientId.toLowerCase().contains("placeholder")
+                        || googleClientId.toLowerCase().contains("cambiar")
+                        || googleClientId.toLowerCase().contains("ejemplo")) {
+                    throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar obligatoriamente 'GOOGLE_CLIENT_ID' ('google.client.id').");
+                }
             }
 
             log.info("Verificación de configuración productiva completada satisfactoriamente.");
