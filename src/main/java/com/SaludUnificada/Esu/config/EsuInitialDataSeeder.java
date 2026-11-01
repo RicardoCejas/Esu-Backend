@@ -22,12 +22,15 @@ import java.util.Set;
 
 @Slf4j
 @Component
-@Profile({"local", "dev"})
 @Order(10)
 @RequiredArgsConstructor
 public class EsuInitialDataSeeder implements CommandLineRunner {
 
     private final UsuarioRepositorio usuarioRepositorio;
+    private final org.springframework.core.env.Environment environment;
+
+    @org.springframework.beans.factory.annotation.Value("${app.demo.seed-accounts:false}")
+    private boolean seedDemoAccounts;
     private final PacienteRepositorio pacienteRepositorio;
     private final ProfesionalRepositorio profesionalRepositorio;
     private final EspecialidadRepositorio especialidadRepositorio;
@@ -36,7 +39,15 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        log.info("Verificando y sincronizando datos semilla de desarrollo (Perfil local/dev, ejecución idempotente por registro)...");
+        java.util.List<String> activeProfiles = java.util.Arrays.asList(environment.getActiveProfiles());
+        boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
+
+        if (!isLocalOrDev && !seedDemoAccounts) {
+            log.info("Carga de cuentas semilla de demostración omitida en producción (app.demo.seed-accounts=false).");
+            return;
+        }
+
+        log.info("Verificando y sincronizando datos semilla de demostración académica (ejecución idempotente por registro)...");
 
         crearUsuarioSiNoExiste("admin@esu.gob.ar", "Admin123!", "ADMIN");
         crearUsuarioSiNoExiste("recepcion@esu.gob.ar", "Recepcion123!", "RECEPCIONISTA");

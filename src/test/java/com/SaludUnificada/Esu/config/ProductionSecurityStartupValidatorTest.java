@@ -115,6 +115,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.ejemplo.gob.ar");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
@@ -130,6 +131,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
         ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
         ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
         ReflectionTestUtils.setField(validator, "googleClientId", "123456789-prod.apps.googleusercontent.com");
@@ -210,4 +212,22 @@ class ProductionSecurityStartupValidatorTest {
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
     }
+
+    @Test
+    void testValidateConfiguration_ProdConMailDeshabilitado_NoExigeSmtp() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
+        ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailEnabled", false);
+        ReflectionTestUtils.setField(validator, "mailHost", "");
+        ReflectionTestUtils.setField(validator, "googleClientId", "123456789-prod.apps.googleusercontent.com");
+
+        assertDoesNotThrow(validator::validateConfiguration);
+    }
 }
+
