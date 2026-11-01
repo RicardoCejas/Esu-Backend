@@ -1,189 +1,276 @@
-# Ecosistema de Salud Unificado (ESU)()
-> Plataforma integral B2B2C para la modernización y centralización de servicios de salud en Cruz del Eje.
+# Ecosistema de Salud Unificado (ESU) - Backend
+> API REST empresarial para la interoperabilidad, gestión clínica inmutable, turnos médicos y receta digital en Cruz del Eje.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Estado-En_desarrollo-orange" alt="Estado">
-  <img src="https://img.shields.io/badge/Backend-Java_--_Spring_Boot-green" alt="Backend">
-  <img src="https://img.shields.io/badge/Frontend-HTML_--_CSS_--_JS_--_React-blue" alt="Frontend">
-  <img src="https://img.shields.io/badge/Database-MySQL-gray" alt="Database">
+  <img src="https://img.shields.io/badge/Estado-Producción_/_Operativo-success?style=for-the-badge" alt="Estado">
+  <img src="https://img.shields.io/badge/Java-17_--_21_Compatible-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java">
+  <img src="https://img.shields.io/badge/Spring_Boot-3.3.4-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot">
+  <img src="https://img.shields.io/badge/Base_de_Datos-MySQL_8.4-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/Migraciones-Flyway_V1--V15-CC0202?style=for-the-badge&logo=flyway&logoColor=white" alt="Flyway">
+  <img src="https://img.shields.io/badge/Documentación-Swagger_OpenAPI_3-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" alt="Swagger">
 </p>
 
 ---
 
 ## Tabla de Contenidos
-1. [Visión General](#visión-general)
-2. [Arquitectura y Tecnologías](#arquitectura-y-tecnologías)
-3. [Perfiles y Funcionalidades](#perfiles-y-funcionalidades)
-4. [Flujo de Funcionamiento](#flujo-de-funcionamiento)
-5. [Gestión de Proyecto (PMI)](#gestión-de-proyecto-pmi)
-6. [Roadmap de Desarrollo](#roadmap-de-desarrollo)
-7. [Instalación y Configuración](#instalación-y-configuración)
-8. [Equipo de Desarrollo](#equipo-de-desarrollo)
+1. [Visión General del Backend](#visión-general-del-backend)
+2. [Arquitectura y Principios de Diseño](#arquitectura-y-principios-de-diseño)
+3. [Stack Tecnológico](#stack-tecnológico)
+4. [Estructura del Proyecto](#estructura-del-proyecto)
+5. [Dominio Clínico y Entidades](#dominio-clínico-y-entidades)
+6. [Marco Legal y Seguridad](#marco-legal-y-seguridad)
+7. [Base de Datos y Migraciones (Flyway)](#base-de-datos-y-migraciones-flyway)
+8. [Instalación y Ejecución Local](#instalación-y-ejecución-local)
+9. [Despliegue con Docker Compose](#despliegue-con-docker-compose)
+10. [Documentación de la API (Swagger UI)](#documentación-de-la-api-swagger-ui)
+11. [Protocolo de Respaldo y Restauración](#protocolo-de-respaldo-y-restauración)
+12. [Equipo de Desarrollo y Enlaces](#equipo-de-desarrollo)
 
 ---
 
-## Visión General
-El **Ecosistema de Salud Unificado (ESU)** nace para resolver la fragmentación de los servicios médicos en Cruz del Eje. El proyecto reemplaza procesos manuales por un sistema digital interoperable que centraliza la gestión de turnos, historias clínicas y comunicación entre pacientes y profesionales.
+## Visión General del Backend
 
-* **Propósito:** Facilitar el acceso a la salud y mejorar la organización sistémica.
-* **Impacto:** Reducción del ausentismo mediante listas de espera inteligentes y recordatorios automáticos.
+El backend de **ESU** es una API REST robusta construida con **Java 17 / Spring Boot 3.3.4**, orientada a servicios de misión crítica en salud. Provee el motor de reglas de negocio, la persistencia transaccional relacional en **MySQL 8.4**, el control de acceso basado en roles y el cumplimiento estricto del marco legal clínico argentino.
 
----
-
-## Arquitectura y Tecnologías
-El sistema está desarrollado bajo una arquitectura cliente-servidor robusta, priorizando la modularidad, la seguridad de los datos médicos y la escalabilidad del sistema:
-
-| Capa | Tecnología | Función |
-| :--- | :--- | :--- |
-| **Frontend** | HTML5 + CSS3 + JavaScript (React) | Interfaz de usuario estructurada, adaptativa y reactiva. |
-| **Backend** | Java + Spring Boot | Motor de la API REST, lógica de negocio y control de accesos. |
-| **Base de Datos** | MySQL | Persistencia de datos mediante un modelo relacional sólido. |
-| **Persistencia / ORM** | JPA + Hibernate | Mapeo de entidades orientadas a objetos y gestión de consultas. |
-| **Seguridad** | Spring Security / Filtros de Servidor | Autenticación, control de sesiones y restricción de accesos por Roles (Paciente/Médico). |
+### Capacidades Centrales:
+* **Motor de Turnos Inteligente:** Cálculo de disponibilidad en tiempo real, bloqueo de agendas, prevención de solapamientos y cancelación segura.
+* **Historia Clínica Única (HCU) Inmutable:** Registro clínico protegido bajo la **Ley Nacional 26.529**, con auditoría de accesos y sistema de adendas firmadas.
+* **Diagnósticos Estándar CIE-10:** Catálogo internacional integrado para normalización de patologías.
+* **Receta Digital Criptográfica:** Emisión de prescripciones firmadas con token unívoco, generación de código QR y validación para farmacias.
+* **Transactional Outbox Pattern:** Mecanismo desacoplado y resiliente para la emisión confiable de eventos y notificaciones.
 
 ---
 
-## Perfiles y Funcionalidades
+## Arquitectura y Principios de Diseño
 
-### 1. Paciente
-* **Búsqueda Inteligente:** Filtros geolocalizados por especialidad, profesional y obra social.
-* **Gestión de Turnos:** Reserva, cancelación y reprogramación en tiempo real.
-* **Historia Clínica Única (HCU):** Acceso a una línea de tiempo unificada de antecedentes y estudios médicos.
+El sistema implementa una arquitectura en capas limpia (**Layered Clean Architecture**) garantizando bajo acoplamiento y alta cohesión:
 
-### 2. Profesional y Centros de Salud
-* **Agenda Médica:** Sincronización automática y bloqueo de horarios.
-* **Receta Electrónica:** Emisión de recetas con firma digital y código QR único.
-* **Métricas de Gestión:** Dashboards con tasas de ausentismo y volumen de pacientes.
+```mermaid
+graph TD
+    subgraph Entrada
+        Client["Cliente Web (SPA) / Tótem / App"]
+        GW["Filtros de Seguridad (JWT / CORS)"]
+    end
 
-### 3. Administrador
-* **Auditoría:** Supervisión global del sistema y resolución de problemas técnicos.
-* **Control de Datos:** Gestión de usuarios y mantenimiento preventivo de la plataforma.
+    subgraph Capa_Controladores
+        Ctrl["Controladores REST (@RestController)"]
+        Valid["Validaciones (@Valid / Jakarta Validation)"]
+    end
 
----
+    subgraph Capa_Servicios
+        Eval["OwnershipSecurityEvaluator (RBAC)"]
+        Serv["Servicios Transaccionales (@Service / @Transactional)"]
+        Outbox["Outbox Event Publisher"]
+    end
 
-## Flujo de Funcionamiento
-1. **Interacción:** El usuario realiza una acción en la interfaz web Frontend (React).
-2. **Procesamiento:** La solicitud viaja al Backend (Java + Spring Boot) para la validación de reglas de negocio a través de controladores y endpoints de la API REST.
-3. **Persistencia:** Se consulta o actualiza la base de datos MySQL local mediante la capa relacional controlada de forma segura por JPA e Hibernate.
-4. **Respuesta:** El servidor devuelve la información procesada en formato JSON/Objetos y la interfaz visual se actualiza de manera reactiva en el navegador sin recargar la página.
+    subgraph Capa_Persistencia
+        Repo["Repositorios Spring Data JPA"]
+        Aud["Entity Listeners & Inmutabilidad"]
+        DB[("MySQL 8.0 (InnoDB)")]
+    end
 
----
-
-## Gestión de Proyecto (PMI)
-Este proyecto se rige por los estándares del **PMI (Project Management Institute)** para asegurar la entrega en tiempo y forma.
-
-* **Control de Versiones:** Uso de GitFlow con ramas separadas para funciones (features), desarrollo y producción.
-* **Documentación:** Todo el ciclo de vida está registrado en el Plan de Gestión de Proyecto, incluyendo la matriz de responsabilidades y el registro de riesgos.
-* **Interoperabilidad:** Implementación mandatoria de encriptación de punta a punta para la protección de datos sensibles.
-
----
-
-## Roadmap de Desarrollo
-
-### Fase 1: Infraestructura y Persistencia (Entrega del Backend Inicial)
-- [ ] Inicialización del entorno Spring Boot (Java 17) y ordenamiento de paquetes físicos en el IDE.
-- [ ] Modelado de entidades del ecosistema (`Usuario`, `Paciente`, `Medico`, `Turno`) con anotaciones relacionales JPA.
-- [ ] Configuración del motor de persistencia física e Hibernate sobre el esquema MySQL local.
-- [ ] Implementación de interfaces de repositorios (`JpaRepository`) para control estricto de transacciones de salud.
-
-### Fase 2: Motor de Servicios y Lógica de Negocio
-- [ ] Desarrollo de la capa de servicios y controladores REST para la exposición de endpoints del sistema.
-- [ ] Implementación de reglas de control de acceso y seguridad perimetral mediante Spring Security.
-- [ ] Módulo inicial de Historia Clínica Única (HCU) y sincronización de agendas profesionales.
-
-### Fase 3: Ecosistema Completo e Interfaz Web
-- [ ] Acoplamiento de la interfaz gráfica adaptativa consumiendo la API REST (HTML5, CSS3, JavaScript, React).
-- [ ] Receta electrónica interoperable con firma digital y codificación única por código QR.
-- [ ] Integración de un directorio geolocalizado de cartilla médica para los habitantes de Cruz del Eje.
+    Client -->|HTTPS Bearer JWT| GW
+    GW --> Ctrl
+    Ctrl --> Valid
+    Valid --> Eval
+    Eval --> Serv
+    Serv --> Outbox
+    Serv --> Repo
+    Repo --> Aud
+    Aud --> DB
+    Outbox --> DB
+```
 
 ---
 
-## Instalación, Configuración y Despliegue
+## Stack Tecnológico
 
-### 1. Variables de Entorno
-Copiar la plantilla de configuración `.env.example` como `.env`:
+| Componente | Tecnología | Versión | Rol |
+| :--- | :--- | :--- | :--- |
+| **Lenguaje** | Java (OpenJDK) | 17 (Target) / 21+ | Lenguaje base tipado y de alto rendimiento. |
+| **Framework** | Spring Boot | 3.3.4 | Framework base para microservicios y APIs empresariales. |
+| **Seguridad** | Spring Security & JJWT | 6.x / 0.12.6 | Autenticación stateless, Refresh Tokens y RBAC perimetral. |
+| **Persistencia / ORM** | Spring Data JPA / Hibernate | 6.x | Mapeo objeto-relacional y ejecución transaccional ACID. |
+| **Pool de Conexiones** | HikariCP | Integrado | Pool de conexiones ultraliviano y de alta velocidad. |
+| **Base de Datos** | MySQL Server | 8.0 (InnoDB) | Motor de base de datos relacional para persistencia principal. |
+| **Migraciones de BD** | Flyway | 10.x | Control de versiones evolutivo del esquema (`V1` a `V15`). |
+| **Documentación API** | SpringDoc OpenAPI | 2.6.0 | Especificación OpenAPI 3 y consola Swagger UI interactiva. |
+| **Productividad** | Project Lombok | 1.18.38 | Reducción de boilerplate de código Java. |
+| **Contenedorización** | Docker / Compose | Multi-stage | Empaquetado y ejecución portable en producción. |
+
+---
+
+## Estructura del Proyecto
+
+```text
+Backend/
+├── src/main/java/com/SaludUnificada/Esu/
+│   ├── config/            # Configuración de Seguridad, CORS, OpenAPI, Auditoría JPA
+│   ├── controlador/       # Controladores REST expuestos:
+│   │   ├── AuthController.java            # Registro, login, refresh token, verificación
+│   │   ├── TurnoController.java           # Creación, cancelación y disponibilidad de turnos
+│   │   ├── HistoriaClinicaController.java # HCU, evoluciones y adendas
+│   │   ├── RecetaDigitalController.java   # Emisión, consulta y dispensa en farmacia
+│   │   ├── PacienteController.java        # Padrón y datos de pacientes
+│   │   ├── ProfesionalController.java     # Gestión de médicos y disponibilidades
+│   │   ├── CentroSaludController.java     # Centros, sedes y consultorios físicos
+│   │   └── AdminController.java           # Auditoría, métricas y outbox
+│   ├── dto/               # Data Transfer Objects (Request / Response)
+│   ├── entidad/           # Entidades JPA del modelo relacional
+│   ├── error/             # Manejo global de excepciones (`GlobalExceptionHandler`)
+│   ├── evento/            # Eventos de dominio y Transactional Outbox
+│   ├── mapper/            # Mapeadores entre Entidades y DTOs
+│   ├── repositorio/       # Interfaces Spring Data JPA
+│   ├── seguridad/         # JWT filter, UserDetails y `OwnershipSecurityEvaluator`
+│   └── servicio/          # Lógica de negocio y transacciones
+│
+├── src/main/resources/
+│   ├── db/migration/      # Migraciones Flyway V1__... a V15__...
+│   ├── application.properties        # Configuración común
+│   ├── application-dev.properties    # Perfil de desarrollo
+│   └── application-prod.properties   # Perfil de producción
+│
+├── Dockerfile             # Construcción multi-stage de imagen productiva
+├── mvnw / mvnw.cmd        # Maven Wrapper
+└── pom.xml                # Gestión de dependencias y plugins de compilación
+```
+
+---
+
+## Dominio Clínico y Entidades
+
+El modelo relacional abarca todas las necesidades del ecosistema sanitario:
+
+* **Historias Clínicas y Evolución:**
+  * `HistoriaClinica`, `EvolucionMedica`, `EvolucionAdenda`, `PlantillaEvolucion`, `ConsultaBorrador`.
+  * `LogAccesoHc`: Registro inalterable de accesos y consultas a la historia médica de cualquier paciente.
+* **Prescripción Digital:**
+  * `RecetaDigital`, `MedicamentoReceta`, `RecetaEstado` (Emitida, Dispensada, Vencida, Anulada).
+* **Agendas y Turnos:**
+  * `Turno`, `TurnoEstado`, `DisponibilidadProfesional`, `BloqueoAgenda`, `RecordatorioTurno`.
+* **Usuarios y Prestadores:**
+  * `Usuario`, `Paciente`, `Profesional`, `CentroSalud`, `ConsultorioFisico`, `Especialidad`.
+  * `VinculoFamiliar`: Representación de dependientes o miembros a cargo.
+  * `ConvenioObraSocial`: Coberturas y convenios activos.
+* **Seguridad y Resiliencia:**
+  * `RefreshToken`, `TokenRecuperacion`, `OutboxEvento`.
+
+---
+
+## Marco Legal y Seguridad
+
+### Cumplimiento Ley 26.529 (Derechos del Paciente e Historia Clínica)
+* **Principio de Inmutabilidad:** Las evoluciones médicas registradas cuentan con el listener `EvolucionInmutableListener` que rechaza operaciones de modificación (`UPDATE`) o borrado (`DELETE`) a nivel de entidad.
+* **Mecanismo de Adendas:** Toda aclaración o ampliación posterior se realiza a través de `EvolucionAdenda`, registrando fecha, hora, matrícula del profesional y motivo médico.
+* **Auditoría de Lectura:** Cada vez que un usuario visualiza una HCU, se persiste automáticamente un `LogAccesoHc` para fines de trazabilidad legal.
+
+### Seguridad Criptográfica y RBAC
+* **Autenticación Stateless:** Tokens **JWT (JSON Web Tokens)** con firma criptográfica HMAC-SHA 256 (`APP_JWT_SECRET`).
+* **Refresh Tokens:** Almacenados en base de datos con expiración y revocación segura.
+* **Evaluador de Propiedad (`OwnershipSecurityEvaluator`):** Reglas para asegurar que un paciente solo acceda a su propia información, un médico a sus consultas y pacientes asignados, y roles administrativos/farmacia a sus funciones específicas.
+* **Validación al Inicio (`ProductionSecurityStartupValidator`):** Verificación automática al arrancar para asegurar que en producción no se utilicen claves por defecto ni secretos débiles.
+
+---
+
+## Base de Datos y Migraciones (Flyway)
+
+El esquema de la base de datos se versiona estrictamente mediante **Flyway**, garantizando migraciones reproducibles en cualquier entorno:
+
+```text
+db/migration/
+├── V1__esquema_inicial_usuarios_roles.sql
+├── V2__centros_salud_y_especialidades.sql
+├── V3__profesionales_y_disponibilidades.sql
+├── V4__pacientes_y_vinculos_familiares.sql
+├── V5__turnero_y_estados.sql
+├── ...
+└── V15__indices_rendimiento_y_auditoria.sql
+```
+
+Al iniciar el backend, Flyway inspecciona la tabla `flyway_schema_history` y aplica de forma automática las migraciones pendientes sin riesgo de inconsistencias.
+
+---
+
+## Instalación y Ejecución Local
+
+### Prerrequisitos
+* **Java Development Kit (JDK):** Versión 17 o 21 instalada.
+* **MySQL Server:** Versión 8.0 en ejecución con base de datos `esu_db` creada.
+
+### 1. Configuración de Variables
+Copia el archivo `.env.example` o configura tus variables de entorno locales:
 ```bash
 cp .env.example .env
 ```
-Configurar obligatoriamente en entornos productivos:
-- `SPRING_PROFILES_ACTIVE`: `prod` (o `dev` / `local` para pruebas en estación de trabajo).
-- `MYSQL_USER`: Usuario MySQL con privilegios mínimos (por defecto `esu_app`, nunca `root` en producción).
-- `MYSQL_PASSWORD`: Contraseña segura para el usuario de base de datos.
-- `APP_JWT_SECRET`: Clave criptográfica HMAC-SHA de al menos 32 caracteres (256 bits).
-- `CORS_ALLOWED_ORIGINS`: Lista explícita de dominios autorizados sin comodín (ej: `http://localhost:5173,https://cruzdeleje.gob.ar`).
-
-### 2. Ejecución Local con Maven
-Para ejecutar la aplicación localmente en modo desarrollo con base de datos H2 o MySQL local:
-```bash
-./mvnw clean spring-boot:run -Dspring-boot.run.profiles=local
+Variables indispensables:
+```env
+SPRING_PROFILES_ACTIVE=dev
+MYSQL_USER=esu_app
+MYSQL_PASSWORD=tu_contraseña_local
+APP_JWT_SECRET=clave_secreta_jwt_de_al_menos_256_bits_de_longitud_minima
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-### 3. Despliegue con Docker Compose
-Para levantar el ecosistema completo (MySQL + Backend) con verificaciones de salud automáticas:
-```bash
-docker compose up -d --build
+### 2. Ejecutar con Maven Wrapper
+
+**En Windows:**
+```powershell
+.\mvnw.cmd clean spring-boot:run -Dspring-boot.run.profiles=dev
 ```
-Los servicios quedarán operativos con health checks:
-- Base de datos MySQL: `localhost:3306` (espera a estar saludable mediante `mysqladmin ping`).
-- Backend Spring Boot: `http://localhost:8080` (espera a estar saludable en `http://localhost:8080/actuator/health`).
 
-### 4. Verificación Posterior al Despliegue (Smoke Tests)
-Una vez iniciado el contenedor de producción, ejecutar las siguientes comprobaciones de sanidad:
-1. **Comprobar Health Check Actuator:**
-   ```bash
-   curl -s -f http://localhost:8080/actuator/health | grep '"status":"UP"'
-   ```
-2. **Monitoreo de Métricas Operacionales:**
-   ```bash
-   curl -s http://localhost:8080/actuator/metrics/jvm.memory.used
-   curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.active
-   ```
-3. **Auditoría de Eventos Outbox (Como Administrador):**
-   ```bash
-   curl -s -H "Authorization: Bearer <TOKEN_ADMIN>" http://localhost:8080/api/admin/outbox/problematicos
-   ```
-   *El resultado esperado tras el arranque debe ser una lista vacía `[]`, confirmando que no hay eventos inconsistentes ni colas bloqueadas.*
-4. **Verificación de Seguridad en Logs:**
-   Revisar los logs del contenedor para constatar que `ProductionSecurityStartupValidator` validó satisfactoriamente los secretos y que no existan trazas con DNIs, contraseñas o tokens expuestos:
-   ```bash
-   docker logs --tail 100 esu-backend | grep "ProductionSecurityStartupValidator"
-   ```
+**En Linux / macOS:**
+```bash
+./mvnw clean spring-boot:run -Dspring-boot.run.profiles=dev
+```
 
-### 5. Procedimiento de Reversión Controlada (Rollback)
-En caso de detectarse anomalías críticas durante la puesta en marcha:
-1. **Detener Contenedores Productivos:**
-   ```bash
-   docker compose down
-   ```
-2. **Restaurar Versión Anterior del Backend:**
-   Hacer checkout del commit o tag previo verificado y reconstruir:
-   ```bash
-   git checkout <TAG_VERSION_ANTERIOR>
-   docker compose up -d --build
-   ```
-3. **Restaurar Base de Datos (si se aplicaron cambios de datos destructivos no previstos):**
-   Seguir el procedimiento de restauración documentado abajo inyectando el snapshot previo tomado antes del despliegue.
+La API estará lista y escuchando en: `http://localhost:8080`.
 
 ---
 
-## Procedimiento de Respaldo (Backup) y Restauración
+## Despliegue con Docker Compose
 
-Para garantizar la continuidad operativa y el cumplimiento del marco legal clínico (Ley 26.529 de conservación de historias clínicas), el sistema cuenta con el siguiente protocolo de backup y recuperación ante desastres:
+Para levantar el entorno completo con base de datos MySQL y la API Spring Boot contenerizadas:
 
-### 1. Respaldo en Caliente de la Base de Datos (MySQL)
-Se utiliza `mysqldump` con la opción `--single-transaction` para no bloquear tablas clínicas ni turnos durante la exportación:
 ```bash
-# Backup consistente con compresión gzip
-docker exec esu_mysql mysqldump -u esu_app -p"${DB_PASSWORD}"   --single-transaction --quick --routines --triggers esu_db | gzip > backup_esu_$(date +%Y%m%d_%H%M%S).sql.gz
+docker compose up -d --build
 ```
 
-### 2. Restauración de Esquema y Datos
-1. Verificar que el servicio MySQL esté disponible y saludable.
-2. Descomprimir e inyectar el dump:
+### Servicios iniciados:
+* **MySQL 8.0:** Puerto `3306` (con verificación `mysqladmin ping`).
+* **ESU Backend:** Puerto `8080` (con healthcheck en `/actuator/health`).
+
+### Comprobación de salud:
+```bash
+curl -s http://localhost:8080/actuator/health
+# Respuesta esperada: {"status":"UP"}
+```
+
+---
+
+## Documentación de la API (Swagger UI)
+
+Una vez iniciado el servidor en entorno local o de desarrollo:
+* **Interfaz Swagger UI:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+* **Especificación OpenAPI (JSON):** [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+
+> En entornos productivos (`prod`), la consola Swagger se encuentra deshabilitada para usuarios sin rol `ADMIN`.
+
+---
+
+## Protocolo de Respaldo y Restauración
+
+Para cumplir con la conservación de historias clínicas requerida por ley:
+
+### 1. Respaldo en Caliente (Sin bloqueo)
+```bash
+docker exec esu_mysql mysqldump -u esu_app -p"${DB_PASSWORD}" \
+  --single-transaction --quick --routines --triggers esu_db | gzip > backup_esu_$(date +%Y%m%d_%H%M%S).sql.gz
+```
+
+### 2. Restauración
 ```bash
 gunzip < backup_esu_YYYYMMDD_HHMMSS.sql.gz | docker exec -i esu_mysql mysql -u esu_app -p"${DB_PASSWORD}" esu_db
 ```
-3. Al iniciar el backend de Spring Boot, Flyway validará automáticamente el estado de las migraciones existentes contra `flyway_schema_history` y aplicará únicamente aquellas migraciones pendientes, preservando la integridad referencial y de auditoría.
 
 ---
 
@@ -196,8 +283,7 @@ gunzip < backup_esu_YYYYMMDD_HHMMSS.sql.gz | docker exec -i esu_mysql mysql -u e
 
 ---
 
-### 🔗 Recursos del Proyecto
-
-* **Repositorio de Código:** [GitHub - Vértice del Olivo](https://github.com/RicardoCejas/Esu)
-* **Gestión de Proyectos (PMI):** [Documento PMI del Proyecto](https://docs.google.com/document/d/1EIj0QAYjqWMrMraBL_VO3G_roSU5otVp/edit#heading=h.zbyebere09e)
-* **Documentación Técnica:** [Carpeta de Gestión ESU en Google Drive](https://drive.google.com/drive/folders/1Fkj_hzJDNtrR1ZQJit4Ro4zfghxreBYk)
+### 🔗 Enlaces Relacionados
+* **Repositorio Frontend:** [GitHub - Esu-Frontend](https://github.com/RicardoCejas/Esu-Frontend)
+* **Gestión de Proyectos (PMI):** [Plan de Proyecto y Acta de Constitución](https://docs.google.com/document/d/1EIj0QAYjqWMrMraBL_VO3G_roSU5otVp/edit#heading=h.zbyebere09e)
+* **Documentación Técnica:** [Carpeta Oficial ESU en Google Drive](https://drive.google.com/drive/folders/1Fkj_hzJDNtrR1ZQJit4Ro4zfghxreBYk)
