@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS token_recuperacion (
     usuario_id BIGINT NOT NULL,
     fecha_expiracion DATETIME NOT NULL,
     usado BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_creacion DATETIME NULL,
     CONSTRAINT fk_token_usuario FOREIGN KEY (usuario_id) REFERENCES usuario (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -38,4 +39,4 @@ CREATE INDEX idx_auditoria_fecha ON log_auditoria_seguridad (fecha);
 -- -----------------------------------------------------------------------------
 -- 3. Índices Optimizados para Métricas Sanitarias y Ausentismo (HU-98)
 -- -----------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_turno_fecha_estado ON turno (fecha_hora, estado);
+CREATE INDEX idx_turno_fecha_estado ON turno (fecha_hora, estado);

@@ -23,9 +23,19 @@ INSERT IGNORE INTO profesional_centro_salud (profesional_id, centro_salud_id)
 SELECT id, 1 FROM profesional;
 
 -- 4. Ampliar la tabla de turnos con identificación explícita de sede y consultorio
-ALTER TABLE turno ADD COLUMN IF NOT EXISTS centro_salud_id BIGINT NULL;
-ALTER TABLE turno ADD COLUMN IF NOT EXISTS centro_salud_nombre VARCHAR(255) NULL;
-ALTER TABLE turno ADD COLUMN IF NOT EXISTS consultorio_numero VARCHAR(50) NULL;
+ALTER TABLE turno ADD COLUMN centro_salud_id BIGINT NULL;
+ALTER TABLE turno ADD COLUMN centro_salud_nombre VARCHAR(255) NULL;
+ALTER TABLE turno ADD COLUMN consultorio_numero VARCHAR(50) NULL;
+ALTER TABLE turno ADD COLUMN fecha_check_in DATETIME NULL;
+ALTER TABLE turno ADD COLUMN recepcionista_check_in VARCHAR(255) NULL;
+ALTER TABLE turno ADD COLUMN monto_copago DECIMAL(10,2) NULL;
+ALTER TABLE turno ADD COLUMN numero_bono VARCHAR(255) NULL;
+ALTER TABLE turno ADD COLUMN metodo_pago VARCHAR(255) NULL;
+ALTER TABLE turno ADD COLUMN fecha_copago DATETIME NULL;
+ALTER TABLE turno ADD COLUMN observaciones_atencion VARCHAR(1000) NULL;
+ALTER TABLE turno ADD COLUMN fecha_atencion DATETIME NULL;
+ALTER TABLE turno ADD COLUMN fecha_cancelacion DATETIME NULL;
+ALTER TABLE turno ADD COLUMN motivo_cancelacion VARCHAR(500) NULL;
 
 -- 5. Actualizar turnos existentes con sede por defecto para garantizar retrocompatibilidad
 UPDATE turno SET 

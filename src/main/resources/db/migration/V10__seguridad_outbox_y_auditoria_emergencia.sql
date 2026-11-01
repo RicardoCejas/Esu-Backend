@@ -4,7 +4,7 @@
 -- =============================================================================
 
 -- 1. Agregar versión de credenciales para revocación de JWT tras cambio de clave/roles
-ALTER TABLE usuario ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
+ALTER TABLE usuario ADD COLUMN token_version INT NOT NULL DEFAULT 1;
 
 -- 2. Asegurar tabla log_acceso_hc y columna motivo para break-glass / emergencias
 CREATE TABLE IF NOT EXISTS log_acceso_hc (
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS log_acceso_hc (
     INDEX idx_log_fecha (fecha_hora)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE log_acceso_hc ADD COLUMN IF NOT EXISTS motivo VARCHAR(500) NULL;
+-- motivo ya incluido en definicion de log_acceso_hc
 
 -- 3. Tabla para tokens aleatorios y seguros de verificación de documentos clínicos
 CREATE TABLE IF NOT EXISTS token_verificacion_documento (

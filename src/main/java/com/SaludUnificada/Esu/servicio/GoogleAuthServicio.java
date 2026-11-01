@@ -50,8 +50,9 @@ public class GoogleAuthServicio {
             paciente.setNombre(nombre.trim());
             paciente.setApellido(apellido.trim());
             String sub = payload.getSub();
-            String dniGoogle = "G-" + (sub.length() > 8 ? sub.substring(sub.length() - 8) : sub);
-            paciente.setDni(dniGoogle);
+            String suffix = (sub != null && sub.length() > 8) ? sub.substring(sub.length() - 8) : String.valueOf(System.currentTimeMillis() % 100000000L);
+            paciente.setDni("G-" + suffix);
+            paciente.setNroAfiliado("GGL-" + suffix);
             paciente.setTelefono("");
             paciente.setUsuario(usuarioGuardado);
 

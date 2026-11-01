@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS consentimientos_informados (
     hash_integridad_sha256 VARCHAR(64) NOT NULL,
     fecha_hora_firma DATETIME NOT NULL,
     estado VARCHAR(30) NOT NULL DEFAULT 'FIRMADO',
+    motivo_revocacion VARCHAR(500) NULL,
+    fecha_hora_revocacion DATETIME NULL,
+    ip_revocacion VARCHAR(45) NULL,
     INDEX idx_consentimiento_paciente (paciente_id),
     INDEX idx_consentimiento_profesional (profesional_id),
     INDEX idx_consentimiento_hash (hash_integridad_sha256)

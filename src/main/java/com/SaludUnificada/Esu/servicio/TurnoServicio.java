@@ -369,11 +369,11 @@ public class TurnoServicio implements ITurnoServicio {
                     nuevo.setNroAfiliado(dto.getNroAfiliado());
                     Usuario u = new Usuario();
                     u.setEmail(dto.getEmail());
-                    String rawPass = dniLimpio;
-                    u.setPassword(passwordEncoder != null ? passwordEncoder.encode(rawPass) : rawPass);
+                    String randomSecret = java.util.UUID.randomUUID().toString() + "-NO-LOGIN";
+                    u.setPassword(passwordEncoder != null ? passwordEncoder.encode(randomSecret) : randomSecret);
                     u.setRol("PACIENTE");
                     u.setEstadoActivo(true);
-                    u.setEmailVerificado(true);
+                    u.setEmailVerificado(false);
                     u.setFechaDeAlta(java.time.LocalDate.now());
                     nuevo.setUsuario(u);
                 }

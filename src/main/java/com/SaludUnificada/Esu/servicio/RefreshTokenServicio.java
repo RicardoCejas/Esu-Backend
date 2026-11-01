@@ -86,8 +86,7 @@ public class RefreshTokenServicio {
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .usuario(usuario)
-                .token(rawToken)
-                .tokenHash(tokenHash)
+                                .tokenHash(tokenHash)
                 .fechaCreacion(fechaCreacion)
                 .fechaExpiracion(fechaExpiracion)
                 .revocado(false)
@@ -110,8 +109,7 @@ public class RefreshTokenServicio {
 
         // Bloqueo pesimista para serializar rotaciones concurrentes de un mismo token y evitar condiciones de carrera
         RefreshToken tokenExistente = refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)
-                .or(() -> refreshTokenRepositorio.findByToken(rawToken.trim()))
-                .orElseThrow(() -> {
+                                .orElseThrow(() -> {
                     log.warn("Intento de refresh con token inexistente.");
                     return new BadCredentialsException("Refresh token inválido.");
                 });
@@ -152,8 +150,7 @@ public class RefreshTokenServicio {
 
         RefreshToken nuevoRefreshToken = RefreshToken.builder()
                 .usuario(usuario)
-                .token(nuevoTokenRaw)
-                .tokenHash(nuevoTokenHash)
+                                .tokenHash(nuevoTokenHash)
                 .fechaCreacion(ahora)
                 .fechaExpiracion(ahora.plusDays(refreshExpirationDays))
                 .revocado(false)
@@ -183,9 +180,7 @@ public class RefreshTokenServicio {
         if (rawToken == null || rawToken.isBlank()) return;
         String tokenHash = hashToken(rawToken);
         int rows = refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
-        if (rows == 0) {
-            refreshTokenRepositorio.revocarPorToken(rawToken.trim());
-        }
+        
     }
 
     @Transactional

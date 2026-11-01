@@ -54,6 +54,45 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         crearPacienteSiNoExiste("Juan", "Pérez", "35123456", "AF-100234", "OSECAC", "juan.perez@salud.gob.ar", "Paciente123!");
         crearPacienteSiNoExiste("Ana", "Torres", "28987654", "AF-802341", "PAMI", "ana.torres@salud.gob.ar", "Paciente123!");
 
+                // Cuenta Desarrollador ESU para testing y superadmin (HU-DEV)
+        Usuario devUser = usuarioRepositorio.findByEmail("dev@esu.gob.ar").orElseGet(() -> {
+            Usuario u = new Usuario();
+            u.setEmail("dev@esu.gob.ar");
+            u.setFechaDeAlta(LocalDate.now());
+            return u;
+        });
+        devUser.setPassword(passwordEncoder.encode("Dev12345!"));
+        if (devUser.getRol() == null || devUser.getRol().isBlank()) {
+            devUser.setRol("ADMIN");
+        }
+        devUser.setEstadoActivo(true);
+        devUser.setEmailVerificado(true);
+        devUser = usuarioRepositorio.save(devUser);
+
+        if (pacienteRepositorio.findByUsuarioEmail("dev@esu.gob.ar").isEmpty()) {
+            Paciente devPac = new Paciente();
+            devPac.setNombre("Desarrollador");
+            devPac.setApellido("ESU");
+            devPac.setDni("99999999");
+            devPac.setNroAfiliado("DEV-99999999");
+            devPac.setObraSocial("Apross");
+            devPac.setTelefono("3549-420000");
+            devPac.setUsuario(devUser);
+            pacienteRepositorio.save(devPac);
+        }
+
+        if (profesionalRepositorio.findByUsuarioEmail("dev@esu.gob.ar").isEmpty()) {
+            Profesional devProf = new Profesional();
+            devProf.setNombre("Carlos");
+            devProf.setApellido("Desarrollador");
+            devProf.setMatricula("MP-99999");
+            devProf.setTelefono("3549-420000");
+            devProf.setEstadoActivo(true);
+            devProf.setUsuario(devUser);
+            devProf.setEspecialidades(Set.of(espGeneral));
+            profesionalRepositorio.save(devProf);
+        }
+
         log.info("Sincronización de datos semilla completada.");
     }
 

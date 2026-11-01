@@ -20,8 +20,6 @@ public interface RefreshTokenRepositorio extends JpaRepository<RefreshToken, Lon
     @Query("SELECT r FROM RefreshToken r WHERE r.tokenHash = :tokenHash")
     Optional<RefreshToken> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
-    Optional<RefreshToken> findByToken(String token);
-
     @Modifying
     @Query("UPDATE RefreshToken r SET r.revocado = true WHERE r.usuario.id = :usuarioId AND r.revocado = false")
     int revocarTodosPorUsuarioId(@Param("usuarioId") Long usuarioId);
@@ -29,8 +27,4 @@ public interface RefreshTokenRepositorio extends JpaRepository<RefreshToken, Lon
     @Modifying
     @Query("UPDATE RefreshToken r SET r.revocado = true WHERE r.tokenHash = :tokenHash")
     int revocarPorTokenHash(@Param("tokenHash") String tokenHash);
-
-    @Modifying
-    @Query("UPDATE RefreshToken r SET r.revocado = true WHERE r.token = :token")
-    int revocarPorToken(@Param("token") String token);
 }
