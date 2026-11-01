@@ -139,10 +139,6 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
     public List<HistoriaClinicaDtoResponse> buscarPorPacienteId(Long pacienteId) {
         List<HistoriaClinica> historiasClinicas = historiaClinicaRepositorio.findByPacienteId(pacienteId);
 
-        if (historiasClinicas.isEmpty()) {
-            throw new NoEncontradoExcepcion("No se encontraron historias clínicas para el paciente con ID: " + pacienteId);
-        }
-
         return historiasClinicas.stream()
                 .map(historiaClinicaMapper::paraDto)
                 .collect(Collectors.toList());
@@ -220,4 +216,3 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
         return logAccesoHcRepositorio.findByAccionOrderByFechaHoraDesc("ACCESO_EMERGENCIA", pageable);
     }
 }
-

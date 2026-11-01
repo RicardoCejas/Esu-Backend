@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 @Schema(description = "Solicitud de registro de cobro de copago o bono de consulta")
 public class CopagoDtoRequest {
 
+    @JsonAlias("copagoMonto")
     @NotNull(message = "El monto del copago es obligatorio")
     @DecimalMin(value = "0.0", inclusive = true, message = "El monto del copago no puede ser negativo")
     @Schema(description = "Monto abonado en concepto de copago o coseguro", example = "1500.00")
@@ -25,7 +27,13 @@ public class CopagoDtoRequest {
     @Schema(description = "Número de bono o comprobante emitido por la obra social o prepaga", example = "BONO-998877")
     private String numeroBono;
 
+    @Builder.Default
     @NotBlank(message = "El método de pago es obligatorio (EFECTIVO, TARJETA, TRANSFERENCIA)")
     @Schema(description = "Método de pago utilizado", example = "EFECTIVO")
-    private String metodoPago;
+    private String metodoPago = "EFECTIVO";
+
+    private String obraSocial;
+
+    @JsonAlias("nroAfiliado")
+    private String numeroAfiliado;
 }

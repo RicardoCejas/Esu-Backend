@@ -138,6 +138,21 @@ public class EstudioAdjuntoServicio {
             entidad.setFechaCarga(LocalDateTime.now());
 
             EstudioAdjunto guardado = estudioRepositorio.save(entidad);
+
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                final Path archivoCreado = rutaArchivo;
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status == STATUS_ROLLED_BACK) {
+                                limpiarArchivoFisico(archivoCreado);
+                            }
+                        }
+                    }
+                );
+            }
+
             return mapearADto(guardado);
         } catch (NoSuchAlgorithmException e) {
             limpiarArchivoFisico(rutaArchivo);
@@ -296,7 +311,18 @@ public class EstudioAdjuntoServicio {
         Path basePath = Paths.get(directorioCargas).toAbsolutePath().normalize();
         Path ruta = Paths.get(entidad.getRutaAlmacenamiento()).toAbsolutePath().normalize();
         if (ruta.startsWith(basePath)) {
-            limpiarArchivoFisico(ruta);
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            limpiarArchivoFisico(ruta);
+                        }
+                    }
+                );
+            } else {
+                limpiarArchivoFisico(ruta);
+            }
         }
         estudioRepositorio.delete(entidad);
     }

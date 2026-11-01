@@ -38,6 +38,12 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.mail.password:}")
     private String mailPassword;
 
+    @Value("${spring.flyway.enabled:true}")
+    private boolean flywayEnabled = true;
+
+    @Value("${spring.jpa.hibernate.ddl-auto:validate}")
+    private String hibernateDdlAuto = "validate";
+
     @PostConstruct
     public void validateConfiguration() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
@@ -50,6 +56,14 @@ public class ProductionSecurityStartupValidator {
 
         if (isProd) {
             log.info("Validando configuración de seguridad obligatoria para entorno PRODUCCIÓN...");
+
+            // 0. Validar Flyway y Hibernate DDL
+            if (!flywayEnabled) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'spring.flyway.enabled' debe ser 'true'.");
+            }
+            if (!"validate".equalsIgnoreCase(hibernateDdlAuto)) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'spring.jpa.hibernate.ddl-auto' debe ser 'validate' (nunca update/create).");
+            }
 
             // 1. Validar JWT Secret
             if (jwtSecret == null || jwtSecret.trim().isEmpty() || jwtSecret.length() < 32) {

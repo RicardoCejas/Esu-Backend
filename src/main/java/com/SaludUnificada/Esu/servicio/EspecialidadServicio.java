@@ -60,6 +60,9 @@ public class EspecialidadServicio implements IEspecialidadServicio {
             throw new ReglaNegocioException("Ya existe otra especialidad con el nombre: " + nuevoNombre);
         }
         especialidad.setNombre(nuevoNombre);
+        if (especialidadDto.getDescripcion() != null) {
+            especialidad.setDescripcion(especialidadDto.getDescripcion().trim());
+        }
         Especialidad guardada = especialidadRepositorio.save(especialidad);
         return especialidadMapper.paraDto(guardada);
     }

@@ -24,7 +24,16 @@ public class Especialidad {
     @Column(nullable = false, unique = true)
     private String nombre;
 
+    @Column(length = 500)
+    private String descripcion;
+
     @ManyToMany(mappedBy = "especialidades")
     @JsonIgnore
     private Set<Profesional> profesionales = new HashSet<>();
+
+    public Especialidad(Long id, String nombre, Set<Profesional> profesionales) {
+        this.id = id;
+        this.nombre = nombre;
+        this.profesionales = profesionales != null ? profesionales : new HashSet<>();
+    }
 }

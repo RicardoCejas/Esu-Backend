@@ -5,7 +5,8 @@ COPY .mvn/ .mvn
 COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+ARG SKIP_TESTS=false
+RUN ./mvnw clean package -DskipTests=${SKIP_TESTS} -B
 
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
@@ -20,4 +21,8 @@ COPY --from=build --chown=esuuser:esugroup /app/target/Esu-0.0.1-SNAPSHOT.jar ap
 USER esuuser
 EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=prod
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
+  CMD curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"' || exit 1
+
 ENTRYPOINT ["java", "-jar", "app.jar"]

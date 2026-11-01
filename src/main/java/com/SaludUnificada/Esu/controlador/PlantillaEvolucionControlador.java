@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/plantillas-evolucion")
@@ -25,8 +26,16 @@ public class PlantillaEvolucionControlador {
     @GetMapping
     @Operation(summary = "Listar plantillas de evolucion medica")
     public ResponseEntity<List<PlantillaEvolucionDtoResponse>> listarPlantillas(
-            @RequestParam(required = false) Long especialidadId) {
-        return ResponseEntity.ok(plantillaServicio.listarPlantillas(especialidadId));
+            @RequestParam(required = false) Long especialidadId,
+            @RequestParam(required = false) String especialidad) {
+        List<PlantillaEvolucionDtoResponse> lista = plantillaServicio.listarPlantillas(especialidadId);
+        if (especialidad != null && !especialidad.isBlank() && !"Todas".equalsIgnoreCase(especialidad.trim())) {
+            String filtro = especialidad.trim().toLowerCase();
+            lista = lista.stream()
+                    .filter(p -> p.getEspecialidadNombre() != null && p.getEspecialidadNombre().toLowerCase().contains(filtro))
+                    .collect(Collectors.toList());
+        }
+        return ResponseEntity.ok(lista);
     }
 
     @GetMapping("/buscar")

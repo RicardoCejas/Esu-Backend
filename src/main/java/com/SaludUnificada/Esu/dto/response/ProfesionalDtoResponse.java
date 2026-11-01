@@ -17,10 +17,12 @@ public class ProfesionalDtoResponse {
     private String apellido;
     private String matricula;
     private String telefono;
+    private Boolean estadoActivo;
     private EspecialidadDtoResponse especialidad;
 
     @Schema(description = "Fecha y hora del primer turno libre disponible", example = "2026-10-27T08:30:00")
     private LocalDateTime proximoTurnoLibre;
+
     @Builder.Default
     private java.util.Set<Long> centrosSaludIds = new java.util.HashSet<>();
 }

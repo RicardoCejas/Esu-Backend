@@ -6,7 +6,6 @@ import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,20 +24,29 @@ public class RecetaDigitalMapper {
                 ? entidad.getPaciente().getNombre() + " " + entidad.getPaciente().getApellido()
                 : "";
         String pacDni = entidad.getPaciente() != null ? entidad.getPaciente().getDni() : "";
+        String pacObraSocial = entidad.getPaciente() != null ? entidad.getPaciente().getObraSocial() : "";
+        String pacNroAfiliado = entidad.getPaciente() != null ? entidad.getPaciente().getNroAfiliado() : "";
 
         String profNombre = entidad.getProfesional() != null
                 ? "Dr./Dra. " + entidad.getProfesional().getNombre() + " " + entidad.getProfesional().getApellido()
                 : "";
         String profMat = entidad.getProfesional() != null ? entidad.getProfesional().getMatricula() : "";
+        String profEsp = (entidad.getProfesional() != null && entidad.getProfesional().getEspecialidades() != null
+                && !entidad.getProfesional().getEspecialidades().isEmpty())
+                ? entidad.getProfesional().getEspecialidades().iterator().next().getNombre()
+                : "Medicina General";
 
         return RecetaDigitalDtoResponse.builder()
                 .id(entidad.getId())
                 .pacienteId(entidad.getPaciente() != null ? entidad.getPaciente().getId() : null)
                 .pacienteNombre(pacNombre)
                 .pacienteDni(pacDni)
+                .pacienteObraSocial(pacObraSocial)
+                .pacienteNroAfiliado(pacNroAfiliado)
                 .profesionalId(entidad.getProfesional() != null ? entidad.getProfesional().getId() : null)
                 .profesionalNombre(profNombre)
                 .profesionalMatricula(profMat)
+                .profesionalEspecialidad(profEsp)
                 .centroSaludEmisorId(entidad.getCentroSaludEmisorId() != null ? entidad.getCentroSaludEmisorId() : 1L)
                 .centroSaludEmisorNombre(entidad.getCentroSaludEmisorNombre() != null ? entidad.getCentroSaludEmisorNombre() : "Hospital Regional Aurelio Crespo")
                 .farmaciaDispensadoraNombre(entidad.getFarmaciaDispensadoraNombre())

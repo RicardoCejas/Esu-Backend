@@ -135,4 +135,40 @@ class ProductionSecurityStartupValidatorTest {
 
         assertDoesNotThrow(validator::validateConfiguration);
     }
+
+    @Test
+    void testValidateConfiguration_ProdConFlywayDeshabilitado_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", false);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
+        ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
+        ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
+
+    @Test
+    void testValidateConfiguration_ProdConHibernateDdlUpdate_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", true);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "update");
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
+        ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://salud.cruzdeleje.gob.ar");
+        ReflectionTestUtils.setField(validator, "mailHost", "smtp.sendgrid.net");
+        ReflectionTestUtils.setField(validator, "mailPassword", "SG.ProductionApiKeySecret_99911");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
 }

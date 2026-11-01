@@ -12,10 +12,14 @@ public class UsuarioMapper {
 
     public Usuario paraEntidad(UsuarioDtoRequest dto) {
         Usuario usuario = new Usuario();
-        usuario.setEmail(dto.getUsername());
+        usuario.setEmail(dto.getUsername() != null ? dto.getUsername().trim().toLowerCase() : null);
         usuario.setPassword(dto.getPassword());
-        usuario.setRol("USUARIO"); // Rol por defecto
+        String rol = (dto.getRol() != null && !dto.getRol().isBlank())
+                ? dto.getRol().trim().toUpperCase()
+                : "USUARIO";
+        usuario.setRol(rol);
         usuario.setEstadoActivo(true);
+        usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
         return usuario;
     }
@@ -24,7 +28,10 @@ public class UsuarioMapper {
         UsuarioDtoResponse dto = new UsuarioDtoResponse();
         dto.setId(usuario.getId());
         dto.setUsername(usuario.getEmail());
+        dto.setEmail(usuario.getEmail());
+        dto.setRol(usuario.getRol());
         dto.setActivo(usuario.getEstadoActivo());
+        dto.setFechaDeAlta(usuario.getFechaDeAlta());
         return dto;
     }
 }
