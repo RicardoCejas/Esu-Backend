@@ -22,5 +22,15 @@ public class RegistroDtoRequest {
     @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
 
+    private String nombre;
+
+    private String apellido;
+
     private String rol; // PACIENTE, PROFESIONAL, ADMIN (por defecto PACIENTE)
+
+    public RegistroDtoRequest(String email, String password, String rol) {
+        this.email = email;
+        this.password = password;
+        this.rol = rol;
+    }
 }

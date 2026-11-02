@@ -1,5 +1,7 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.auth.CambiarPasswordDtoRequest;
+import java.security.Principal;
 import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
@@ -195,5 +197,43 @@ class AuthControladorTest {
         assertTrue(usuario.getTokenVerificacionUsado());
         assertNull(usuario.getTokenVerificacion());
         verify(usuarioRepositorio, times(1)).save(usuario);
+    }
+
+    @Test
+    void testCambiarPasswordExitoso() {
+        Principal principal = () -> "paciente@esu.com";
+        Usuario usuario = new Usuario();
+        usuario.setId(5L);
+        usuario.setEmail("paciente@esu.com");
+        usuario.setPassword("hashed-actual");
+        usuario.setAuthProvider("LOCAL");
+
+        when(usuarioRepositorio.findByEmail("paciente@esu.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("ClaveActual123!", "hashed-actual")).thenReturn(true);
+        when(passwordEncoder.encode("NuevaClaveSuper456!")).thenReturn("hashed-nueva");
+
+        CambiarPasswordDtoRequest req = new CambiarPasswordDtoRequest("ClaveActual123!", "NuevaClaveSuper456!");
+        var res = authControlador.cambiarPassword(principal, req);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertNotNull(res.getBody());
+        assertEquals("Contraseña actualizada exitosamente.", res.getBody().get("mensaje"));
+        verify(usuarioRepositorio, times(1)).save(usuario);
+    }
+
+    @Test
+    void testCambiarPasswordPasswordActualIncorrecta() {
+        Principal principal = () -> "paciente@esu.com";
+        Usuario usuario = new Usuario();
+        usuario.setId(5L);
+        usuario.setEmail("paciente@esu.com");
+        usuario.setPassword("hashed-actual");
+        usuario.setAuthProvider("LOCAL");
+
+        when(usuarioRepositorio.findByEmail("paciente@esu.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("Erronea123!", "hashed-actual")).thenReturn(false);
+
+        CambiarPasswordDtoRequest req = new CambiarPasswordDtoRequest("Erronea123!", "NuevaClaveSuper456!");
+        assertThrows(ResponseStatusException.class, () -> authControlador.cambiarPassword(principal, req));
     }
 }

@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.controlador;
 
+import com.SaludUnificada.Esu.dto.auth.CambiarPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.GoogleIdTokenPayload;
 import com.SaludUnificada.Esu.dto.auth.GoogleLoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.JwtAuthDtoResponse;
@@ -258,8 +259,10 @@ public class AuthControlador {
 
         // 1. Identificar por sub estable de Google
         Usuario usuario = usuarioRepositorio.findByGoogleSub(googleSub).orElse(null);
+        boolean esNuevoUsuario = false;
 
         if (usuario == null) {
+            esNuevoUsuario = true;
             // 2. Si no existe por sub, revisar si ya existe una cuenta local con ese email
             Usuario usuarioPorEmail = usuarioRepositorio.findByEmail(email).orElse(null);
             if (usuarioPorEmail != null) {
@@ -319,6 +322,17 @@ public class AuthControlador {
         Paciente pacienteGoogle = usuario.getPaciente();
         if (pacienteGoogle == null && usuario.getId() != null) {
             pacienteGoogle = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+
+        if (esNuevoUsuario && emailNotificacionServicio != null) {
+            try {
+                String nombreDestinatario = pacienteGoogle != null && pacienteGoogle.getNombre() != null
+                        ? pacienteGoogle.getNombre()
+                        : (payload.getGivenName() != null ? payload.getGivenName() : email.split("@")[0]);
+                emailNotificacionServicio.enviarBienvenida(usuario.getEmail(), nombreDestinatario);
+            } catch (Exception e) {
+                log.warn("No se pudo despachar el email de bienvenida para el usuario Google {}: {}", email, e.getMessage());
+            }
         }
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
@@ -398,8 +412,10 @@ public class AuthControlador {
             try {
                 if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
                     Paciente nuevoPaciente = new Paciente();
-                    nuevoPaciente.setNombre("Paciente");
-                    nuevoPaciente.setApellido("Registrado");
+                    String nom = (registroDto.getNombre() != null && !registroDto.getNombre().isBlank()) ? registroDto.getNombre().trim() : "Paciente";
+                    String ape = (registroDto.getApellido() != null && !registroDto.getApellido().isBlank()) ? registroDto.getApellido().trim() : "Registrado";
+                    nuevoPaciente.setNombre(nom);
+                    nuevoPaciente.setApellido(ape);
                     nuevoPaciente.setDni("DNI-" + guardado.getId());
                     nuevoPaciente.setNroAfiliado("AF-" + guardado.getId());
                     nuevoPaciente.setUsuario(guardado);
@@ -443,6 +459,44 @@ public class AuthControlador {
         recuperacionPasswordServicio.resetearPassword(request);
         return ResponseEntity.ok(Map.of(
                 "mensaje", "La contraseña ha sido actualizada exitosamente. Ya puede iniciar sesión con sus nuevas credenciales."
+        ));
+    }
+
+    @PostMapping({"/cambiar-password", "/change-password"})
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> cambiarPassword(
+            Principal principal,
+            @Valid @RequestBody CambiarPasswordDtoRequest request) {
+        if (principal == null || principal.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado.");
+        }
+
+        Usuario usuario = usuarioRepositorio.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado."));
+
+        boolean esCuentaGooglePura = "GOOGLE".equalsIgnoreCase(usuario.getAuthProvider())
+                && (request.getPasswordActual() == null || request.getPasswordActual().isBlank());
+
+        if (!esCuentaGooglePura) {
+            if (request.getPasswordActual() == null || request.getPasswordActual().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Debe ingresar su contraseña actual.");
+            }
+            if (!passwordEncoder.matches(request.getPasswordActual(), usuario.getPassword())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña actual es incorrecta.");
+            }
+        }
+
+        usuario.setPassword(passwordEncoder.encode(request.getNuevaPassword()));
+        usuario.setFechaActualizacionPassword(LocalDateTime.now());
+        usuario.revocarSesiones();
+        usuarioRepositorio.save(usuario);
+
+        if (refreshTokenServicio != null) {
+            refreshTokenServicio.revocarTodosLosTokensDeUsuario(usuario.getId());
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Contraseña actualizada exitosamente."
         ));
     }
 

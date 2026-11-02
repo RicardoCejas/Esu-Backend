@@ -176,6 +176,18 @@ public class PacienteServicio implements IPacienteServicio {
         String os = body.get("obraSocial");
         String af = body.getOrDefault("nroAfiliado", body.get("numeroAfiliado"));
         String dni = body.get("dni");
+        String fn = body.get("fechaNacimiento");
+        String nom = body.get("nombre");
+        String ape = body.get("apellido");
+
+        if (nom != null && !nom.isBlank()) paciente.setNombre(nom.trim());
+        if (ape != null && !ape.isBlank()) paciente.setApellido(ape.trim());
+        if (fn != null && !fn.isBlank()) {
+            try {
+                paciente.setFechaNacimiento(java.time.LocalDate.parse(fn.trim()));
+            } catch (Exception ignored) {
+            }
+        }
 
         if (tel != null) paciente.setTelefono(tel.replaceAll("[^0-9+ ]", "").trim());
         if (os != null && !os.isBlank()) paciente.setObraSocial(os.trim());
