@@ -16,6 +16,10 @@ public class EspecialidadDtoRequest {
 
     private String descripcion;
 
+    private String categoria;
+
+    private String nombreCanonico;
+
     public EspecialidadDtoRequest(String nombre) {
         this.nombre = nombre;
     }

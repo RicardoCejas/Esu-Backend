@@ -14,6 +14,8 @@ public class EspecialidadMapper {
         if (dto.getDescripcion() != null && !dto.getDescripcion().isBlank()) {
             especialidad.setDescripcion(dto.getDescripcion().trim());
         }
+        especialidad.setCategoria(dto.getCategoria() != null ? dto.getCategoria() : "CONSULTA");
+        especialidad.setNombreCanonico(dto.getNombreCanonico() != null ? dto.getNombreCanonico() : dto.getNombre());
         return especialidad;
     }
 
@@ -24,6 +26,8 @@ public class EspecialidadMapper {
         dto.setDescripcion(especialidad.getDescripcion() != null && !especialidad.getDescripcion().isBlank()
                 ? especialidad.getDescripcion()
                 : "Atención médica especializada en " + especialidad.getNombre() + ".");
+        dto.setCategoria(especialidad.getCategoria() != null ? especialidad.getCategoria() : "CONSULTA");
+        dto.setNombreCanonico(especialidad.getNombreCanonico() != null ? especialidad.getNombreCanonico() : especialidad.getNombre());
         return dto;
     }
 }

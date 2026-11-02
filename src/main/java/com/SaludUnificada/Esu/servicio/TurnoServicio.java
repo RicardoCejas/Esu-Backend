@@ -94,6 +94,12 @@ public class TurnoServicio implements ITurnoServicio {
     @Autowired(required = false)
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.CentroSaludRepositorio centroSaludRepositorio;
+
+    @Autowired(required = false)
+    private CatalogoEspecialidadesNormalizador catalogoNormalizador;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -140,34 +146,62 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("No es posible solicitar turnos medicos en fechas u horarios pasados.");
         }
 
-        Profesional profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
-                .or(() -> profesionalRepositorio.findById(turnoDto.getProfesionalId()))
-                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
-        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
-            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
+        String tipoAtencion = turnoDto.getTipoAtencion() != null ? turnoDto.getTipoAtencion().trim().toUpperCase() : "CONSULTA";
+        Long centroIdCalc = turnoDto.getCentroSaludId();
+        if (centroIdCalc == null && turnoDto.getProfesionalId() != null && disponibilidadRepositorio != null) {
+            Optional<DisponibilidadProfesional> matchingDisp = disponibilidadRepositorio
+                    .findByProfesionalIdAndDiaSemanaAndActivoTrue(turnoDto.getProfesionalId(), fechaHora.getDayOfWeek())
+                    .stream()
+                    .filter(disp -> {
+                        LocalTime t = fechaHora.toLocalTime();
+                        return !t.isBefore(disp.getHoraInicio()) && t.isBefore(disp.getHoraFin());
+                    })
+                    .findFirst();
+            if (matchingDisp.isPresent()) {
+                centroIdCalc = matchingDisp.get().getCentroSaludId();
+            }
+        }
+        if (centroIdCalc == null) {
+            centroIdCalc = 1L;
         }
 
-        if (disponibilidadRepositorio != null) {
-            List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
-            if (disponibilidades.isEmpty()) {
-                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el día seleccionado (agenda cerrada).");
+        validarCombinacionCentroYCategoria(centroIdCalc, tipoAtencion, turnoDto.getServicio(), turnoDto.getEspecialidadId(), turnoDto.getProfesionalId());
+
+        Profesional profesional = null;
+        if (turnoDto.getProfesionalId() != null) {
+            profesional = profesionalRepositorio.findByIdForUpdate(turnoDto.getProfesionalId())
+                    .or(() -> profesionalRepositorio.findById(turnoDto.getProfesionalId()))
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + turnoDto.getProfesionalId()));
+            if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
+                throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo (licencia o ausencia programada).");
             }
-            boolean calza = disponibilidades.stream().anyMatch(disp -> {
-                LocalTime t = fechaHora.toLocalTime();
-                int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
-                if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
-                    return false;
+
+            if (disponibilidadRepositorio != null) {
+                List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
+                if (disponibilidades.isEmpty()) {
+                    throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el día seleccionado (agenda cerrada).");
                 }
-                long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
-                return mins % dur == 0;
-            });
-            if (!calza) {
-                throw new ReglaNegocioException("El horario solicitado no coincide con la agenda y disponibilidad configurada para el profesional.");
+                boolean calza = disponibilidades.stream().anyMatch(disp -> {
+                    LocalTime t = fechaHora.toLocalTime();
+                    int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
+                    if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
+                        return false;
+                    }
+                    long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
+                    return mins % dur == 0;
+                });
+                if (!calza) {
+                    throw new ReglaNegocioException("El horario solicitado no coincide con la agenda y disponibilidad configurada para el profesional.");
+                }
             }
-        }
 
-        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
-            throw new IllegalStateException("El horario solicitado ya no está disponible.");
+            if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+                throw new IllegalStateException("El horario solicitado ya no está disponible.");
+            }
+        } else {
+            if (!"ESTUDIO".equalsIgnoreCase(tipoAtencion)) {
+                throw new ReglaNegocioException("Debe seleccionar un profesional médico para la consulta.");
+            }
         }
 
         Paciente paciente;
@@ -212,6 +246,9 @@ public class TurnoServicio implements ITurnoServicio {
         turno.setEstado("PENDIENTE");
         turno.setPaciente(paciente);
         turno.setProfesional(profesional);
+        turno.setTipoAtencion(tipoAtencion);
+        turno.setServicio(turnoDto.getServicio());
+        turno.setEspecialidadId(turnoDto.getEspecialidadId());
 
         Long centroId = turnoDto.getCentroSaludId();
         String centroNombre = turnoDto.getCentroSaludNombre();
@@ -338,23 +375,34 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
 
-        Profesional profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
-                .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
-                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+        String tipoAtencion = request.getTipoAtencion() != null ? request.getTipoAtencion().trim().toUpperCase() : "CONSULTA";
+        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        validarCombinacionCentroYCategoria(centroId, tipoAtencion, request.getServicio(), request.getEspecialidadId(), request.getProfesionalId());
 
-        if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
-            throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo.");
-        }
+        Profesional profesional = null;
+        if (request.getProfesionalId() != null) {
+            profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
+                    .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
+                    .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
 
-        if (disponibilidadRepositorio != null) {
-            List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
-            if (disponibilidades.isEmpty()) {
-                throw new ReglaNegocioException("El profesional no posee franjas de atención configuradas para el día seleccionado.");
+            if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
+                throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo.");
             }
-        }
 
-        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
-            throw new IllegalStateException("El horario solicitado ya no está disponible.");
+            if (disponibilidadRepositorio != null) {
+                List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
+                if (disponibilidades.isEmpty()) {
+                    throw new ReglaNegocioException("El profesional no posee franjas de atención configuradas para el día seleccionado.");
+                }
+            }
+
+            if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+                throw new IllegalStateException("El horario solicitado ya no está disponible.");
+            }
+        } else {
+            if (!"ESTUDIO".equalsIgnoreCase(tipoAtencion)) {
+                throw new ReglaNegocioException("Debe seleccionar un profesional médico para la consulta.");
+            }
         }
 
         Paciente paciente = null;
@@ -431,9 +479,11 @@ public class TurnoServicio implements ITurnoServicio {
         turno.setFechaCreacion(ahora);
         turno.setEsSobreturno(false);
         turno.setIdempotencyKey(request.getIdempotencyKey());
+        turno.setTipoAtencion(tipoAtencion);
+        turno.setServicio(request.getServicio());
+        turno.setEspecialidadId(request.getEspecialidadId());
 
-        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
-        String centroNombre = request.getCentroSaludNombre() != null ? request.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo";
+        String centroNombre = request.getCentroSaludNombre() != null ? request.getCentroSaludNombre() : resolverNombreCentro(centroId);
         turno.setCentroSaludId(centroId);
         turno.setCentroSaludNombre(centroNombre);
         turno.setConsultorioNumero(request.getConsultorioNumero() != null ? request.getConsultorioNumero() : "Consultorio 1");
@@ -1290,13 +1340,58 @@ public class TurnoServicio implements ITurnoServicio {
                 .collect(Collectors.toList());
     }
 
+    public void validarCombinacionCentroYCategoria(Long centroId, String tipoAtencion, String servicio, Long especialidadId, Long profesionalId) {
+        if (centroId == null) {
+            throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un turno.");
+        }
+
+        com.SaludUnificada.Esu.entidad.CentroSalud centro = (centroSaludRepositorio != null)
+                ? centroSaludRepositorio.findById(centroId).orElse(null)
+                : null;
+
+        if (centro != null && Boolean.FALSE.equals(centro.getActivo())) {
+            throw new ReglaNegocioException("El centro de salud seleccionado se encuentra inactivo para nuevas reservas.");
+        }
+
+        String tipo = tipoAtencion != null ? tipoAtencion.trim().toUpperCase() : "CONSULTA";
+
+        if ("ESTUDIO".equals(tipo)) {
+            boolean permiteEstudios = centro != null ? Boolean.TRUE.equals(centro.getPermiteEstudios()) : (centroId == 1L || centroId == 2L || centroId == 3L);
+            if (!permiteEstudios) {
+                throw new ReglaNegocioException("El centro de salud seleccionado no ofrece estudios ni prácticas diagnósticas.");
+            }
+            if (servicio == null || servicio.isBlank()) {
+                throw new ReglaNegocioException("Debe especificar el estudio o práctica diagnóstica a solicitar.");
+            }
+            if (catalogoNormalizador != null && !catalogoNormalizador.esEstudioPermitido(centroId, servicio)) {
+                throw new ReglaNegocioException("El estudio o práctica '" + servicio + "' no se encuentra disponible en este centro de salud.");
+            }
+        } else { // "CONSULTA"
+            boolean permiteConsultas = centro != null ? Boolean.TRUE.equals(centro.getPermiteConsultas()) : (centroId == 1L || centroId == 2L || centroId == 5L);
+            if (!permiteConsultas) {
+                throw new ReglaNegocioException("El centro de salud seleccionado no ofrece consultas médicas de consultorio.");
+            }
+            if (profesionalId == null) {
+                throw new ReglaNegocioException("Debe seleccionar un profesional médico para la consulta.");
+            }
+        }
+    }
+
     private String resolverNombreCentro(Long centroId) {
-        if (centroId == null) return "Hospital Regional Aurelio Crespo";
-        if (centroId == 1L) return "Hospital Regional Aurelio Crespo";
-        if (centroId == 2L) return "Clínica Privada Cabrera";
-        if (centroId == 3L) return "Centro de Diagnóstico Cruz del Eje";
-        if (centroId == 4L) return "Dispensario Municipal Santa Rosa";
-        return "Centro de Salud N° " + centroId;
+        if (centroId == null) {
+            return "Hospital Provincial Dr. Aurelio Crespo";
+        }
+        if (centroSaludRepositorio != null) {
+            java.util.Optional<com.SaludUnificada.Esu.entidad.CentroSalud> cs = centroSaludRepositorio.findById(centroId);
+            if (cs.isPresent() && cs.get().getNombre() != null) {
+                return cs.get().getNombre();
+            }
+        }
+        if (centroId == 1L) return "Hospital Provincial Dr. Aurelio Crespo";
+        if (centroId == 2L) return "Clínica Cabrera";
+        if (centroId == 3L) return "Centro de Diagnóstico por Imágenes Cruz del Eje";
+        if (centroId == 5L) return "Sanatorio María Isabel";
+        return "Centro de Salud #" + centroId;
     }
 
     @Override

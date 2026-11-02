@@ -13,6 +13,10 @@ import java.util.Optional;
 @Repository
 public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
 
+    List<Turno> findByProfesionalId(Long profesionalId);
+
+    org.springframework.data.domain.Page<Turno> findByProfesionalId(Long profesionalId, org.springframework.data.domain.Pageable pageable);
+
     List<Turno> findByProfesionalIdAndFechaHora(Long profesionalId, LocalDateTime fechaHora);
 
     boolean existsByProfesionalIdAndFechaHora(Long profesionalId, LocalDateTime fechaHora);
@@ -50,6 +54,9 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
 
     @Query("SELECT t.estado, COUNT(t) FROM Turno t WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta GROUP BY t.estado")
     List<Object[]> contarTurnosPorEstadoYFechaHoraEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
+
+    @Query("SELECT t.estado, COUNT(t) FROM Turno t WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta AND (:centroId IS NULL OR t.centroSaludId = :centroId) GROUP BY t.estado")
+    List<Object[]> contarTurnosPorEstadoYFechaHoraEntreYCentro(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta, @Param("centroId") Long centroId);
 
     @Query("SELECT COUNT(t) FROM Turno t WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta")
     long contarTotalTurnosEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);

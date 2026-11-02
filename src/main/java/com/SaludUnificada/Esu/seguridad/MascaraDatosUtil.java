@@ -74,5 +74,19 @@ public final class MascaraDatosUtil {
         }
         return trimmed.substring(0, 2) + "***" + trimmed.substring(trimmed.length() - 2);
     }
-}
 
+    /**
+     * Enmascara un DNI protegiendo la identidad del paciente.
+     * Ejemplo: "35123456" -> "35***456"
+     */
+    public static String enmascararDni(String dni) {
+        if (dni == null || dni.isBlank()) {
+            return "***";
+        }
+        String trimmed = dni.trim();
+        if (trimmed.length() <= 4) {
+            return "***";
+        }
+        return trimmed.substring(0, 2) + "***" + trimmed.substring(trimmed.length() - 3);
+    }
+}

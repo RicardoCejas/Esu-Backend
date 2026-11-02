@@ -3,6 +3,8 @@ package com.SaludUnificada.Esu.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,4 +23,7 @@ public class CentroSaludDtoResponse {
     private Double latitud;
     private Double longitud;
     private Boolean activo;
+    private Boolean permiteConsultas;
+    private Boolean permiteEstudios;
+    private List<String> estudiosDisponibles;
 }

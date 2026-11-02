@@ -39,7 +39,11 @@ public class TurnoMapper {
         dto.setCentroSaludId(turno.getCentroSaludId());
         dto.setCentroSaludNombre(turno.getCentroSaludNombre());
         dto.setConsultorioNumero(turno.getConsultorioNumero());
-if (turno.getPaciente() != null) {
+        dto.setTipoAtencion(turno.getTipoAtencion() != null ? turno.getTipoAtencion() : "CONSULTA");
+        dto.setServicio(turno.getServicio());
+        dto.setEspecialidadId(turno.getEspecialidadId());
+
+        if (turno.getPaciente() != null) {
             dto.setPaciente(pacienteMapper.paraDto(turno.getPaciente()));
         }
 

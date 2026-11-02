@@ -64,7 +64,17 @@ public class Turno {
 
     @Column(name = "consultorio_numero", length = 50)
     private String consultorioNumero;
-@Column(name = "fecha_check_in")
+
+    @Column(name = "tipo_atencion", length = 50)
+    private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
+
+    @Column(name = "servicio", length = 150)
+    private String servicio;
+
+    @Column(name = "especialidad_id")
+    private Long especialidadId;
+
+    @Column(name = "fecha_check_in")
     private LocalDateTime fechaCheckIn;
 
     @Column(name = "recepcionista_check_in")
@@ -101,6 +111,9 @@ public class Turno {
         }
         if (esSobreturno == null) {
             esSobreturno = false;
+        }
+        if (tipoAtencion == null || tipoAtencion.isBlank()) {
+            tipoAtencion = "CONSULTA";
         }
     }
 }

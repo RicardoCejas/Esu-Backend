@@ -13,9 +13,17 @@ public class EspecialidadDtoResponse {
     private Long id;
     private String nombre;
     private String descripcion;
+    private String categoria;
+    private String nombreCanonico;
 
     public EspecialidadDtoResponse(Long id, String nombre) {
         this.id = id;
         this.nombre = nombre;
+    }
+
+    public EspecialidadDtoResponse(Long id, String nombre, String descripcion) {
+        this.id = id;
+        this.nombre = nombre;
+        this.descripcion = descripcion;
     }
 }

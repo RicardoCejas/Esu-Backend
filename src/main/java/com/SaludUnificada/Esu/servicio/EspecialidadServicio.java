@@ -25,17 +25,31 @@ public class EspecialidadServicio implements IEspecialidadServicio {
     @Autowired
     private EspecialidadMapper especialidadMapper;
 
+    @Autowired(required = false)
+    private CatalogoEspecialidadesNormalizador normalizador;
+
     @Override
     @CacheEvict(value = "especialidades", allEntries = true)
     public EspecialidadDtoResponse crearEspecialidad(EspecialidadDtoRequest especialidadDto) {
         if (especialidadDto.getNombre() == null || especialidadDto.getNombre().isBlank()) {
             throw new IllegalArgumentException("El nombre de la especialidad es obligatorio y no puede estar en blanco");
         }
-        String nombreNormalizado = especialidadDto.getNombre().trim();
+        String nombreNormalizado = (normalizador != null)
+                ? normalizador.normalizarNombre(especialidadDto.getNombre())
+                : especialidadDto.getNombre().trim();
+
         if (especialidadRepositorio.existsByNombreIgnoreCase(nombreNormalizado)) {
             throw new ReglaNegocioException("Ya existe una especialidad registrada con el nombre: " + nombreNormalizado);
         }
         especialidadDto.setNombre(nombreNormalizado);
+        if (especialidadDto.getCategoria() == null) {
+            String cat = (normalizador != null && normalizador.esEspecialidadConsultorio(nombreNormalizado)) ? "CONSULTA" : "SERVICIO";
+            especialidadDto.setCategoria(cat);
+        }
+        if (especialidadDto.getNombreCanonico() == null) {
+            especialidadDto.setNombreCanonico(nombreNormalizado);
+        }
+
         Especialidad especialidad = especialidadMapper.paraEntidad(especialidadDto);
         Especialidad especialidadGuardada = especialidadRepositorio.save(especialidad);
         return especialidadMapper.paraDto(especialidadGuardada);
@@ -55,7 +69,10 @@ public class EspecialidadServicio implements IEspecialidadServicio {
             throw new IllegalArgumentException("El nombre de la especialidad es obligatorio");
         }
         Especialidad especialidad = obtenerEntidadEspecialidadPorId(id);
-        String nuevoNombre = especialidadDto.getNombre().trim();
+        String nuevoNombre = (normalizador != null)
+                ? normalizador.normalizarNombre(especialidadDto.getNombre())
+                : especialidadDto.getNombre().trim();
+
         if (!especialidad.getNombre().equalsIgnoreCase(nuevoNombre) && especialidadRepositorio.existsByNombreIgnoreCase(nuevoNombre)) {
             throw new ReglaNegocioException("Ya existe otra especialidad con el nombre: " + nuevoNombre);
         }
@@ -63,6 +80,10 @@ public class EspecialidadServicio implements IEspecialidadServicio {
         if (especialidadDto.getDescripcion() != null) {
             especialidad.setDescripcion(especialidadDto.getDescripcion().trim());
         }
+        if (especialidadDto.getCategoria() != null) {
+            especialidad.setCategoria(especialidadDto.getCategoria());
+        }
+        especialidad.setNombreCanonico(nuevoNombre);
         Especialidad guardada = especialidadRepositorio.save(especialidad);
         return especialidadMapper.paraDto(guardada);
     }

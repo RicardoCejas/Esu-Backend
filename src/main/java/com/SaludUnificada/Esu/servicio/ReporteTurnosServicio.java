@@ -32,10 +32,13 @@ import java.util.List;
 public class ReporteTurnosServicio {
 
     private final TurnoRepositorio turnoRepositorio;
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PacienteRepositorio pacienteRepositorio;
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private java.time.Clock clock;
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private java.time.ZoneId turnosZoneId;
 
@@ -44,6 +47,7 @@ public class ReporteTurnosServicio {
         java.time.Clock c = clock != null ? clock.withZone(zone) : java.time.Clock.system(zone);
         return java.time.LocalDateTime.now(c);
     }
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final int MAX_REGISTROS_REPORTE = 10000;
 
@@ -71,6 +75,10 @@ public class ReporteTurnosServicio {
         }
         log.info("Generando reporte Excel de turnos. Período: {} a {}. Total turnos procesados: {}", fechaInicio, fechaFin, turnos.size());
 
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean soloAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
+                && auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Turnos");
 
@@ -85,9 +93,10 @@ public class ReporteTurnosServicio {
             headerStyle.setAlignment(HorizontalAlignment.CENTER);
 
             String[] columnas = {
-                    "ID Turno", "Fecha y Hora", "Estado", "DNI Paciente", "Nombre Paciente",
-                    "Email Paciente", "Profesional Médico", "Sobreturno", "Fecha Check-In",
-                    "Recepcionista", "Monto Copago", "Nro Bono", "Método Pago", "Observaciones"
+                    "ID Turno", "Fecha y Hora", "Centro de Salud", "Tipo Atención", "Servicio", "Estado",
+                    "DNI Paciente", "Nombre Paciente", "Email Paciente", "Profesional Médico",
+                    "Sobreturno", "Fecha Check-In", "Recepcionista", "Monto Copago", "Nro Bono",
+                    "Método Pago", "Observaciones"
             };
 
             Row headerRow = sheet.createRow(0);
@@ -103,7 +112,10 @@ public class ReporteTurnosServicio {
 
                 row.createCell(0).setCellValue(t.getId() != null ? t.getId() : 0);
                 row.createCell(1).setCellValue(t.getFechaHora() != null ? t.getFechaHora().format(DATE_FORMATTER) : "");
-                row.createCell(2).setCellValue(t.getEstado() != null ? t.getEstado() : "");
+                row.createCell(2).setCellValue(t.getCentroSaludNombre() != null ? t.getCentroSaludNombre() : (t.getCentroSaludId() != null ? "Centro #" + t.getCentroSaludId() : ""));
+                row.createCell(3).setCellValue(t.getTipoAtencion() != null ? t.getTipoAtencion() : "CONSULTA");
+                row.createCell(4).setCellValue(t.getServicio() != null ? t.getServicio() : "");
+                row.createCell(5).setCellValue(t.getEstado() != null ? t.getEstado() : "");
 
                 String dniPaciente = "";
                 String nombrePaciente = "";
@@ -116,23 +128,30 @@ public class ReporteTurnosServicio {
                         emailPaciente = t.getPaciente().getUsuario().getEmail() != null ? t.getPaciente().getUsuario().getEmail() : "";
                     }
                 }
-                row.createCell(3).setCellValue(dniPaciente);
-                row.createCell(4).setCellValue(nombrePaciente.trim());
-                row.createCell(5).setCellValue(emailPaciente);
+                if (soloAdmin) {
+                    dniPaciente = MascaraDatosUtil.enmascararDni(dniPaciente);
+                    emailPaciente = MascaraDatosUtil.enmascararEmail(emailPaciente);
+                    if (!nombrePaciente.isBlank()) {
+                        nombrePaciente = nombrePaciente.trim().charAt(0) + "***";
+                    }
+                }
+                row.createCell(6).setCellValue(dniPaciente);
+                row.createCell(7).setCellValue(nombrePaciente.trim());
+                row.createCell(8).setCellValue(emailPaciente);
 
                 String profNombre = "";
                 if (t.getProfesional() != null) {
                     profNombre = (t.getProfesional().getNombre() != null ? t.getProfesional().getNombre() : "") + " " +
                             (t.getProfesional().getApellido() != null ? t.getProfesional().getApellido() : "");
                 }
-                row.createCell(6).setCellValue(profNombre.trim());
-                row.createCell(7).setCellValue(Boolean.TRUE.equals(t.getEsSobreturno()) ? "SÍ" : "NO");
-                row.createCell(8).setCellValue(t.getFechaCheckIn() != null ? t.getFechaCheckIn().format(DATE_FORMATTER) : "");
-                row.createCell(9).setCellValue(t.getRecepcionistaCheckIn() != null ? t.getRecepcionistaCheckIn() : "");
-                row.createCell(10).setCellValue(t.getMontoCopago() != null ? t.getMontoCopago().doubleValue() : 0.0);
-                row.createCell(11).setCellValue(t.getNumeroBono() != null ? t.getNumeroBono() : "");
-                row.createCell(12).setCellValue(t.getMetodoPago() != null ? t.getMetodoPago() : "");
-                row.createCell(13).setCellValue(t.getObservacionesAtencion() != null ? t.getObservacionesAtencion() : "");
+                row.createCell(9).setCellValue(profNombre.trim());
+                row.createCell(10).setCellValue(Boolean.TRUE.equals(t.getEsSobreturno()) ? "SÍ" : "NO");
+                row.createCell(11).setCellValue(t.getFechaCheckIn() != null ? t.getFechaCheckIn().format(DATE_FORMATTER) : "");
+                row.createCell(12).setCellValue(t.getRecepcionistaCheckIn() != null ? t.getRecepcionistaCheckIn() : "");
+                row.createCell(13).setCellValue(t.getMontoCopago() != null ? t.getMontoCopago().doubleValue() : 0.0);
+                row.createCell(14).setCellValue(t.getNumeroBono() != null ? t.getNumeroBono() : "");
+                row.createCell(15).setCellValue(t.getMetodoPago() != null ? t.getMetodoPago() : "");
+                row.createCell(16).setCellValue(t.getObservacionesAtencion() != null ? t.getObservacionesAtencion() : "");
             }
 
             for (int i = 0; i < columnas.length; i++) {
@@ -160,12 +179,17 @@ public class ReporteTurnosServicio {
         }
         log.info("Generando reporte CSV de turnos. Período: {} a {}. Total turnos procesados: {}", fechaInicio, fechaFin, turnos.size());
 
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean soloAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
+                && auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
 
             CSVFormat format = CSVFormat.DEFAULT.builder()
-                    .setHeader("ID", "Fecha_Hora", "Estado", "DNI_Paciente", "Nombre_Paciente", "Email_Paciente",
-                            "Profesional", "Es_Sobreturno", "Fecha_CheckIn", "Recepcionista", "Monto_Copago", "Numero_Bono", "Metodo_Pago")
+                    .setHeader("ID", "Fecha_Hora", "Centro_Salud", "Tipo_Atencion", "Servicio", "Estado",
+                            "DNI_Paciente", "Nombre_Paciente", "Email_Paciente", "Profesional",
+                            "Es_Sobreturno", "Fecha_CheckIn", "Recepcionista", "Monto_Copago", "Numero_Bono", "Metodo_Pago")
                     .build();
 
             try (CSVPrinter printer = new CSVPrinter(writer, format)) {
@@ -182,16 +206,31 @@ public class ReporteTurnosServicio {
                         }
                     }
 
+                    if (soloAdmin) {
+                        dniPaciente = MascaraDatosUtil.enmascararDni(dniPaciente);
+                        emailPaciente = MascaraDatosUtil.enmascararEmail(emailPaciente);
+                        if (!nombrePaciente.isBlank()) {
+                            nombrePaciente = nombrePaciente.trim().charAt(0) + "***";
+                        }
+                    }
+
                     String profNombre = "";
                     if (t.getProfesional() != null) {
                         profNombre = (t.getProfesional().getNombre() != null ? t.getProfesional().getNombre() : "") + " " +
                                 (t.getProfesional().getApellido() != null ? t.getProfesional().getApellido() : "");
                     }
 
+                    String centro = t.getCentroSaludNombre() != null ? t.getCentroSaludNombre() : (t.getCentroSaludId() != null ? "Centro #" + t.getCentroSaludId() : "");
+                    String tipoAt = t.getTipoAtencion() != null ? t.getTipoAtencion() : "CONSULTA";
+                    String serv = t.getServicio() != null ? t.getServicio() : "";
+
                     printer.printRecord(
-                            t.getId(),
+                            t.getId() != null ? t.getId() : "",
                             t.getFechaHora() != null ? t.getFechaHora().format(DATE_FORMATTER) : "",
-                            t.getEstado(),
+                            centro,
+                            tipoAt,
+                            serv,
+                            t.getEstado() != null ? t.getEstado() : "",
                             dniPaciente,
                             nombrePaciente.trim(),
                             emailPaciente,
@@ -199,7 +238,7 @@ public class ReporteTurnosServicio {
                             Boolean.TRUE.equals(t.getEsSobreturno()) ? "SI" : "NO",
                             t.getFechaCheckIn() != null ? t.getFechaCheckIn().format(DATE_FORMATTER) : "",
                             t.getRecepcionistaCheckIn() != null ? t.getRecepcionistaCheckIn() : "",
-                            t.getMontoCopago() != null ? t.getMontoCopago().toString() : "0.00",
+                            t.getMontoCopago() != null ? t.getMontoCopago().toString() : "",
                             t.getNumeroBono() != null ? t.getNumeroBono() : "",
                             t.getMetodoPago() != null ? t.getMetodoPago() : ""
                     );

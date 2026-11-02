@@ -49,6 +49,9 @@ public class MetricasSanitariasServicio {
     @Autowired(required = false)
     private ProfesionalRepositorio profesionalRepositorio;
 
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.CentroSaludRepositorio centroSaludRepositorio;
+
     @Transactional(readOnly = true)
     public MetricasAusentismoDtoResponse obtenerMetricasAusentismo(LocalDate desde, LocalDate hasta, Long centroId) {
         LocalDate fDesde = (desde != null) ? desde : LocalDate.now().minusDays(30);
@@ -61,7 +64,9 @@ public class MetricasSanitariasServicio {
         LocalDateTime inicio = fDesde.atStartOfDay();
         LocalDateTime fin = fHasta.atTime(LocalTime.MAX);
 
-        List<Object[]> resultados = turnoRepositorio.contarTurnosPorEstadoYFechaHoraEntre(inicio, fin);
+        List<Object[]> resultados = (centroId != null)
+                ? turnoRepositorio.contarTurnosPorEstadoYFechaHoraEntreYCentro(inicio, fin, centroId)
+                : turnoRepositorio.contarTurnosPorEstadoYFechaHoraEntre(inicio, fin);
 
         Map<String, Long> desglose = new HashMap<>();
         long totalTurnos = 0;

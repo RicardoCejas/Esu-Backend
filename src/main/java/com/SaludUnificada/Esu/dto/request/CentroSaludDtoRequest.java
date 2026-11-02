@@ -13,7 +13,7 @@ import lombok.*;
 public class CentroSaludDtoRequest {
 
     @NotBlank(message = "El nombre del centro de salud es obligatorio")
-    @Schema(description = "Nombre oficial del establecimiento", example = "Hospital Regional Aurelio Crespo")
+    @Schema(description = "Nombre oficial del establecimiento", example = "Hospital Provincial Dr. Aurelio Crespo")
     private String nombre;
 
     @NotBlank(message = "El tipo de establecimiento es obligatorio")
@@ -41,4 +41,10 @@ public class CentroSaludDtoRequest {
 
     @Schema(description = "Longitud geográfica GPS", example = "-64.7985")
     private Double longitud;
+
+    @Schema(description = "Habilitado para consultas médicas de consultorio externo", example = "true")
+    private Boolean permiteConsultas;
+
+    @Schema(description = "Habilitado para estudios y prácticas diagnósticas", example = "true")
+    private Boolean permiteEstudios;
 }

@@ -48,6 +48,14 @@ public class CentroSalud {
     @Column
     private Double longitud;
 
+    @Column(name = "permite_consultas", nullable = false)
+    @Builder.Default
+    private Boolean permiteConsultas = true;
+
+    @Column(name = "permite_estudios", nullable = false)
+    @Builder.Default
+    private Boolean permiteEstudios = true;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean activo = true;

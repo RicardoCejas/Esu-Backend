@@ -2,7 +2,6 @@ package com.SaludUnificada.Esu.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -28,12 +27,19 @@ public class TurnoPublicoDtoRequest {
     private String fecha;
     private String hora;
 
-    @NotNull(message = "El ID del profesional es obligatorio")
     private Long profesionalId;
 
     private Long centroSaludId;
     private String centroSaludNombre;
     private String consultorioNumero;
+
+    @JsonAlias({"categoria", "tipoTurno"})
+    private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
+
+    @JsonAlias({"especialidadNombre", "practica"})
+    private String servicio;
+
+    private Long especialidadId;
 
     @Size(max = 255, message = "El motivo del turno no puede superar los 255 caracteres")
     @JsonAlias({"motivoConsulta"})

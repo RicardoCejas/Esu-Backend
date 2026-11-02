@@ -24,7 +24,10 @@ public class TurnoDtoResponse {
     private Long centroSaludId;
     private String centroSaludNombre;
     private String consultorioNumero;
-private LocalDateTime fechaCheckIn;
+    private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
+    private String servicio;
+    private Long especialidadId;
+    private LocalDateTime fechaCheckIn;
     private String recepcionistaCheckIn;
 
     private BigDecimal montoCopago;

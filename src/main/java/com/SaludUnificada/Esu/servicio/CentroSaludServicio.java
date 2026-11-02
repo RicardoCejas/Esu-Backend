@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +24,7 @@ public class CentroSaludServicio {
 
     private final CentroSaludRepositorio centroSaludRepositorio;
     private final ConsultorioFisicoRepositorio consultorioRepositorio;
+    private final CatalogoEspecialidadesNormalizador normalizador;
 
     @Transactional(readOnly = true)
     public List<CentroSaludDtoResponse> listarTodos() {
@@ -58,6 +60,8 @@ public class CentroSaludServicio {
                 .disponibleGuardia(Boolean.TRUE.equals(request.getDisponibleGuardia()))
                 .latitud(request.getLatitud())
                 .longitud(request.getLongitud())
+                .permiteConsultas(request.getPermiteConsultas() == null || request.getPermiteConsultas())
+                .permiteEstudios(request.getPermiteEstudios() == null || request.getPermiteEstudios())
                 .activo(true)
                 .build();
 
@@ -99,6 +103,12 @@ public class CentroSaludServicio {
         }
         if (request.getLongitud() != null) {
             centro.setLongitud(request.getLongitud());
+        }
+        if (request.getPermiteConsultas() != null) {
+            centro.setPermiteConsultas(request.getPermiteConsultas());
+        }
+        if (request.getPermiteEstudios() != null) {
+            centro.setPermiteEstudios(request.getPermiteEstudios());
         }
 
         return paraDto(centroSaludRepositorio.save(centro));
@@ -152,6 +162,13 @@ public class CentroSaludServicio {
     }
 
     private CentroSaludDtoResponse paraDto(CentroSalud entidad) {
+        boolean permiteConsultas = entidad.getPermiteConsultas() != null ? entidad.getPermiteConsultas() : true;
+        boolean permiteEstudios = entidad.getPermiteEstudios() != null ? entidad.getPermiteEstudios() : true;
+
+        List<String> estudios = permiteEstudios && normalizador != null
+                ? normalizador.obtenerEstudiosDisponiblesPorCentro(entidad.getId(), entidad.getNombre())
+                : Collections.emptyList();
+
         return CentroSaludDtoResponse.builder()
                 .id(entidad.getId())
                 .nombre(entidad.getNombre())
@@ -164,6 +181,9 @@ public class CentroSaludServicio {
                 .latitud(entidad.getLatitud())
                 .longitud(entidad.getLongitud())
                 .activo(entidad.getActivo())
+                .permiteConsultas(permiteConsultas)
+                .permiteEstudios(permiteEstudios)
+                .estudiosDisponibles(estudios)
                 .build();
     }
 
