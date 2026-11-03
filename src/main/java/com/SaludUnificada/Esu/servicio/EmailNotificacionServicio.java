@@ -76,7 +76,7 @@ public class EmailNotificacionServicio {
 
         String htmlBody = construirHtmlTurnoConfirmado(pacienteNombre, medicoNombre, especialidad, centroNombre, fechaHoraStr, codigoCita, linkCancelacion);
 
-        enviarCorreoHtml(destinatario, "Confirmación de Turno Médico - " + codigoCita, htmlBody, null, null);
+        enviarCorreoHtml(destinatario, "Comprobante de Turno Médico - " + codigoCita, htmlBody, null, null);
     }
     public void enviarRecetaDigital(RecetaDigital receta, byte[] pdfAdjunto) {
         if (receta == null || receta.getPaciente() == null) {
@@ -181,16 +181,19 @@ public class EmailNotificacionServicio {
                 + "<div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #cbd5e1; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>"
                 + "<div style='border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; text-align: center;'>"
                 + "<h2 style='color: #0284c7; margin: 0;'>ESU - Cruz del Eje</h2>"
-                + "<p style='margin: 4px 0 0; font-size: 14px; color: #64748b;'>Ecosistema de Salud Unificado</p>"
+                + "<p style='margin: 4px 0 0; font-size: 14px; font-weight: bold; color: #0369a1;'>Comprobante Oficial de Reserva de Turno</p>"
                 + "</div>"
                 + "<p>Hola <strong>" + paciente + "</strong>,</p>"
-                + "<p>Tu turno médico ha sido <strong>confirmado exitosamente</strong>. A continuación, los detalles de tu cita:</p>"
+                + "<p>Tu turno médico ha sido <strong>confirmado exitosamente</strong>. Este correo es tu <strong>comprobante oficial de turno</strong> con los datos de tu atención:</p>"
                 + "<div style='background: #f8fafc; border-left: 4px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 4px;'>"
                 + "<p style='margin: 5px 0;'><strong>Código de Cita:</strong> " + codigo + "</p>"
                 + "<p style='margin: 5px 0;'><strong>Fecha y Hora:</strong> " + fechaHora + " hs</p>"
                 + "<p style='margin: 5px 0;'><strong>Profesional:</strong> " + medico + "</p>"
                 + "<p style='margin: 5px 0;'><strong>Especialidad:</strong> " + especialidad + "</p>"
                 + "<p style='margin: 5px 0;'><strong>Centro Médico:</strong> " + centro + "</p>"
+                + "</div>"
+                + "<div style='background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 15px; margin: 18px 0; font-size: 13px; color: #166534;'>"
+                + "<strong>🔔 Recordatorio de Cita:</strong> Te avisaremos a este correo <strong>24 horas antes</strong> de tu turno para recordarte la cita médica y los requisitos de atención."
                 + "</div>"
                 + "<p style='font-size: 13px; color: #475569;'>Te recomendamos presentarte 15 minutos antes con tu DNI y credencial médica en recepción.</p>"
                 + "<div style='margin-top: 25px; text-align: center;'>"
