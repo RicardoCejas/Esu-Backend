@@ -33,13 +33,36 @@ public class EmailNotificacionServicio {
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled = false;
+
+    @Value("${spring.mail.host:localhost}")
+    private String smtpHost;
+
+    @Value("${spring.mail.username:}")
+    private String smtpUsername;
+
+    public boolean isMailActivo() {
+        if (mailEnabled) {
+            return true;
+        }
+        return smtpHost != null && !smtpHost.isBlank()
+                && !"localhost".equalsIgnoreCase(smtpHost.trim())
+                && !"127.0.0.1".equals(smtpHost.trim())
+                && smtpUsername != null && !smtpUsername.isBlank();
+    }
     public void enviarConfirmacionTurno(Turno turno) {
+        enviarConfirmacionTurno(turno, null);
+    }
+
+    public void enviarConfirmacionTurno(Turno turno, String emailDestinatario) {
         if (turno == null || turno.getPaciente() == null) {
             log.warn("No se pudo despachar el correo de confirmación: el turno o paciente es nulo.");
             return;
         }
 
-        String destinatario = obtenerEmailPaciente(turno);
+        String destinatario = (emailDestinatario != null && !emailDestinatario.isBlank())
+                ? emailDestinatario.trim()
+                : obtenerEmailPaciente(turno);
+
         if (destinatario == null || destinatario.isBlank()) {
             log.info("El paciente ID {} no posee email asociado. Se omite notificación por correo.", turno.getPaciente().getId());
             return;
@@ -69,7 +92,11 @@ public class EmailNotificacionServicio {
         } catch (Exception e) {
             log.debug("No se pudo resolver especialidad de forma diferida: {}", e.getMessage());
         }
-        String centroNombre = "Hospital / Centro de Salud Cruz del Eje";
+
+        String centroNombre = (turno.getCentroSaludNombre() != null && !turno.getCentroSaludNombre().isBlank())
+                ? turno.getCentroSaludNombre().trim()
+                : "Hospital / Centro de Salud Cruz del Eje";
+
         String fechaHoraStr = turno.getFechaHora() != null ? turno.getFechaHora().format(DATE_TIME_FORMATTER) : "A confirmar";
         String codigoCita = "TURNO-" + turno.getId();
         String linkCancelacion = frontendUrl + "/mis-turnos?cancelar=" + turno.getId();
@@ -142,7 +169,7 @@ public class EmailNotificacionServicio {
         }
 
         String emailEnmascarado = com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(destinatario);
-        if (!mailEnabled || mailSender == null) {
+        if (!isMailActivo() || mailSender == null) {
             log.info("[MODO DEMO] Notificación por email omitida (app.mail.enabled=false) para destinatario: {}. Asunto: '{}'", emailEnmascarado, asunto);
             return;
         }

@@ -504,6 +504,30 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
 
+        if (emailNotificacionServicio != null) {
+            final String emailDestino = (request.getEmail() != null && !request.getEmail().isBlank()) ? request.getEmail().trim() : null;
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                emailNotificacionServicio.enviarConfirmacionTurno(guardado, emailDestino);
+                            } catch (Exception ex) {
+                                log.warn("Fallo al despachar email de confirmación post-commit para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                            }
+                        }
+                    }
+                );
+            } else {
+                try {
+                    emailNotificacionServicio.enviarConfirmacionTurno(guardado, emailDestino);
+                } catch (Exception ex) {
+                    log.warn("Fallo al despachar email de confirmación para turno ID={}: {}", guardado.getId(), ex.getMessage());
+                }
+            }
+        }
+
         return turnoMapper.paraDto(guardado);
     }
 
