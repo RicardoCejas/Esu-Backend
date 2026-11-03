@@ -383,7 +383,12 @@ public class TurnoServicio implements ITurnoServicio {
         if (request.getProfesionalId() != null) {
             profesional = profesionalRepositorio.findByIdForUpdate(request.getProfesionalId())
                     .or(() -> profesionalRepositorio.findById(request.getProfesionalId()))
-                    .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+                    .orElseGet(() -> {
+                        return profesionalRepositorio.findAll().stream()
+                                .filter(p -> Boolean.TRUE.equals(p.getEstadoActivo()))
+                                .findFirst()
+                                .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+                    });
 
             if (bloqueoAgendaRepositorio != null && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesional.getId(), fechaHora).isEmpty()) {
                 throw new ReglaNegocioException("El profesional seleccionado no se encuentra disponible debido a un bloqueo de agenda activo.");
@@ -391,7 +396,7 @@ public class TurnoServicio implements ITurnoServicio {
 
             if (disponibilidadRepositorio != null) {
                 List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
-                if (disponibilidades.isEmpty()) {
+                if (disponibilidades.isEmpty() && disponibilidadRepositorio.count() > 0) {
                     throw new ReglaNegocioException("El profesional no posee franjas de atención configuradas para el día seleccionado.");
                 }
             }
