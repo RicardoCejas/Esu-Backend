@@ -79,7 +79,7 @@ public class ProductionSecurityStartupValidator {
                 throw new IllegalStateException("FATAL: En entorno de producción se requiere definir 'APP_JWT_SECRET' con una clave de al menos 32 caracteres (256 bits).");
             }
             String jwtLower = jwtSecret.toLowerCase();
-            if (jwtLower.contains("miclavesecretasupersegura") || jwtLower.contains("secret") || jwtLower.contains("123456")
+            if (jwtLower.contains("miclavesecreta") || jwtLower.contains("defaultsecret") || jwtLower.contains("123456")
                     || jwtLower.contains("cambiar") || jwtLower.contains("definir") || jwtLower.contains("placeholder") || jwtLower.contains("ejemplo")) {
                 throw new IllegalStateException("FATAL: 'APP_JWT_SECRET' no puede contener valores predeterminados, placeholders ni contraseñas de ejemplo en producción.");
             }

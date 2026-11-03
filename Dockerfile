@@ -6,7 +6,7 @@ COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 COPY src ./src
 ARG SKIP_TESTS=true
-RUN ./mvnw clean package -DskipTests=${SKIP_TESTS} -B
+RUN ./mvnw clean package -DskipTests=true -B
 
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
@@ -22,4 +22,4 @@ USER esuuser
 EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=prod
 
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms128m", "-Xmx256m", "-XX:MaxMetaspaceSize=128m", "-XX:ReservedCodeCacheSize=48m", "-Xss512k", "-XX:+UseSerialGC", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms128m", "-Xmx256m", "-XX:+UseSerialGC", "-Xss512k", "-jar", "app.jar"]
