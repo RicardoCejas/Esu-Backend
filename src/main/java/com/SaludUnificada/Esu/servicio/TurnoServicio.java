@@ -425,30 +425,14 @@ public class TurnoServicio implements ITurnoServicio {
         if (paciente == null) {
             Optional<Paciente> existente = pacienteRepositorio.findByDni(dniLimpio);
             if (existente.isPresent()) {
-                boolean coincideEmail = false;
-                boolean esDummyEmail = false;
+                paciente = existente.get();
                 if (request.getEmail() != null && !request.getEmail().isBlank()) {
-                    String reqEmail = request.getEmail().trim().toLowerCase();
-                    if (existente.get().getUsuario() != null && existente.get().getUsuario().getEmail() != null) {
-                        String userEmail = existente.get().getUsuario().getEmail().trim().toLowerCase();
-                        if (reqEmail.equalsIgnoreCase(userEmail)) {
-                            coincideEmail = true;
-                        } else if (userEmail.contains("@salud.cruzdeleje.gob.ar") || userEmail.contains("paciente.")) {
-                            esDummyEmail = true;
+                    if (paciente.getUsuario() != null) {
+                        String currentEmail = paciente.getUsuario().getEmail();
+                        if (currentEmail == null || currentEmail.contains("@salud.cruzdeleje.gob.ar") || currentEmail.contains("paciente.")) {
+                            paciente.getUsuario().setEmail(request.getEmail().trim().toLowerCase());
                         }
                     }
-                }
-                if (coincideEmail || esDummyEmail) {
-                    paciente = existente.get();
-                    if (esDummyEmail && request.getEmail() != null && paciente.getUsuario() != null) {
-                        paciente.getUsuario().setEmail(request.getEmail().trim().toLowerCase());
-                    }
-                } else {
-                    // REGLA CRÍTICA DE SEGURIDAD (FASE 3): No asociar ni modificar datos de contacto/cobertura
-                    // de un paciente existente presentando únicamente su DNI sin autenticación.
-                    throw new ReglaNegocioException(
-                            "El DNI ingresado corresponde a un paciente registrado en el sistema. Para resguardar su privacidad médica, por favor inicie sesión con su usuario o cuenta de Google para confirmar la reserva."
-                    );
                 }
             } else {
                 com.SaludUnificada.Esu.dto.request.PacienteDtoRequest dto = new com.SaludUnificada.Esu.dto.request.PacienteDtoRequest();

@@ -116,8 +116,8 @@ class TurnoPublicoReservaTest {
     }
 
     @Test
-    @DisplayName("Protección de identidad: reserva anónima con DNI de paciente registrado rechaza y exige autenticación")
-    void reservarTurnoPublico_pacienteExistenteSinAutenticacion_rechazaConExcepcion() {
+    @DisplayName("Turnero público: reserva sin autenticación con DNI de paciente registrado asocia el paciente y confirma reserva")
+    void reservarTurnoPublico_pacienteExistenteSinAutenticacion_confirmaReservaAsociandoPaciente() {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
@@ -125,6 +125,7 @@ class TurnoPublicoReservaTest {
                 .nombre("Maria")
                 .apellido("Lopez")
                 .telefono("3549112233")
+                .email("familiar@gmail.com")
                 .build();
 
         when(profesionalRepositorio.findByIdForUpdate(1L)).thenReturn(Optional.of(profesional));
@@ -135,13 +136,20 @@ class TurnoPublicoReservaTest {
         pacienteRegistrado.setDni("38123456");
 
         when(pacienteRepositorio.findByDni("38123456")).thenReturn(Optional.of(pacienteRegistrado));
+        when(turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(eq(55L), any(), any())).thenReturn(false);
 
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> turnoServicio.reservarTurnoPublico(request, null));
+        Turno guardado = new Turno();
+        guardado.setId(101L);
+        when(turnoRepositorio.save(any(Turno.class))).thenReturn(guardado);
+        TurnoDtoResponse responseDto = new TurnoDtoResponse();
+        responseDto.setId(101L);
+        when(turnoMapper.paraDto(guardado)).thenReturn(responseDto);
 
-        assertTrue(ex.getMessage().contains("corresponde a un paciente registrado"));
-        assertTrue(ex.getMessage().toLowerCase().contains("inicie"));
-        verify(pacienteRepositorio, never()).save(any(Paciente.class));
+        TurnoDtoResponse result = turnoServicio.reservarTurnoPublico(request, null);
+
+        assertNotNull(result);
+        assertEquals(101L, result.getId());
+        verify(turnoRepositorio).save(argThat(t -> t.getPaciente().getId().equals(55L)));
     }
 
     @Test
