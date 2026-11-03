@@ -24,4 +24,4 @@ ENV PORT=10000
 ENV SERVER_PORT=10000
 ENV SPRING_PROFILES_ACTIVE=prod
 
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms64m", "-Xmx192m", "-XX:MaxMetaspaceSize=128m", "-XX:ReservedCodeCacheSize=48m", "-Xss256k", "-XX:+UseSerialGC", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=65.0", "-XX:+UseParallelGC", "-Xss256k", "-jar", "app.jar"]

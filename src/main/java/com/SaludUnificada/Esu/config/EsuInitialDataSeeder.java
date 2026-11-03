@@ -73,6 +73,11 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             return;
         }
 
+        if (usuarioRepositorio.existsByEmail("dev@esu.gob.ar")) {
+            log.info("Cuentas de demostración ya sincronizadas en la base de datos. Omitiendo seeder para acelerar arranque.");
+            return;
+        }
+
         try {
             ejecutarSeederInterno();
         } catch (Exception ex) {
