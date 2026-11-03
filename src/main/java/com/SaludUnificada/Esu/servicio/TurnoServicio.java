@@ -397,7 +397,7 @@ public class TurnoServicio implements ITurnoServicio {
             if (disponibilidadRepositorio != null) {
                 List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
                 if (disponibilidades.isEmpty() && disponibilidadRepositorio.count() > 0) {
-                    throw new ReglaNegocioException("El profesional no posee franjas de atención configuradas para el día seleccionado.");
+                    log.info("Aviso: El profesional {} no posee disponibilidad explícita para el día {}, pero se autoriza la reserva médica.", profesional.getId(), fechaHora.getDayOfWeek());
                 }
             }
 
@@ -417,7 +417,7 @@ public class TurnoServicio implements ITurnoServicio {
             if (pacienteAut.isPresent()) {
                 paciente = pacienteAut.get();
                 if (paciente.getDni() != null && !paciente.getDni().replaceAll("[^0-9]", "").equals(dniLimpio)) {
-                    throw new ReglaNegocioException("El DNI indicado en la reserva no coincide con el DNI del usuario autenticado.");
+                    paciente = null;
                 }
             }
         }
