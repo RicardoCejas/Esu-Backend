@@ -91,18 +91,27 @@ class AuthControladorTest {
     }
 
     @Test
-    void testLoginEmailNoVerificado() {
+    void testLoginEmailNoVerificadoAutoActiva() {
         LoginDtoRequest request = new LoginDtoRequest("noverificado@esu.com", "password123");
+        Authentication auth = mock(Authentication.class);
         Usuario usuario = new Usuario();
+        usuario.setId(30L);
         usuario.setEmail("noverificado@esu.com");
         usuario.setEmailVerificado(false);
         usuario.setEstadoActivo(true);
+        usuario.setRol("PACIENTE");
 
+        when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("noverificado@esu.com")).thenReturn(false);
         when(usuarioRepositorio.findByEmail("noverificado@esu.com")).thenReturn(Optional.of(usuario));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
+        when(jwtTokenProvider.generarToken(auth)).thenReturn("mocked.jwt.token");
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authControlador.login(request));
-        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("confirmar su dirección de correo"));
+        var response = authControlador.login(request);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("mocked.jwt.token", response.getBody().getAccessToken());
+        assertTrue(Boolean.TRUE.equals(response.getBody().getEmailVerificado()));
     }
 
     @Test
@@ -121,19 +130,22 @@ class AuthControladorTest {
         usuarioGuardado.setId(20L);
         usuarioGuardado.setEmail("nuevo@esu.com");
         usuarioGuardado.setRol("PACIENTE");
+        usuarioGuardado.setPassword("hashed_password");
 
         when(usuarioRepositorio.existsByEmail("nuevo@esu.com")).thenReturn(false);
         when(passwordEncoder.encode("clave123")).thenReturn("hashed_password");
         when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(usuarioGuardado);
+        when(jwtTokenProvider.generarToken(any(Authentication.class))).thenReturn("mocked.jwt.token");
 
-        var response = authControlador.registro(request);
+        var response = authControlador.registro(request, null);
 
         assertNotNull(response);
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(20L, response.getBody().getUsuarioId());
         assertEquals("nuevo@esu.com", response.getBody().getEmail());
-        assertNull(response.getBody().getAccessToken());
+        assertEquals("mocked.jwt.token", response.getBody().getAccessToken());
+        assertTrue(Boolean.TRUE.equals(response.getBody().getEmailVerificado()));
     }
 
     @Test

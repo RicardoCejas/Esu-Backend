@@ -23,9 +23,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -53,17 +53,29 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        boolean isDevOrLocal = Arrays.stream(environment.getActiveProfiles())
-                .anyMatch(p -> p.equalsIgnoreCase("dev") || p.equalsIgnoreCase("local") || p.equalsIgnoreCase("test"));
-        String rawOrigins = (allowedOriginsConfig == null || allowedOriginsConfig.isBlank()) && isDevOrLocal
-                ? "http://localhost:5173,http://127.0.0.1:5173"
-                : (allowedOriginsConfig != null ? allowedOriginsConfig : "");
-        List<String> origins = Arrays.stream(rawOrigins.split(","))
-                .map(String::trim)
-                .map(s -> s.replaceAll("/+$", ""))
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
-        configuration.setAllowedOrigins(origins);
+
+        List<String> patterns = new ArrayList<>();
+        patterns.add("https://esuluvia.vercel.app");
+        patterns.add("https://*.vercel.app");
+        patterns.add("https://*.onrender.com");
+        patterns.add("http://localhost:[*]");
+        patterns.add("http://127.0.0.1:[*]");
+        patterns.add("http://localhost");
+        patterns.add("http://127.0.0.1");
+
+        if (allowedOriginsConfig != null && !allowedOriginsConfig.isBlank()) {
+            Arrays.stream(allowedOriginsConfig.split(","))
+                    .map(String::trim)
+                    .map(s -> s.replaceAll("/+$", ""))
+                    .filter(s -> !s.isEmpty())
+                    .forEach(o -> {
+                        if (!patterns.contains(o)) {
+                            patterns.add(o);
+                        }
+                    });
+        }
+
+        configuration.setAllowedOriginPatterns(patterns);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin", "X-Dev-Secret", "X-XSRF-TOKEN", "x-xsrf-token", "X-CSRF-TOKEN", "Idempotency-Key", "X-Idempotency-Key", "*"));
         configuration.setExposedHeaders(List.of("Authorization"));

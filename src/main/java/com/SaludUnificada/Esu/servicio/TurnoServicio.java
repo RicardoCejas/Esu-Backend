@@ -465,7 +465,7 @@ public class TurnoServicio implements ITurnoServicio {
                     u.setPassword(passwordEncoder != null ? passwordEncoder.encode(randomSecret) : randomSecret);
                     u.setRol("PACIENTE");
                     u.setEstadoActivo(true);
-                    u.setEmailVerificado(false);
+                    u.setEmailVerificado(true);
                     u.setFechaDeAlta(java.time.LocalDate.now());
                     nuevo.setUsuario(u);
                 }

@@ -54,6 +54,8 @@ public class EmailNotificacionServicio {
     }
 
     public void enviarConfirmacionTurno(Turno turno, String emailDestinatario) {
+        log.info("Envío de confirmación de turno por correo omitido según requerimiento del sistema.");
+        if (true) return;
         if (turno == null || turno.getPaciente() == null) {
             log.warn("No se pudo despachar el correo de confirmación: el turno o paciente es nulo.");
             return;
@@ -324,6 +326,8 @@ public class EmailNotificacionServicio {
 
     @Async
     public void enviarEmailVerificacion(String email, String nombre, String token) {
+        log.info("Envío de verificación de email omitido para " + email + " (acceso directo habilitado).");
+        if (true) return;
         if (email == null || email.isBlank()) {
             return;
         }
@@ -369,6 +373,8 @@ public class EmailNotificacionServicio {
 
     @Async
     public void enviarCancelacionTurno(Turno turno, String motivo) {
+        log.info("Envío de cancelación de turno por correo omitido según requerimiento del sistema.");
+        if (true) return;
         if (turno == null || turno.getPaciente() == null) {
             return;
         }

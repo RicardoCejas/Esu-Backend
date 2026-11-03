@@ -186,12 +186,10 @@ public class AuthControlador {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta se encuentra deshabilitada.");
         }
 
+        // Auto-activar y auto-verificar si no lo estaba para acceso directo
         if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
-            if (auditoriaSeguridadServicio != null) {
-                auditoriaSeguridadServicio.registrarLoginFallido(email, "Email no verificado");
-            }
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Debe confirmar su dirección de correo electrónico antes de ingresar a la plataforma.");
+            usuario.setEmailVerificado(true);
+            usuario = usuarioRepositorio.save(usuario);
         }
 
         Authentication authentication;
@@ -266,15 +264,12 @@ public class AuthControlador {
             // 2. Si no existe por sub, revisar si ya existe una cuenta local con ese email
             Usuario usuarioPorEmail = usuarioRepositorio.findByEmail(email).orElse(null);
             if (usuarioPorEmail != null) {
-                if (auditoriaSeguridadServicio != null) {
-                    auditoriaSeguridadServicio.registrarLoginFallido(email, "Intento de login Google en cuenta local existente no vinculada");
-                }
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "El correo electrónico ya se encuentra registrado mediante cuenta local. Por motivos de seguridad, inicie sesión con su contraseña tradicional.");
-            }
-
-            // 3. Crear usuario nuevo con rol público por defecto (PACIENTE) de forma transaccional con su perfil de Paciente
-            if (googleAuthServicio != null) {
+                usuarioPorEmail.setGoogleSub(googleSub);
+                usuarioPorEmail.setEmailVerificado(true);
+                usuarioPorEmail.setEstadoActivo(true);
+                usuario = usuarioRepositorio.save(usuarioPorEmail);
+                esNuevoUsuario = false;
+            } else if (googleAuthServicio != null) {
                 try {
                     usuario = googleAuthServicio.registrarUsuarioConPaciente(payload);
                 } catch (Exception e) {
@@ -384,8 +379,14 @@ public class AuthControlador {
         return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada correctamente."));
     }
 
+    public ResponseEntity<JwtAuthDtoResponse> registro(RegistroDtoRequest registroDto) {
+        return registro(registroDto, null);
+    }
+
     @PostMapping({"/registro", "/register"})
-    public ResponseEntity<JwtAuthDtoResponse> registro(@Valid @RequestBody RegistroDtoRequest registroDto) {
+    public ResponseEntity<JwtAuthDtoResponse> registro(
+            @Valid @RequestBody RegistroDtoRequest registroDto,
+            HttpServletResponse servletResponse) {
         if (usuarioRepositorio.existsByEmail(registroDto.getEmail())) {
             throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
         }
@@ -397,21 +398,18 @@ public class AuthControlador {
         usuario.setPassword(passwordEncoder.encode(registroDto.getPassword()));
         usuario.setRol(rol);
         usuario.setEstadoActivo(true);
+        usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
-
-        String tokenVerificacion = UUID.randomUUID().toString();
-        String tokenVerificacionHash = RefreshTokenServicio.hashToken(tokenVerificacion);
-        usuario.setTokenVerificacion(tokenVerificacionHash);
-        usuario.setEmailVerificado(false);
-        usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
-        usuario.setTokenVerificacionUsado(false);
+        usuario.setTokenVerificacion(null);
+        usuario.setTokenVerificacionUsado(true);
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
+        Paciente nuevoPaciente = null;
         if (pacienteRepositorio != null) {
             try {
                 if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
-                    Paciente nuevoPaciente = new Paciente();
+                    nuevoPaciente = new Paciente();
                     String nom = (registroDto.getNombre() != null && !registroDto.getNombre().isBlank()) ? registroDto.getNombre().trim() : "Paciente";
                     String ape = (registroDto.getApellido() != null && !registroDto.getApellido().isBlank()) ? registroDto.getApellido().trim() : "Registrado";
                     nuevoPaciente.setNombre(nom);
@@ -419,25 +417,36 @@ public class AuthControlador {
                     nuevoPaciente.setDni("DNI-" + guardado.getId());
                     nuevoPaciente.setNroAfiliado("AF-" + guardado.getId());
                     nuevoPaciente.setUsuario(guardado);
-                    pacienteRepositorio.save(nuevoPaciente);
+                    nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
                 }
             } catch (Exception ignored) {
             }
         }
 
-        if (emailNotificacionServicio != null) {
-            try {
-                emailNotificacionServicio.enviarEmailVerificacion(guardado.getEmail(), guardado.getEmail().split("@")[0], tokenVerificacion);
-            } catch (Exception ignored) {
-            }
+        String token = null;
+        if (jwtTokenProvider != null) {
+            var authorities = java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + guardado.getRol().toUpperCase()));
+            var userDetails = new org.springframework.security.core.userdetails.User(guardado.getEmail(), guardado.getPassword(), authorities);
+            Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            token = jwtTokenProvider.generarToken(authentication);
+        }
+
+        if (refreshTokenServicio != null && servletResponse != null) {
+            var rt = refreshTokenServicio.crearRefreshToken(guardado);
+            fijarCookieRefreshToken(servletResponse, rt.getToken());
         }
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
-                .accessToken(null)
+                .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(guardado.getId())
                 .email(guardado.getEmail())
                 .rol(guardado.getRol())
+                .nombre(nuevoPaciente != null ? nuevoPaciente.getNombre() : null)
+                .apellido(nuevoPaciente != null ? nuevoPaciente.getApellido() : null)
+                .dni(nuevoPaciente != null ? nuevoPaciente.getDni() : null)
+                .emailVerificado(true)
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);

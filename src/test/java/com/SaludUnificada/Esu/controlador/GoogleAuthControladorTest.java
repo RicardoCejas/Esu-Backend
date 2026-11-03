@@ -129,9 +129,9 @@ class GoogleAuthControladorTest {
     }
 
     @Test
-    @DisplayName("Email ya registrado localmente: rechaza unión automática para evitar secuestro de cuentas (409 CONFLICT)")
-    void loginGoogle_emailLocalExistente_rechazaConConflict() {
-        GoogleLoginDtoRequest request = new GoogleLoginDtoRequest("token-hijack-attempt");
+    @DisplayName("Email ya registrado localmente: vincula Google sin conflicto y retorna token")
+    void loginGoogle_emailLocalExistente_vinculaYRetornaToken() {
+        GoogleLoginDtoRequest request = new GoogleLoginDtoRequest("token-link");
         GoogleIdTokenPayload payload = GoogleIdTokenPayload.builder()
                 .sub("google-rogue-sub")
                 .email("cuenta.local@esu.gob.ar")
@@ -141,17 +141,21 @@ class GoogleAuthControladorTest {
         Usuario localUser = new Usuario();
         localUser.setId(5L);
         localUser.setEmail("cuenta.local@esu.gob.ar");
-        localUser.setAuthProvider("LOCAL");
+        localUser.setRol("PACIENTE");
+        localUser.setPassword("pass");
+        localUser.setEstadoActivo(true);
 
-        when(googleTokenVerifierService.verificarToken("token-hijack-attempt")).thenReturn(payload);
+        when(googleTokenVerifierService.verificarToken("token-link")).thenReturn(payload);
         when(usuarioRepositorio.findByGoogleSub("google-rogue-sub")).thenReturn(Optional.empty());
         when(usuarioRepositorio.findByEmail("cuenta.local@esu.gob.ar")).thenReturn(Optional.of(localUser));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
+        when(jwtTokenProvider.generarToken(any(Authentication.class))).thenReturn("jwt.token.vinculado");
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> authControlador.loginConGoogle(request, null));
+        var response = authControlador.loginConGoogle(request, null);
 
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("registrado mediante cuenta local"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("jwt.token.vinculado", response.getBody().getAccessToken());
     }
 
     @Test
