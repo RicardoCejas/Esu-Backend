@@ -124,11 +124,15 @@ public class GoogleTokenVerifierService {
                 throw new BadCredentialsException("El token de Google ha expirado.");
             }
 
-            // 4. Validar estado de verificación del email (flexible para acceso directo)
-            boolean emailVerified = true;
-            if (root.hasNonNull("email_verified")) {
-                JsonNode emailVerifiedNode = root.path("email_verified");
-                emailVerified = emailVerifiedNode.isBoolean() ? emailVerifiedNode.asBoolean() : "true".equalsIgnoreCase(emailVerifiedNode.asText());
+            // 4. Validar estado de verificación obligatoria del email
+            if (!root.hasNonNull("email_verified")) {
+                throw new BadCredentialsException("El token de Google no especifica el estado de verificación del correo.");
+            }
+            JsonNode emailVerifiedNode = root.path("email_verified");
+            boolean emailVerified = emailVerifiedNode.isBoolean() ? emailVerifiedNode.asBoolean() : "true".equalsIgnoreCase(emailVerifiedNode.asText());
+            if (!emailVerified) {
+                log.warn("Rechazo de Google Token por email no verificado en Google");
+                throw new BadCredentialsException("El correo de la cuenta de Google no está verificado.");
             }
 
             // 5. Validar claims de identidad básicos
