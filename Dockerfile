@@ -19,7 +19,9 @@ RUN groupadd -r esugroup && useradd -r -g esugroup -d /app -s /sbin/nologin esuu
 COPY --from=build --chown=esuuser:esugroup /app/target/Esu-0.0.1-SNAPSHOT.jar app.jar
 
 USER esuuser
-EXPOSE 8080
+EXPOSE 10000 8080
+ENV PORT=10000
+ENV SERVER_PORT=10000
 ENV SPRING_PROFILES_ACTIVE=prod
 
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms128m", "-Xmx256m", "-XX:+UseSerialGC", "-Xss512k", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms64m", "-Xmx192m", "-XX:MaxMetaspaceSize=128m", "-XX:ReservedCodeCacheSize=48m", "-Xss256k", "-XX:+UseSerialGC", "-jar", "app.jar"]
