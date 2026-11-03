@@ -67,9 +67,11 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     public void run(String... args) {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
         boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
+        long totalProfesionales = profesionalRepositorio != null ? profesionalRepositorio.count() : 0;
+        boolean faltanProfesionales = totalProfesionales < 20;
 
-        if (!isLocalOrDev && !seedDemoAccounts) {
-            log.info("Carga de cuentas semilla omitida en entorno no productivo deshabilitado (app.demo.seed-accounts=false).");
+        if (!isLocalOrDev && !seedDemoAccounts && !faltanProfesionales) {
+            log.info("Carga de cuentas semilla omitida (app.demo.seed-accounts=false y base de datos con profesionales suficientes: {}).", totalProfesionales);
             return;
         }
 
@@ -176,61 +178,158 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
     private void sincronizarProfesionalesYAgendas(Map<String, Especialidad> esps) {
         List<DocSeed> doctores = List.of(
-                new DocSeed("Carlos", "Gómez", "MP-45210", "carlos.gomez@esu.salud.gob.ar", "Clínica Médica",
+                // 1. Clínica Médica
+                new DocSeed("María Elena", "Fernández", "MP 28.451", "maria.fernandez@esu.salud.gob.ar", "Clínica Médica",
                         Set.of(1L, 2L),
                         List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
-                                new DispSeed(2L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+                                new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("María Elena", "Rossi", "MP-38914", "maria.rossi@esu.salud.gob.ar", "Cardiología",
+                new DocSeed("Roberto Carlos", "Martínez", "MP 19.324", "roberto.martinez@esu.salud.gob.ar", "Clínica Médica",
                         Set.of(1L, 5L),
                         List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
                                 new DispSeed(5L, DayOfWeek.THURSDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Lucas", "Benítez", "MP-51203", "lucas.benitez@esu.salud.gob.ar", "Pediatría",
+                new DocSeed("Florencia", "Castro", "MP 31.220", "florencia.castro@esu.salud.gob.ar", "Clínica Médica",
+                        Set.of(2L, 5L),
+                        List.of(new DispSeed(2L, DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)),
+                                new DispSeed(2L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(5L, DayOfWeek.THURSDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 2. Pediatría
+                new DocSeed("Laura Silvina", "Gómez", "MP 33.109", "laura.gomez@esu.salud.gob.ar", "Pediatría",
                         Set.of(1L, 2L),
-                        List.of(new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
+
+                new DocSeed("Esteban", "Álvarez", "MP 24.890", "esteban.alvarez@esu.salud.gob.ar", "Pediatría",
+                        Set.of(1L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 3. Cardiología
+                new DocSeed("Alejandro", "Rossi", "MP 15.670", "alejandro.rossi@esu.salud.gob.ar", "Cardiología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.WEDNESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                new DocSeed("Mariana", "Lucero", "MP 27.810", "mariana.lucero@esu.salud.gob.ar", "Cardiología",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
                                 new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Mariana", "Fernández", "MP-42819", "mariana.fernandez@esu.salud.gob.ar", "Ginecología y Obstetricia",
-                        Set.of(2L, 5L),
-                        List.of(new DispSeed(2L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                // 4. Traumatología
+                new DocSeed("Valeria", "Benítez", "MP 29.544", "valeria.benitez@esu.salud.gob.ar", "Traumatología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
                                 new DispSeed(5L, DayOfWeek.WEDNESDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
 
-                new DocSeed("Pablo", "Morales", "MP-39102", "pablo.morales@esu.salud.gob.ar", "Traumatología",
-                        Set.of(1L),
-                        List.of(new DispSeed(1L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(13, 0)))),
-
-                new DocSeed("Laura", "Sosa", "MP-46115", "laura.sosa@esu.salud.gob.ar", "Psiquiatría",
-                        Set.of(5L),
-                        List.of(new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
-
-                new DocSeed("Diego", "Castro", "MP-34512", "diego.castro@esu.salud.gob.ar", "Cirugía General",
+                new DocSeed("Hugo", "Acosta", "MP 18.905", "hugo.acosta@esu.salud.gob.ar", "Traumatología",
                         Set.of(1L, 2L),
-                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(13, 0), LocalTime.of(17, 0)),
-                                new DispSeed(2L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
 
-                new DocSeed("Silvia", "Navarro", "MP-48901", "silvia.navarro@esu.salud.gob.ar", "Oftalmología",
-                        Set.of(2L),
-                        List.of(new DispSeed(2L, DayOfWeek.TUESDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+                // 5. Ginecología y Obstetricia
+                new DocSeed("Silvina", "Torres", "MP 22.188", "silvina.torres@esu.salud.gob.ar", "Ginecología y Obstetricia",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Martín", "Romero", "MP-52314", "martin.romero@esu.salud.gob.ar", "Neurología",
+                new DocSeed("Fernando", "Molina", "MP 25.430", "fernando.molina@esu.salud.gob.ar", "Ginecología y Obstetricia",
                         Set.of(1L, 5L),
-                        List.of(new DispSeed(1L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 6. Oftalmología
+                new DocSeed("Gustavo", "Navarro", "MP 20.401", "gustavo.navarro@esu.salud.gob.ar", "Oftalmología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(5L, DayOfWeek.TUESDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 7. Odontología
+                new DocSeed("Patricia", "Morales", "MP 12.873", "patricia.morales@esu.salud.gob.ar", "Odontología",
+                        Set.of(1L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
                                 new DispSeed(5L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Valeria", "Méndez", "MP-43110", "valeria.mendez@esu.salud.gob.ar", "Dermatología",
-                        Set.of(2L, 5L),
-                        List.of(new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                // 8. Dermatología
+                new DocSeed("Beatriz", "Suárez", "MP 26.790", "beatriz.suarez@esu.salud.gob.ar", "Dermatología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
                                 new DispSeed(5L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Alejandro", "Herrera", "MP-37654", "alejandro.herrera@esu.salud.gob.ar", "Urología",
-                        Set.of(1L),
-                        List.of(new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+                // 9. Neurología
+                new DocSeed("Claudio", "Peralta", "MP 16.920", "claudio.peralta@esu.salud.gob.ar", "Neurología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
 
-                new DocSeed("Patricia", "Suárez", "MP-49203", "patricia.suarez@esu.salud.gob.ar", "Psicología",
-                        Set.of(1L, 5L),
+                // 10. Urología
+                new DocSeed("Javier", "Domínguez", "MP 21.340", "javier.dominguez@esu.salud.gob.ar", "Urología",
+                        Set.of(1L, 2L, 5L),
                         List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
-                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0))))
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 11. Cirugía General
+                new DocSeed("Martín", "Vargas", "MP 17.512", "martin.vargas@esu.salud.gob.ar", "Cirugía General",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
+
+                // 12. Gastroenterología
+                new DocSeed("Marcela", "Ibarra", "MP 23.411", "marcela.ibarra@esu.salud.gob.ar", "Gastroenterología",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+
+                // 13. Endocrinología
+                new DocSeed("Gabriela", "Sánchez", "MP 28.190", "gabriela.sanchez@esu.salud.gob.ar", "Endocrinología",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 14. Kinesiología
+                new DocSeed("Gonzalo", "Romero", "MP 9.420", "gonzalo.romero@esu.salud.gob.ar", "Kinesiología",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+
+                // 15. Nutrición
+                new DocSeed("Romina", "Paredes", "MP 11.230", "romina.paredes@esu.salud.gob.ar", "Nutrición",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+
+                // 16. Otorrinolaringología (ORL)
+                new DocSeed("Andrés", "Correa", "MP 19.880", "andres.correa@esu.salud.gob.ar", "Otorrinolaringología (ORL)",
+                        Set.of(1L, 2L),
+                        List.of(new DispSeed(1L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(2L, DayOfWeek.FRIDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)))),
+
+                // 17. Psiquiatría
+                new DocSeed("Carolina", "Ramos", "MP 27.810-B", "carolina.ramos@esu.salud.gob.ar", "Psiquiatría",
+                        Set.of(1L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)),
+                                new DispSeed(5L, DayOfWeek.WEDNESDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)))),
+
+                // 18. Psicología
+                new DocSeed("Lucía", "Albarracín", "MP 14.390", "lucia.albarracin@esu.salud.gob.ar", "Psicología",
+                        Set.of(1L, 2L, 5L),
+                        List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0))))
         );
 
         for (DocSeed ds : doctores) {
