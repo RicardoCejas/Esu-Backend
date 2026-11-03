@@ -921,8 +921,14 @@ public class TurnoServicio implements ITurnoServicio {
     @Override
     @Transactional(readOnly = true)
     public List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId) {
-        return turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId).stream()
-                .map(turnoMapper::paraDto).collect(Collectors.toList());
+        List<Turno> turnos = turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacienteId);
+        if (turnos.isEmpty()) {
+            Optional<Paciente> pacPorUsuario = pacienteRepositorio.findByUsuarioId(pacienteId);
+            if (pacPorUsuario.isPresent()) {
+                turnos = turnoRepositorio.findByPacienteIdOrderByFechaHoraDesc(pacPorUsuario.get().getId());
+            }
+        }
+        return turnos.stream().map(turnoMapper::paraDto).collect(Collectors.toList());
     }
 
     @Override

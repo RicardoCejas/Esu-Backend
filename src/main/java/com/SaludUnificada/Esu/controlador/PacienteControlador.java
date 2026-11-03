@@ -161,7 +161,7 @@ public class PacienteControlador {
     }
 
     @PutMapping("/{id:\\d+}/contacto")
-    @PreAuthorize("@securityPolicy.canAccessPatient(#id)")
+    @PreAuthorize("@securityPolicy.canAccessPatientAdmin(#id)")
     @Operation(summary = "Actualizar datos de contacto y cobertura del paciente")
     public ResponseEntity<PacienteDtoResponse> actualizarContacto(
             @PathVariable Long id,

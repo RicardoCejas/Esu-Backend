@@ -151,7 +151,7 @@ public class TurnoControlador {
     }
 
     @GetMapping("/paciente/{pacienteId}")
-    @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
+    @PreAuthorize("@securityPolicy.canAccessPatientAdmin(#pacienteId)")
     public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosPorPaciente(
             @PathVariable Long pacienteId) {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosPorPaciente(pacienteId));

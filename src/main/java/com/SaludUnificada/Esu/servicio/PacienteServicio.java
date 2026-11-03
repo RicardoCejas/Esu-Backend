@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -126,14 +127,55 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     public Paciente obtenerEntidadPacientePorId(Long id) {
         return pacienteRepositorio.findById(id)
+                .or(() -> pacienteRepositorio.findByUsuarioId(id))
                 .or(() -> usuarioRepositorio != null ? usuarioRepositorio.findById(id).map(com.SaludUnificada.Esu.entidad.Usuario::getPaciente).filter(java.util.Objects::nonNull) : java.util.Optional.empty())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id));
     }
 
+    private Paciente obtenerOCrearPacienteParaUsuario(String email) {
+        return pacienteRepositorio.findByUsuarioEmail(email)
+                .or(() -> {
+                    if (usuarioRepositorio != null) {
+                        return usuarioRepositorio.findByEmail(email)
+                                .flatMap(u -> {
+                                    if (u.getPaciente() != null) return Optional.of(u.getPaciente());
+                                    return pacienteRepositorio.findByUsuarioId(u.getId());
+                                });
+                    }
+                    return Optional.empty();
+                })
+                .orElseGet(() -> {
+                    Usuario u = usuarioRepositorio != null ? usuarioRepositorio.findByEmail(email).orElse(null) : null;
+                    Paciente p = new Paciente();
+                    p.setUsuario(u);
+                    String nombreDefault = "Paciente";
+                    String apellidoDefault = "ESU";
+                    if (u != null && u.getEmail() != null) {
+                        String prefix = u.getEmail().split("@")[0];
+                        nombreDefault = Character.toUpperCase(prefix.charAt(0)) + prefix.substring(1);
+                    }
+                    p.setNombre(nombreDefault);
+                    p.setApellido(apellidoDefault);
+                    String baseDni = (u != null && u.getId() != null) ? String.valueOf(u.getId()) : String.valueOf(System.currentTimeMillis() % 100000000L);
+                    String defaultDni = baseDni;
+                    int sufijo = 1;
+                    while (pacienteRepositorio.existsByDni(defaultDni)) {
+                        defaultDni = baseDni + sufijo++;
+                    }
+                    p.setDni(defaultDni);
+                    p.setTelefono("3549000000");
+                    p.setObraSocial("Particular");
+                    p.setNroAfiliado("AF-" + defaultDni);
+                    p.setCentroSaludReferenciaId(1L);
+                    p.setCentroSaludReferenciaNombre("Hospital Provincial Dr. Aurelio Crespo");
+                    return pacienteRepositorio.save(p);
+                });
+    }
+
     @Override
     public PacienteDtoResponse obtenerPerfilAutenticado(String email) {
-        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(email)
-                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+        Paciente paciente = obtenerOCrearPacienteParaUsuario(email);
+
         return pacienteMapper.paraDto(paciente);
     }
 
@@ -168,8 +210,8 @@ public class PacienteServicio implements IPacienteServicio {
     @Override
     @Transactional
     public PacienteDtoResponse actualizarMiPerfilPorEmail(String email, java.util.Map<String, String> body) {
-        Paciente paciente = pacienteRepositorio.findByUsuarioEmail(email)
-                .orElseThrow(() -> new NoEncontradoExcepcion("El usuario autenticado no tiene un perfil de paciente vinculado."));
+        Paciente paciente = obtenerOCrearPacienteParaUsuario(email);
+
         if (body == null) return pacienteMapper.paraDto(paciente);
 
         String tel = body.get("telefono");
