@@ -103,7 +103,7 @@ public class EmailNotificacionServicio {
 
         String htmlBody = construirHtmlTurnoConfirmado(pacienteNombre, medicoNombre, especialidad, centroNombre, fechaHoraStr, codigoCita, linkCancelacion);
 
-        enviarCorreoHtml(destinatario, "Comprobante de Turno Médico - " + codigoCita, htmlBody, null, null);
+        enviarCorreoHtml(destinatario, "Confirmación de Turno Médico - " + medicoNombre + " (" + fechaHoraStr + " hs)", htmlBody, null, null);
     }
     public void enviarRecetaDigital(RecetaDigital receta, byte[] pdfAdjunto) {
         if (receta == null || receta.getPaciente() == null) {
@@ -178,7 +178,8 @@ public class EmailNotificacionServicio {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(mailFrom, "ESU - Salud Unificada");
+                helper.setFrom(mailFrom, "Turnos Médicos - ESU Cruz del Eje");
+                helper.setReplyTo(mailFrom, "Salud Unificada Cruz del Eje");
             } catch (Exception e) {
                 helper.setFrom(mailFrom);
             }
