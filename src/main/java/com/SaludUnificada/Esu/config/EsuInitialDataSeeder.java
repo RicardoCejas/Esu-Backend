@@ -65,6 +65,14 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        try {
+            ejecutarSeederInterno();
+        } catch (Exception ex) {
+            log.warn("Aviso en EsuInitialDataSeeder (no bloqueante para el arranque del servidor): {}", ex.getMessage(), ex);
+        }
+    }
+
+    private void ejecutarSeederInterno() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
         boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
         long totalProfesionales = profesionalRepositorio != null ? profesionalRepositorio.count() : 0;
@@ -333,14 +341,18 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         );
 
         for (DocSeed ds : doctores) {
-            Especialidad esp = esps.get(ds.especialidad);
-            Set<Especialidad> espSet = esp != null ? Set.of(esp) : Set.of();
-            Profesional prof = crearOActualizarProfesional(ds.nombre, ds.apellido, ds.matricula, ds.email, "Medico123!", espSet, ds.centrosIds);
+            try {
+                Especialidad esp = esps.get(ds.especialidad);
+                Set<Especialidad> espSet = esp != null ? Set.of(esp) : Set.of();
+                Profesional prof = crearOActualizarProfesional(ds.nombre, ds.apellido, ds.matricula, ds.email, "Medico123!", espSet, ds.centrosIds);
 
-            if (disponibilidadRepositorio != null && prof != null) {
-                for (DispSeed disp : ds.disponibilidades) {
-                    crearDisponibilidadSiNoExiste(prof, disp.centroId, disp.dia, disp.inicio, disp.fin, 30);
+                if (disponibilidadRepositorio != null && prof != null) {
+                    for (DispSeed disp : ds.disponibilidades) {
+                        crearDisponibilidadSiNoExiste(prof, disp.centroId, disp.dia, disp.inicio, disp.fin, 30);
+                    }
                 }
+            } catch (Exception ex) {
+                log.warn("Aviso no fatal sincronizando agenda de doctor {}: {}", ds.matricula, ex.getMessage());
             }
         }
     }
@@ -363,20 +375,27 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     }
 
     private Profesional crearOActualizarProfesional(String nombre, String apellido, String matricula, String email, String password, Set<Especialidad> especialidades, Set<Long> centrosIds) {
-        Usuario u = crearUsuarioSiNoExiste(email, password, "PROFESIONAL");
-        Optional<Profesional> opt = profesionalRepositorio.findByMatricula(matricula)
-                .or(() -> profesionalRepositorio.findByUsuarioEmail(email));
+        try {
+            Usuario u = crearUsuarioSiNoExiste(email, password, "PROFESIONAL");
+            Optional<Profesional> opt = profesionalRepositorio.findByMatricula(matricula)
+                    .or(() -> profesionalRepositorio.findByUsuarioEmail(email));
 
-        Profesional p = opt.orElseGet(Profesional::new);
-        p.setNombre(nombre);
-        p.setApellido(apellido);
-        p.setMatricula(matricula);
-        p.setTelefono("3549-420000");
-        p.setEstadoActivo(true);
-        p.setUsuario(u);
-        p.setEspecialidades(especialidades);
-        p.setCentrosSaludIds(centrosIds);
-        return profesionalRepositorio.save(p);
+            Profesional p = opt.orElseGet(Profesional::new);
+            p.setNombre(nombre);
+            p.setApellido(apellido);
+            p.setMatricula(matricula);
+            p.setTelefono("3549-420000");
+            p.setEstadoActivo(true);
+            p.setUsuario(u);
+            p.setEspecialidades(especialidades);
+            p.setCentrosSaludIds(centrosIds);
+            return profesionalRepositorio.save(p);
+        } catch (Exception ex) {
+            log.warn("Aviso seeder no fatal para profesional {} ({}): {}", matricula, email, ex.getMessage());
+            return profesionalRepositorio.findByMatricula(matricula)
+                    .or(() -> profesionalRepositorio.findByUsuarioEmail(email))
+                    .orElse(null);
+        }
     }
 
     private Usuario crearUsuarioSiNoExiste(String email, String rawPassword, String rol) {
