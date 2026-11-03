@@ -65,6 +65,14 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
+        boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
+
+        if (!isLocalOrDev && !seedDemoAccounts) {
+            log.info("Carga de cuentas semilla omitida (app.demo.seed-accounts=false).");
+            return;
+        }
+
         try {
             ejecutarSeederInterno();
         } catch (Exception ex) {
@@ -73,15 +81,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     }
 
     private void ejecutarSeederInterno() {
-        List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
-        boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
-        long totalProfesionales = profesionalRepositorio != null ? profesionalRepositorio.count() : 0;
-        boolean faltanProfesionales = totalProfesionales < 20;
-
-        if (!isLocalOrDev && !seedDemoAccounts && !faltanProfesionales) {
-            log.info("Carga de cuentas semilla omitida (app.demo.seed-accounts=false y base de datos con profesionales suficientes: {}).", totalProfesionales);
-            return;
-        }
 
         log.info("Iniciando verificación y sincronización idempotente de centros, especialidades, profesionales y cuentas...");
 
