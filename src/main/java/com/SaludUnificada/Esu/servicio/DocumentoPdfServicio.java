@@ -13,8 +13,11 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +30,9 @@ public class DocumentoPdfServicio {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DateTimeFormatter DATE_ONLY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    @Value("${app.documentos.firma-secret:${app.jwt.secret:}}")
+    private String firmaSecret;
 
     public String calcularHashSha256(String contenido) {
         try {
@@ -44,6 +50,37 @@ public class DocumentoPdfServicio {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Error al calcular SHA-256", e);
         }
+    }
+
+    public String calcularFirmaHmacSha256(String contenido) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            String secreto = firmaSecret != null ? firmaSecret : "";
+            mac.init(new SecretKeySpec(secreto.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] firma = mac.doFinal(contenido.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : firma) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al calcular la firma HMAC-SHA256", e);
+        }
+    }
+
+    public boolean verificarFirmaHmacSha256(String contenido, String firma) {
+        if (contenido == null || firma == null || firma.isBlank()) {
+            return false;
+        }
+        String calculada = calcularFirmaHmacSha256(contenido);
+        return MessageDigest.isEqual(
+                calculada.getBytes(StandardCharsets.UTF_8),
+                firma.trim().getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     public byte[] generarQrBytes(String texto, int ancho, int alto) {
@@ -169,9 +206,9 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("FIRMA DIGITAL Y SEGURIDAD LEGAL", headerFont));
-            hashCell.addElement(new Paragraph("Documento emitido electrónicamente con validez jurídica conforme a la Ley de Receta Digital.", smallFont));
-            hashCell.addElement(new Paragraph("Código Hash SHA-256 de Integridad:", smallFont));
+            hashCell.addElement(new Paragraph("SELLO DE INTEGRIDAD DOCUMENTAL", headerFont));
+            hashCell.addElement(new Paragraph("Documento emitido electrónicamente con sello criptográfico de integridad verificable.", smallFont));
+            hashCell.addElement(new Paragraph("Código de Integridad HMAC-SHA256:", smallFont));
             hashCell.addElement(new Paragraph(receta.getHashIntegridad() != null ? receta.getHashIntegridad() : "-", smallFont));
             hashCell.addElement(new Paragraph("Escanee el código QR o acceda a: " + urlVerificacion, smallFont));
             footerTable.addCell(hashCell);
@@ -293,8 +330,8 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("FIRMA ELECTRÓNICA INALTERABLE - LEY 26.529", headerFont));
-            hashCell.addElement(new Paragraph("Hash SHA-256 de Integridad Documental:", smallFont));
+            hashCell.addElement(new Paragraph("SELLO DE INTEGRIDAD INALTERABLE - LEY 26.529", headerFont));
+            hashCell.addElement(new Paragraph("Código de Integridad HMAC-SHA256:", smallFont));
             hashCell.addElement(new Paragraph(evolucion.getHashIntegridad() != null ? evolucion.getHashIntegridad() : "-", smallFont));
             hashCell.addElement(new Paragraph("Verifique la autenticidad en: " + urlVerificacion, smallFont));
             footerTable.addCell(hashCell);
@@ -346,7 +383,7 @@ public class DocumentoPdfServicio {
             subHeader.setAlignment(Element.ALIGN_CENTER);
             document.add(subHeader);
 
-            Paragraph legalNota = new Paragraph("Validez Legal Plena conforme a Ley Nacional 26.529 de Derechos del Paciente e Historia Clínica", smallFont);
+            Paragraph legalNota = new Paragraph("Documento clínico emitido conforme a la Ley Nacional 26.529. Integridad verificable mediante sello criptográfico.", smallFont);
             legalNota.setAlignment(Element.ALIGN_CENTER);
             document.add(legalNota);
 
@@ -439,7 +476,7 @@ public class DocumentoPdfServicio {
                     }
 
                     if (ev.getHashIntegridad() != null) {
-                        evCell.addElement(new Paragraph("Firma Electrónica / Hash Integridad: " + ev.getHashIntegridad(), smallFont));
+                        evCell.addElement(new Paragraph("Sello de Integridad / Hash: " + ev.getHashIntegridad(), smallFont));
                     }
 
                     // Adendas
@@ -509,8 +546,8 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("CONSTANCIA DE VALIDEZ Y SEGURIDAD CRIPTOGRÁFICA", headerFont));
-            hashCell.addElement(new Paragraph("Hash SHA-256 de Integridad del Expediente Completo:", smallFont));
+            hashCell.addElement(new Paragraph("CONSTANCIA DE INTEGRIDAD CRIPTOGRÁFICA", headerFont));
+            hashCell.addElement(new Paragraph("Código HMAC-SHA256 de Integridad del Expediente Completo:", smallFont));
             hashCell.addElement(new Paragraph(hashDoc, smallFont));
             hashCell.addElement(new Paragraph("Verifique la autenticidad de este expediente en el portal oficial:", smallFont));
             hashCell.addElement(new Paragraph(urlVerificacion, smallFont));
@@ -575,7 +612,7 @@ public class DocumentoPdfServicio {
 
             PdfPCell cellFirma = new PdfPCell();
             cellFirma.setBorder(Rectangle.NO_BORDER);
-            cellFirma.addElement(new Paragraph("Firma y Sello Digital:", headerFont));
+            cellFirma.addElement(new Paragraph("Sello de Integridad:", headerFont));
             cellFirma.addElement(new Paragraph("Dr./Dra. " + nombreMedico, textFont));
             cellFirma.addElement(new Paragraph("Matrícula: " + matricula, textFont));
             cellFirma.addElement(new Paragraph("Estado de Consulta: " + turno.getEstado(), textFont));
@@ -597,7 +634,7 @@ public class DocumentoPdfServicio {
             document.add(footerTable);
 
             document.add(new Paragraph(" "));
-            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con validez legal. Código de Validación: TURNO-" + turno.getId() + "-" + Integer.toHexString(turno.hashCode()).toUpperCase(), smallFont);
+            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con sello de integridad verificable. Código de Validación: TURNO-" + turno.getId() + "-" + Integer.toHexString(turno.hashCode()).toUpperCase(), smallFont);
             pAviso.setAlignment(Element.ALIGN_CENTER);
             document.add(pAviso);
 

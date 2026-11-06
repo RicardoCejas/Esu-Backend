@@ -89,7 +89,7 @@ class RecetaDigitalServicioTest {
     void testEmitirReceta_Valida() {
         when(profesionalRepositorio.findById(10L)).thenReturn(Optional.of(profesional));
         when(pacienteRepositorio.findById(1L)).thenReturn(Optional.of(paciente));
-        when(pdfServicio.calcularHashSha256(anyString())).thenReturn("hash_sha256_mock");
+        when(pdfServicio.calcularFirmaHmacSha256(anyString())).thenReturn("hash_sha256_mock");
         when(recetaRepositorio.save(any(RecetaDigital.class))).thenAnswer(i -> {
             RecetaDigital r = i.getArgument(0);
             r.setId(100L);
@@ -276,7 +276,7 @@ class RecetaDigitalServicioTest {
         r.setMedicamentos(List.of());
 
         when(recetaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(r));
-        when(pdfServicio.calcularHashSha256(anyString())).thenReturn(hash);
+        when(pdfServicio.calcularFirmaHmacSha256(anyString())).thenReturn(hash);
 
         VerificacionRecetaPublicaDtoResponse resp = recetaServicio.verificarDocumentoPublico(hash);
 

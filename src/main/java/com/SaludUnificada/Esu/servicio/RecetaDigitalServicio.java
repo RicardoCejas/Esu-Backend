@@ -167,7 +167,7 @@ public class RecetaDigitalServicio {
                         .append(item.getCantidad() != null ? item.getCantidad() : "1");
             }
         }
-        return pdfServicio.calcularHashSha256(canonico.toString());
+        return pdfServicio.calcularFirmaHmacSha256(canonico.toString());
     }
 
     @Transactional

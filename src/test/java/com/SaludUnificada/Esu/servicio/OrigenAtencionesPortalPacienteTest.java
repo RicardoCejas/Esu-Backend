@@ -131,7 +131,7 @@ class OrigenAtencionesPortalPacienteTest {
     void emitirReceta_debeRegistrarCentroSaludEmisorYLugarRetiro() {
         when(pacienteRepositorio.findById(1L)).thenReturn(Optional.of(paciente));
         when(profesionalRepositorio.findById(2L)).thenReturn(Optional.of(profesional));
-        when(pdfServicio.calcularHashSha256(any())).thenReturn("hash-sha256-valido-123");
+        when(pdfServicio.calcularFirmaHmacSha256(any())).thenReturn("hash-sha256-valido-123");
         when(recetaRepositorio.save(any(RecetaDigital.class))).thenAnswer(inv -> inv.getArgument(0));
 
         RecetaDigitalDtoRequest request = new RecetaDigitalDtoRequest();
