@@ -164,12 +164,21 @@ public class RefreshTokenServicio {
                 usuario.getTokenVersion()
         );
 
+        var paciente = usuario.getPaciente();
+        var profesional = usuario.getProfesional();
+
         JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
                 .accessToken(nuevoAccessToken)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
+                .pacienteId(paciente != null ? paciente.getId() : null)
+                .profesionalId(profesional != null ? profesional.getId() : null)
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
+                .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
+                .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
+                .dni(paciente != null ? paciente.getDni() : null)
+                .emailVerificado(usuario.getEmailVerificado())
                 .build();
 
         return new RefreshResult(authResponse, nuevoTokenRaw);

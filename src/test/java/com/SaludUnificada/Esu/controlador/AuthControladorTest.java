@@ -6,6 +6,7 @@ import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
+import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
@@ -132,9 +133,18 @@ class AuthControladorTest {
         usuarioGuardado.setRol("PACIENTE");
         usuarioGuardado.setPassword("hashed_password");
 
+        Paciente pacienteGuardado = new Paciente();
+        pacienteGuardado.setId(99L);
+        pacienteGuardado.setNombre("Paciente");
+        pacienteGuardado.setApellido("Registrado");
+        pacienteGuardado.setDni("DNI-20");
+        pacienteGuardado.setNroAfiliado("AF-DNI-20");
+        pacienteGuardado.setUsuario(usuarioGuardado);
+
         when(usuarioRepositorio.existsByEmail("nuevo@esu.com")).thenReturn(false);
         when(passwordEncoder.encode("clave123")).thenReturn("hashed_password");
         when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(usuarioGuardado);
+        when(pacienteRepositorio.save(any(Paciente.class))).thenReturn(pacienteGuardado);
         when(jwtTokenProvider.generarToken(any(Authentication.class))).thenReturn("mocked.jwt.token");
 
         var response = authControlador.registro(request, null);
@@ -143,6 +153,7 @@ class AuthControladorTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(20L, response.getBody().getUsuarioId());
+        assertEquals(99L, response.getBody().getPacienteId());
         assertEquals("nuevo@esu.com", response.getBody().getEmail());
         assertEquals("mocked.jwt.token", response.getBody().getAccessToken());
         assertTrue(Boolean.TRUE.equals(response.getBody().getEmailVerificado()));
@@ -153,7 +164,53 @@ class AuthControladorTest {
         RegistroDtoRequest request = new RegistroDtoRequest("existente@esu.com", "clave123", "PACIENTE");
         when(usuarioRepositorio.existsByEmail("existente@esu.com")).thenReturn(true);
 
-        assertThrows(IllegalArgumentException.class, () -> authControlador.registro(request));
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authControlador.registro(request));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void testRegistroDniDuplicado() {
+        RegistroDtoRequest request = new RegistroDtoRequest();
+        request.setEmail("nuevo@esu.com");
+        request.setPassword("clave123");
+        request.setDni("38123456");
+        when(usuarioRepositorio.existsByEmail("nuevo@esu.com")).thenReturn(false);
+        when(pacienteRepositorio.existsByDni("38123456")).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authControlador.registro(request));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void testObtenerUsuarioActualConIdsDeDominio() {
+        Principal principal = () -> "paciente@esu.com";
+        Usuario usuario = new Usuario();
+        usuario.setId(1L);
+        usuario.setEmail("paciente@esu.com");
+        usuario.setRol("PACIENTE");
+        usuario.setEstadoActivo(true);
+        usuario.setEmailVerificado(true);
+
+        Paciente paciente = new Paciente();
+        paciente.setId(9L);
+        paciente.setNombre("Ana");
+        paciente.setApellido("Perez");
+        paciente.setDni("30111222");
+        usuario.setPaciente(paciente);
+
+        when(usuarioRepositorio.findByEmail("paciente@esu.com")).thenReturn(Optional.of(usuario));
+
+        var response = authControlador.obtenerUsuarioActual(principal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1L, response.getBody().get("usuarioId"));
+        assertEquals(9L, response.getBody().get("pacienteId"));
+        assertNull(response.getBody().get("profesionalId"));
+        assertEquals("Ana", response.getBody().get("nombre"));
+        assertEquals("30111222", response.getBody().get("dni"));
     }
 
     @Test

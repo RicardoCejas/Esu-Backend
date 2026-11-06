@@ -10,6 +10,7 @@ import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
@@ -35,6 +36,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -220,15 +222,18 @@ public class AuthControlador {
         if (paciente == null && usuario.getId() != null) {
             paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
         }
+        Profesional profesional = usuario.getProfesional();
 
         JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
+                .pacienteId(paciente != null ? paciente.getId() : null)
+                .profesionalId(profesional != null ? profesional.getId() : null)
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
-                .nombre(paciente != null ? paciente.getNombre() : null)
-                .apellido(paciente != null ? paciente.getApellido() : null)
+                .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
+                .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
                 .dni(paciente != null ? paciente.getDni() : null)
                 .emailVerificado(usuario.getEmailVerificado())
                 .build();
@@ -334,6 +339,8 @@ public class AuthControlador {
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
+                .pacienteId(pacienteGoogle != null ? pacienteGoogle.getId() : null)
+                .profesionalId(null)
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
                 .nombre(pacienteGoogle != null ? pacienteGoogle.getNombre() : null)
@@ -384,19 +391,28 @@ public class AuthControlador {
     }
 
     @PostMapping({"/registro", "/register"})
+    @Transactional
     public ResponseEntity<JwtAuthDtoResponse> registro(
             @Valid @RequestBody RegistroDtoRequest registroDto,
             HttpServletResponse servletResponse) {
-        if (usuarioRepositorio.existsByEmail(registroDto.getEmail())) {
-            throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
+        String email = registroDto.getEmail() != null
+                ? registroDto.getEmail().trim().toLowerCase()
+                : "";
+        if (usuarioRepositorio.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El email ya se encuentra registrado: " + email);
         }
 
-        String rol = "PACIENTE";
+        String dni = normalizarDni(registroDto.getDni());
+        if (dni != null && pacienteRepositorio.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El DNI ya se encuentra registrado: " + dni);
+        }
 
         Usuario usuario = new Usuario();
-        usuario.setEmail(registroDto.getEmail());
+        usuario.setEmail(email);
         usuario.setPassword(passwordEncoder.encode(registroDto.getPassword()));
-        usuario.setRol(rol);
+        usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
         usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
@@ -405,23 +421,15 @@ public class AuthControlador {
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
-        Paciente nuevoPaciente = null;
-        if (pacienteRepositorio != null) {
-            try {
-                if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
-                    nuevoPaciente = new Paciente();
-                    String nom = (registroDto.getNombre() != null && !registroDto.getNombre().isBlank()) ? registroDto.getNombre().trim() : "Paciente";
-                    String ape = (registroDto.getApellido() != null && !registroDto.getApellido().isBlank()) ? registroDto.getApellido().trim() : "Registrado";
-                    nuevoPaciente.setNombre(nom);
-                    nuevoPaciente.setApellido(ape);
-                    nuevoPaciente.setDni("DNI-" + guardado.getId());
-                    nuevoPaciente.setNroAfiliado("AF-" + guardado.getId());
-                    nuevoPaciente.setUsuario(guardado);
-                    nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
-                }
-            } catch (Exception ignored) {
-            }
-        }
+        Paciente nuevoPaciente = new Paciente();
+        nuevoPaciente.setNombre(textoONulo(registroDto.getNombre(), "Paciente"));
+        nuevoPaciente.setApellido(textoONulo(registroDto.getApellido(), "Registrado"));
+        nuevoPaciente.setDni(dni != null ? dni : "DNI-" + guardado.getId());
+        nuevoPaciente.setNroAfiliado("AF-" + nuevoPaciente.getDni());
+        nuevoPaciente.setTelefono(textoONulo(registroDto.getTelefono(), null));
+        nuevoPaciente.setUsuario(guardado);
+        nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
+        guardado.setPaciente(nuevoPaciente);
 
         String token = null;
         if (jwtTokenProvider != null) {
@@ -441,11 +449,13 @@ public class AuthControlador {
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(guardado.getId())
+                .pacienteId(nuevoPaciente.getId())
+                .profesionalId(null)
                 .email(guardado.getEmail())
                 .rol(guardado.getRol())
-                .nombre(nuevoPaciente != null ? nuevoPaciente.getNombre() : null)
-                .apellido(nuevoPaciente != null ? nuevoPaciente.getApellido() : null)
-                .dni(nuevoPaciente != null ? nuevoPaciente.getDni() : null)
+                .nombre(nuevoPaciente.getNombre())
+                .apellido(nuevoPaciente.getApellido())
+                .dni(nuevoPaciente.getDni())
                 .emailVerificado(true)
                 .build();
 
@@ -589,13 +599,26 @@ public class AuthControlador {
         }
         Usuario usuario = usuarioRepositorio.findByEmail(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
-        return ResponseEntity.ok(Map.of(
-                "id", usuario.getId(),
-                "email", usuario.getEmail(),
-                "rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE",
-                "activo", Boolean.TRUE.equals(usuario.getEstadoActivo()),
-                "verificado", Boolean.TRUE.equals(usuario.getEmailVerificado())
-        ));
+
+        Paciente paciente = usuario.getPaciente();
+        if (paciente == null && usuario.getId() != null) {
+            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+        Profesional profesional = usuario.getProfesional();
+
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("id", usuario.getId());
+        response.put("usuarioId", usuario.getId());
+        response.put("pacienteId", paciente != null ? paciente.getId() : null);
+        response.put("profesionalId", profesional != null ? profesional.getId() : null);
+        response.put("email", usuario.getEmail());
+        response.put("rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE");
+        response.put("nombre", paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null);
+        response.put("apellido", paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null);
+        response.put("dni", paciente != null ? paciente.getDni() : null);
+        response.put("activo", Boolean.TRUE.equals(usuario.getEstadoActivo()));
+        response.put("verificado", Boolean.TRUE.equals(usuario.getEmailVerificado()));
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/validar-token")
@@ -610,5 +633,20 @@ public class AuthControlador {
                 "valido", valido,
                 "username", username != null ? username : ""
         ));
+    }
+
+    private String normalizarDni(String dni) {
+        if (dni == null || dni.isBlank()) {
+            return null;
+        }
+        String limpio = dni.replaceAll("[^0-9a-zA-Z-]", "").trim();
+        return limpio.isEmpty() ? null : limpio;
+    }
+
+    private String textoONulo(String valor, String porDefecto) {
+        if (valor == null || valor.isBlank()) {
+            return porDefecto;
+        }
+        return valor.trim();
     }
 }

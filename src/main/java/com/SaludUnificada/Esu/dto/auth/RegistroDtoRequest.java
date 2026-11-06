@@ -26,6 +26,10 @@ public class RegistroDtoRequest {
 
     private String apellido;
 
+    private String dni;
+
+    private String telefono;
+
     private String rol; // PACIENTE, PROFESIONAL, ADMIN (por defecto PACIENTE)
 
     public RegistroDtoRequest(String email, String password, String rol) {
