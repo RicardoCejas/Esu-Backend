@@ -264,7 +264,11 @@ public class OrganizacionCentrosServiciosTest {
     @DisplayName("Escenario 2: Hospital permite reservar Estudio diagnóstico sin requerir médico de consultorio")
     @WithMockUser(username = "recepcion@esu.gob.ar", roles = {"RECEPCIONISTA"})
     void testHospitalPermiteEstudioDiagnostico() {
-        LocalDateTime fecha = LocalDate.now().plusDays(2).atTime(10, 0);
+        LocalDate fechaBase = LocalDate.now().plusDays(2);
+        while (fechaBase.getDayOfWeek().getValue() > 5) {
+            fechaBase = fechaBase.plusDays(1);
+        }
+        LocalDateTime fecha = fechaBase.atTime(10, 0);
 
         TurnoPublicoDtoRequest request = new TurnoPublicoDtoRequest();
         request.setDni(pacienteTest.getDni());
