@@ -6,11 +6,13 @@ import com.SaludUnificada.Esu.dto.auth.LoginDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.TwoFactorChallengeDtoRequest;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
+import com.SaludUnificada.Esu.seguridad.TotpServicio;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
@@ -20,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -61,6 +64,9 @@ class AuthControladorTest {
     @Mock
     private EmailNotificacionServicio emailNotificacionServicio;
 
+    @Mock
+    private TotpServicio totpServicio;
+
     @InjectMocks
     private AuthControlador authControlador;
 
@@ -78,7 +84,8 @@ class AuthControladorTest {
         when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("medico@esu.com")).thenReturn(false);
         when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-        when(jwtTokenProvider.generarToken(auth)).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generarTokenParaUsuario("medico@esu.com", "PROFESIONAL", 1))
+                .thenReturn("mocked.jwt.token");
 
         var response = authControlador.login(request);
 
@@ -89,6 +96,59 @@ class AuthControladorTest {
         assertEquals("Bearer", response.getBody().getTokenType());
         assertEquals("PROFESIONAL", response.getBody().getRol());
         assertEquals(10L, response.getBody().getUsuarioId());
+    }
+
+    @Test
+    void testLoginCon2FADevuelveDesafioSinAccessToken() {
+        LoginDtoRequest request = new LoginDtoRequest("medico@esu.com", "password123");
+        Authentication auth = mock(Authentication.class);
+        Usuario usuario = new Usuario();
+        usuario.setId(10L);
+        usuario.setEmail("medico@esu.com");
+        usuario.setRol("PROFESIONAL");
+        usuario.setEmailVerificado(true);
+        usuario.setEstadoActivo(true);
+        usuario.setTwoFactorEnabled(true);
+
+        when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("medico@esu.com")).thenReturn(false);
+        when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
+        when(jwtTokenProvider.generarTokenTemporal2FA("medico@esu.com")).thenReturn("temp.2fa.token");
+
+        var response = authControlador.login(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(Boolean.TRUE.equals(response.getBody().getRequires2FA()));
+        assertEquals("temp.2fa.token", response.getBody().getTempToken());
+        assertNull(response.getBody().getAccessToken());
+    }
+
+    @Test
+    void testChallenge2FAConTOTPValidoEmiteSesion() {
+        TwoFactorChallengeDtoRequest request = new TwoFactorChallengeDtoRequest("temp.2fa.token", "123456", false);
+        Usuario usuario = new Usuario();
+        usuario.setId(10L);
+        usuario.setEmail("medico@esu.com");
+        usuario.setRol("PROFESIONAL");
+        usuario.setEstadoActivo(true);
+        usuario.setTwoFactorEnabled(true);
+        usuario.setTwoFactorSecret("JBSWY3DPEHPK3PXP");
+
+        when(jwtTokenProvider.validarToken("temp.2fa.token")).thenReturn(true);
+        when(jwtTokenProvider.esToken2FA("temp.2fa.token")).thenReturn(true);
+        when(jwtTokenProvider.obtenerUsernameDelJwt("temp.2fa.token")).thenReturn("medico@esu.com");
+        when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
+        when(totpServicio.validarCodigo("JBSWY3DPEHPK3PXP", "123456", null)).thenReturn(123L);
+        when(jwtTokenProvider.generarTokenParaUsuario("medico@esu.com", "PROFESIONAL", 1))
+                .thenReturn("access.2fa.token");
+
+        var response = authControlador.challenge2FA(request, new MockHttpServletResponse());
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("access.2fa.token", response.getBody().getAccessToken());
+        assertEquals(123L, usuario.getTwoFactorLastCounter());
     }
 
     @Test
@@ -106,7 +166,8 @@ class AuthControladorTest {
         when(usuarioRepositorio.findByEmail("noverificado@esu.com")).thenReturn(Optional.of(usuario));
         when(usuarioRepositorio.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-        when(jwtTokenProvider.generarToken(auth)).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generarTokenParaUsuario("noverificado@esu.com", "PACIENTE", 1))
+                .thenReturn("mocked.jwt.token");
 
         var response = authControlador.login(request);
         assertNotNull(response);

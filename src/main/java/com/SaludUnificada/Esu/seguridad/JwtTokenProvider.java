@@ -34,6 +34,9 @@ public class JwtTokenProvider {
     @Value("${app.jwt.audience:esu-frontend}")
     private String jwtAudience;
 
+    @Value("${app.jwt.two-factor-expiration-ms:300000}")
+    private long twoFactorExpirationMs;
+
     @Autowired(required = false)
     private UsuarioRepositorio usuarioRepositorio;
 
@@ -74,6 +77,7 @@ public class JwtTokenProvider {
                 .subject(userPrincipal.getUsername())
                 .claim("roles", roles)
                 .claim("tv", tokenVersion)
+                .claim("tipo", "access")
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
@@ -90,6 +94,7 @@ public class JwtTokenProvider {
                 .subject(email)
                 .claim("roles", rol.startsWith("ROLE_") ? rol : "ROLE_" + rol)
                 .claim("tv", tokenVersion != null ? tokenVersion : 1)
+                .claim("tipo", "access")
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
@@ -132,6 +137,43 @@ public class JwtTokenProvider {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public String generarTokenTemporal2FA(String email) {
+        Date ahora = new Date();
+        Date fechaExpiracion = new Date(ahora.getTime() + twoFactorExpirationMs);
+
+        return Jwts.builder()
+                .issuer(jwtIssuer)
+                .audience().add(jwtAudience).and()
+                .subject(email)
+                .claim("tipo", "2fa")
+                .issuedAt(ahora)
+                .expiration(fechaExpiracion)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    public String obtenerTipoDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.get("tipo", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public boolean esTokenDeAcceso(String token) {
+        String tipo = obtenerTipoDelJwt(token);
+        return tipo == null || "access".equals(tipo);
+    }
+
+    public boolean esToken2FA(String token) {
+        return "2fa".equals(obtenerTipoDelJwt(token));
     }
 
     public boolean validarToken(String token) {

@@ -35,7 +35,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = obtenerJwtDeSolicitud(request);
 
-        if (StringUtils.hasText(token) && jwtTokenProvider.validarToken(token)) {
+        if (StringUtils.hasText(token)
+                && jwtTokenProvider.validarToken(token)
+                && jwtTokenProvider.esTokenDeAcceso(token)) {
             try {
                 String username = jwtTokenProvider.obtenerUsernameDelJwt(token);
                 Integer tokenVersionEnJwt = jwtTokenProvider.obtenerTokenVersionDelJwt(token);

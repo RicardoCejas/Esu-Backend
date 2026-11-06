@@ -24,4 +24,7 @@ public class JwtAuthDtoResponse {
     private String apellido;
     private String dni;
     private Boolean emailVerificado;
+    private Boolean twoFactorEnabled;
+    private Boolean requires2FA;
+    private String tempToken;
 }
