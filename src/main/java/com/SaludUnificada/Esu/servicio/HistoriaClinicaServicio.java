@@ -94,7 +94,13 @@ public class HistoriaClinicaServicio implements IHistoriaClinicaServicio {
             throw new AccessDeniedException("Debe autenticarse para crear una historia clínica.");
         }
 
-        HistoriaClinica historiaClinica = historiaClinicaMapper.paraEntidad(dto);
+        HistoriaClinica historiaClinica = historiaClinicaRepositorio
+                .findFirstByPacienteIdOrderByFechaAtencionDesc(dto.getPacienteId())
+                .orElseGet(() -> historiaClinicaMapper.paraEntidad(dto));
+        historiaClinica.setDiagnostico(dto.getDiagnostico());
+        historiaClinica.setMotivoConsulta(dto.getMotivoConsulta());
+        historiaClinica.setTratamiento(dto.getTratamiento());
+        historiaClinica.setFechaAtencion(LocalDateTime.now());
         HistoriaClinica guardada = historiaClinicaRepositorio.save(historiaClinica);
         return historiaClinicaMapper.paraDto(guardada);
     }
