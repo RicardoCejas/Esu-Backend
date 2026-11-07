@@ -588,26 +588,46 @@ public class EvolucionMedicaServicio {
             return respuesta;
         }
 
-        EvolucionMedica evolucion = evolucionRepositorio.findByHashIntegridad(hash.trim()).orElse(null);
-        if (evolucion == null) {
-            respuesta.put("valido", false);
-            respuesta.put("integridadValida", false);
-            respuesta.put("mensaje", "No se encontro una evolucion clinica asociada al codigo.");
+        String hashLimpio = hash.trim();
+        EvolucionMedica evolucion = evolucionRepositorio.findByHashIntegridad(hashLimpio).orElse(null);
+        if (evolucion != null) {
+            boolean integridadValida = pdfServicio.verificarFirmaHmacSha256(
+                    payloadFirmaEvolucion(evolucion), evolucion.getHashIntegridad());
+            respuesta.put("valido", integridadValida);
+            respuesta.put("integridadValida", integridadValida);
+            respuesta.put("tipoDocumento", "EVOLUCION_MEDICA");
+            respuesta.put("fechaFirma", evolucion.getFechaFirma());
+            respuesta.put("matriculaProfesional", evolucion.getProfesional() != null
+                    ? evolucion.getProfesional().getMatricula() : null);
+            respuesta.put("hashIntegridad", evolucion.getHashIntegridad());
+            respuesta.put("mensaje", integridadValida
+                    ? "Evolucion clinica validada con sello de integridad HMAC-SHA256."
+                    : "La firma de integridad no coincide: el documento pudo haber sido alterado.");
             return respuesta;
         }
 
-        boolean integridadValida = pdfServicio.verificarFirmaHmacSha256(
-                payloadFirmaEvolucion(evolucion), evolucion.getHashIntegridad());
-        respuesta.put("valido", integridadValida);
-        respuesta.put("integridadValida", integridadValida);
-        respuesta.put("tipoDocumento", "EVOLUCION_MEDICA");
-        respuesta.put("fechaFirma", evolucion.getFechaFirma());
-        respuesta.put("matriculaProfesional", evolucion.getProfesional() != null
-                ? evolucion.getProfesional().getMatricula() : null);
-        respuesta.put("hashIntegridad", evolucion.getHashIntegridad());
-        respuesta.put("mensaje", integridadValida
-                ? "Evolucion clinica validada con sello de integridad HMAC-SHA256."
-                : "La firma de integridad no coincide: el documento pudo haber sido alterado.");
+        if (adendaRepositorio != null) {
+            EvolucionAdenda adenda = adendaRepositorio.findByHashIntegridad(hashLimpio).orElse(null);
+            if (adenda != null) {
+                boolean integridadValida = pdfServicio.verificarFirmaHmacSha256(
+                        payloadFirmaAdenda(adenda), adenda.getHashIntegridad());
+                respuesta.put("valido", integridadValida);
+                respuesta.put("integridadValida", integridadValida);
+                respuesta.put("tipoDocumento", "EVOLUCION_ADENDA");
+                respuesta.put("fechaFirma", adenda.getFechaFirma());
+                respuesta.put("matriculaProfesional", adenda.getProfesional() != null
+                        ? adenda.getProfesional().getMatricula() : null);
+                respuesta.put("hashIntegridad", adenda.getHashIntegridad());
+                respuesta.put("mensaje", integridadValida
+                        ? "Adenda clinica validada con sello de integridad HMAC-SHA256."
+                        : "La firma de integridad no coincide: la adenda pudo haber sido alterada.");
+                return respuesta;
+            }
+        }
+
+        respuesta.put("valido", false);
+        respuesta.put("integridadValida", false);
+        respuesta.put("mensaje", "No se encontro ningun documento clinico asociado al codigo.");
         return respuesta;
     }
 

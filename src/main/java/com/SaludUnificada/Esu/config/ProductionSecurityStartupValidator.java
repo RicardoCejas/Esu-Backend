@@ -20,6 +20,9 @@ public class ProductionSecurityStartupValidator {
     @Value("${app.jwt.secret:}")
     private String jwtSecret;
 
+    @Value("${app.documentos.firma-secret:}")
+    private String documentosFirmaSecret;
+
     @Value("${spring.datasource.username:}")
     private String datasourceUsername;
 
@@ -82,6 +85,16 @@ public class ProductionSecurityStartupValidator {
             if (jwtLower.contains("miclavesecreta") || jwtLower.contains("defaultsecret") || jwtLower.contains("123456")
                     || jwtLower.contains("cambiar") || jwtLower.contains("definir") || jwtLower.contains("placeholder") || jwtLower.contains("ejemplo")) {
                 throw new IllegalStateException("FATAL: 'APP_JWT_SECRET' no puede contener valores predeterminados, placeholders ni contraseñas de ejemplo en producción.");
+            }
+
+            // 1.1 Validar secreto de firma e integridad documental
+            if (documentosFirmaSecret == null || documentosFirmaSecret.trim().isEmpty() || documentosFirmaSecret.length() < 32) {
+                throw new IllegalStateException("FATAL: En entorno de producción se requiere definir 'APP_DOCUMENTOS_FIRMA_SECRET' ('app.documentos.firma-secret') con una clave de al menos 32 caracteres (256 bits).");
+            }
+            String firmaSecretLower = documentosFirmaSecret.toLowerCase();
+            if (firmaSecretLower.contains("miclavesecreta") || firmaSecretLower.contains("defaultsecret") || firmaSecretLower.contains("123456")
+                    || firmaSecretLower.contains("cambiar") || firmaSecretLower.contains("definir") || firmaSecretLower.contains("placeholder") || firmaSecretLower.contains("ejemplo")) {
+                throw new IllegalStateException("FATAL: 'APP_DOCUMENTOS_FIRMA_SECRET' no puede contener valores predeterminados ni placeholders en producción.");
             }
 
             // 2. Validar que la base de datos no use usuario 'root' ni contraseña vacía o placeholder

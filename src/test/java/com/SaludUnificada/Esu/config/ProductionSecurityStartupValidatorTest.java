@@ -61,6 +61,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "root");
 
         assertThrows(IllegalStateException.class, validator::validateConfiguration);
@@ -72,6 +73,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "CAMBIAR_EN_PRODUCCION_PASSWORD_MYSQL_ESU_APP");
 
@@ -84,6 +86,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "http://localhost:5173");
@@ -97,6 +100,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -111,6 +115,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -127,6 +132,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -145,6 +151,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -163,6 +170,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -183,6 +191,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "flywayEnabled", false);
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -202,6 +211,7 @@ class ProductionSecurityStartupValidatorTest {
         ReflectionTestUtils.setField(validator, "flywayEnabled", true);
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "update");
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -219,6 +229,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
         ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "secreto-firma-documental-de-alta-entropia-256bits!");
         ReflectionTestUtils.setField(validator, "datasourceUsername", "esu_app");
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretDB_889922!");
         ReflectionTestUtils.setField(validator, "allowedOrigins", "https://salud.cruzdeleje.gob.ar");
@@ -229,5 +240,15 @@ class ProductionSecurityStartupValidatorTest {
 
         assertDoesNotThrow(validator::validateConfiguration);
     }
-}
 
+    @Test
+    void testValidateConfiguration_ProdConFirmaSecretPlaceholder_Falla() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+
+        ProductionSecurityStartupValidator validator = new ProductionSecurityStartupValidator(environment);
+        ReflectionTestUtils.setField(validator, "jwtSecret", "un-token-criptografico-de-alta-entropia-random-12345aB!");
+        ReflectionTestUtils.setField(validator, "documentosFirmaSecret", "CAMBIAR_EN_PRODUCCION_FIRMA_SECRET_MINIMO_32");
+
+        assertThrows(IllegalStateException.class, validator::validateConfiguration);
+    }
+}

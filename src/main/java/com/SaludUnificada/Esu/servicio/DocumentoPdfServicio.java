@@ -360,7 +360,7 @@ public class DocumentoPdfServicio {
             PdfWriter writer = PdfWriter.getInstance(document, out);
 
             // Hash provisional para el foliado
-            String hashDoc = calcularHashSha256("EXPEDIENTE|" + paciente.getDni() + "|" + System.currentTimeMillis());
+            String hashDoc = calcularFirmaHmacSha256("EXPEDIENTE|" + paciente.getId() + "|" + paciente.getDni() + "|" + (urlVerificacion != null ? urlVerificacion : ""));
             FoliadoPageEventHelper foliadoHelper = new FoliadoPageEventHelper(hashDoc);
             writer.setPageEvent(foliadoHelper);
 
@@ -634,7 +634,13 @@ public class DocumentoPdfServicio {
             document.add(footerTable);
 
             document.add(new Paragraph(" "));
-            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con sello de integridad verificable. Código de Validación: TURNO-" + turno.getId() + "-" + Integer.toHexString(turno.hashCode()).toUpperCase(), smallFont);
+            String payloadTurno = "TURNO|" + turno.getId() + "|"
+                    + (turno.getPaciente() != null ? turno.getPaciente().getDni() : "") + "|"
+                    + (turno.getProfesional() != null ? turno.getProfesional().getMatricula() : "") + "|"
+                    + (turno.getFechaHora() != null ? turno.getFechaHora().toString() : "") + "|"
+                    + (turno.getEstado() != null ? turno.getEstado() : "");
+            String hashTurno = calcularFirmaHmacSha256(payloadTurno);
+            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con sello de integridad verificable. Código de Verificación: TURNO-" + turno.getId() + "-" + hashTurno.substring(0, 16).toUpperCase(), smallFont);
             pAviso.setAlignment(Element.ALIGN_CENTER);
             document.add(pAviso);
 

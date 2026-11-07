@@ -100,7 +100,7 @@ public class RecetaControlador {
         return new ResponseEntity<>(stream, headers, HttpStatus.OK);
     }
 
-    @GetMapping("/public/verificar/{hash}")
+    @GetMapping("/recetas/public/verificar/{hash}")
     @Operation(summary = "Endpoint publico para verificar autenticidad e integridad mediante QR o Hash")
     public ResponseEntity<VerificacionRecetaPublicaDtoResponse> verificarDocumentoPublico(@PathVariable String hash) {
         return ResponseEntity.ok(recetaServicio.verificarDocumentoPublico(hash));

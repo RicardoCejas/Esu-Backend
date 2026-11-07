@@ -5,6 +5,8 @@ import com.SaludUnificada.Esu.dto.request.EvolucionMedicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse;
 import com.SaludUnificada.Esu.entidad.ConsultaBorrador;
 import com.SaludUnificada.Esu.entidad.EvolucionMedica;
+import com.SaludUnificada.Esu.entidad.EvolucionAdenda;
+import com.SaludUnificada.Esu.repositorio.EvolucionAdendaRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -65,6 +67,9 @@ class EvolucionMedicaServicioTest {
 
     @Mock
     private HistoriaClinicaRepositorio historiaClinicaRepositorio;
+
+    @Mock
+    private EvolucionAdendaRepositorio adendaRepositorio;
 
     @InjectMocks
     private EvolucionMedicaServicio evolucionMedicaServicio;
@@ -343,5 +348,103 @@ class EvolucionMedicaServicioTest {
         assertEquals(pac, resultado.getHistoriaClinica().getPaciente());
         assertEquals("Otitis media", resultado.getHistoriaClinica().getDiagnostico());
         verify(historiaClinicaRepositorio, atLeastOnce()).save(any(HistoriaClinica.class));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_EvolucionValida_RetornaValido() {
+        String hash = "hash_evolucion_valida_123456";
+        EvolucionMedica ev = new EvolucionMedica();
+        ev.setId(10L);
+        ev.setHashIntegridad(hash);
+        Profesional prof = new Profesional();
+        prof.setMatricula("MP-9988");
+        ev.setProfesional(prof);
+
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(ev));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(true);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertTrue((Boolean) resp.get("valido"));
+        assertTrue((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_MEDICA", resp.get("tipoDocumento"));
+        assertEquals("MP-9988", resp.get("matriculaProfesional"));
+        assertTrue(((String) resp.get("mensaje")).contains("validada"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_EvolucionAlterada_FallaIntegridad() {
+        String hash = "hash_evolucion_alterada_123456";
+        EvolucionMedica ev = new EvolucionMedica();
+        ev.setId(10L);
+        ev.setHashIntegridad(hash);
+
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(ev));
+        // Simulamos que la firma no coincide con el contenido actual
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(false);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_MEDICA", resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("alterado"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_AdendaValida_RetornaValido() {
+        String hash = "hash_adenda_valida_789";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        EvolucionAdenda adenda = new EvolucionAdenda();
+        adenda.setId(5L);
+        adenda.setHashIntegridad(hash);
+        Profesional prof = new Profesional();
+        prof.setMatricula("MP-5544");
+        adenda.setProfesional(prof);
+
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(adenda));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(true);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertTrue((Boolean) resp.get("valido"));
+        assertTrue((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_ADENDA", resp.get("tipoDocumento"));
+        assertEquals("MP-5544", resp.get("matriculaProfesional"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_AdendaAlterada_FallaIntegridad() {
+        String hash = "hash_adenda_alterada_789";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        EvolucionAdenda adenda = new EvolucionAdenda();
+        adenda.setId(5L);
+        adenda.setHashIntegridad(hash);
+
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(adenda));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(false);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_ADENDA", resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("alterada"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_HashInexistente_RetornaRespuestaSegura() {
+        String hash = "hash_completamente_inexistente";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertNull(resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("No se encontro ningun documento"));
     }
 }
