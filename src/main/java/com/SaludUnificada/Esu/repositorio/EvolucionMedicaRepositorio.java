@@ -14,6 +14,7 @@ import java.util.Optional;
 @Repository
 public interface EvolucionMedicaRepositorio extends JpaRepository<EvolucionMedica, Long>, JpaSpecificationExecutor<EvolucionMedica> {
     List<EvolucionMedica> findByPacienteIdOrderByFechaCreacionDesc(Long pacienteId);
+    long countByPacienteId(Long pacienteId);
     Optional<EvolucionMedica> findByTurnoId(Long turnoId);
     Optional<EvolucionMedica> findByHashIntegridad(String hashIntegridad);
 

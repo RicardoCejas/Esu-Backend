@@ -123,6 +123,10 @@ public class EvolucionMedicaServicio {
         evolucion.setPaciente(paciente);
         evolucion.setProfesional(profesional);
         evolucion.setTurno(turno);
+        if (turno != null) {
+            evolucion.setCentroSaludId(turno.getCentroSaludId());
+            evolucion.setCentroSaludNombre(turno.getCentroSaludNombre());
+        }
         evolucion.setMotivoConsulta(request.getMotivoConsulta());
         evolucion.setAnamnesis(request.getAnamnesis());
         evolucion.setExamenFisico(request.getExamenFisico());
@@ -137,6 +141,37 @@ public class EvolucionMedicaServicio {
         evolucion.setPeso(request.getPeso());
         evolucion.setTalla(request.getTalla());
         evolucion.setImc(request.getImc());
+
+        final Turno turnoFinal = turno;
+        HistoriaClinica historiaClinica = historiaClinicaRepositorio
+                .findFirstByPacienteIdOrderByFechaAtencionDesc(paciente.getId())
+                .orElseGet(() -> {
+                    HistoriaClinica nuevaHc = new HistoriaClinica();
+                    nuevaHc.setPaciente(paciente);
+                    nuevaHc.setProfesional(profesional);
+                    if (turnoFinal != null) {
+                        nuevaHc.setCentroSaludId(turnoFinal.getCentroSaludId());
+                        nuevaHc.setCentroSaludNombre(turnoFinal.getCentroSaludNombre());
+                    }
+                    nuevaHc.setFechaAtencion(LocalDateTime.now());
+                    nuevaHc.setMotivoConsulta(request.getMotivoConsulta());
+                    nuevaHc.setDiagnostico(request.getDiagnostico());
+                    nuevaHc.setTratamiento(request.getTratamiento());
+                    return historiaClinicaRepositorio.save(nuevaHc);
+                });
+
+        historiaClinica.setFechaAtencion(LocalDateTime.now());
+        if (request.getDiagnostico() != null && !request.getDiagnostico().isBlank()) {
+            historiaClinica.setDiagnostico(request.getDiagnostico());
+        }
+        if (request.getTratamiento() != null && !request.getTratamiento().isBlank()) {
+            historiaClinica.setTratamiento(request.getTratamiento());
+        }
+        if (request.getMotivoConsulta() != null && !request.getMotivoConsulta().isBlank()) {
+            historiaClinica.setMotivoConsulta(request.getMotivoConsulta());
+        }
+        historiaClinica = historiaClinicaRepositorio.save(historiaClinica);
+        evolucion.setHistoriaClinica(historiaClinica);
 
         if (Boolean.TRUE.equals(request.getFirmar())) {
             evolucion.setFirmada(true);

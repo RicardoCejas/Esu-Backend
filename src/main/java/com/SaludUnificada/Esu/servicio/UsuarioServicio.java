@@ -11,10 +11,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.SaludUnificada.Esu.repositorio.RefreshTokenRepositorio;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
+import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
+import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
+import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
+import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Optional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class UsuarioServicio implements IUsuarioServicio {
 
@@ -29,6 +38,18 @@ public class UsuarioServicio implements IUsuarioServicio {
 
     @Autowired(required = false)
     private RefreshTokenRepositorio refreshTokenRepositorio;
+
+    @Autowired(required = false)
+    private PacienteRepositorio pacienteRepositorio;
+
+    @Autowired(required = false)
+    private HistoriaClinicaRepositorio historiaClinicaRepositorio;
+
+    @Autowired(required = false)
+    private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
+
+    @Autowired(required = false)
+    private RecetaDigitalRepositorio recetaDigitalRepositorio;
 
     @Override
     public UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuarioDto) {
@@ -55,12 +76,29 @@ public class UsuarioServicio implements IUsuarioServicio {
     }
 
     @Override
+    @Transactional
     public void eliminarUsuario(Long id) {
-        if (usuarioRepositorio.existsById(id)) {
-            usuarioRepositorio.deleteById(id);
-        } else {
-            throw new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id);
+        Usuario usuario = usuarioRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Usuario no encontrado con ID: " + id));
+
+        if (pacienteRepositorio != null) {
+            Optional<Paciente> pacienteOpt = pacienteRepositorio.findByUsuarioId(id);
+            if (pacienteOpt.isPresent()) {
+                Long pacId = pacienteOpt.get().getId();
+                boolean tieneDatosClinicos = (historiaClinicaRepositorio != null && historiaClinicaRepositorio.countByPacienteId(pacId) > 0)
+                        || (evolucionMedicaRepositorio != null && evolucionMedicaRepositorio.countByPacienteId(pacId) > 0)
+                        || (recetaDigitalRepositorio != null && recetaDigitalRepositorio.countByPacienteId(pacId) > 0);
+                if (tieneDatosClinicos) {
+                    log.warn("Bloqueando eliminación física de Usuario ID={} vinculado a Paciente ID={} con registros clínicos protegidos por Ley 26.529. Aplicando baja lógica.", id, pacId);
+                    usuario.setEstadoActivo(false);
+                    usuario.revocarSesiones();
+                    usuarioRepositorio.save(usuario);
+                    throw new ReglaNegocioException("Por disposición de la Ley 26.529 de Derechos del Paciente, no es posible eliminar físicamente un usuario con registros clínicos asociados. La cuenta ha sido inhabilitada lógicamente.");
+                }
+            }
         }
+
+        usuarioRepositorio.delete(usuario);
     }
 
     @Override

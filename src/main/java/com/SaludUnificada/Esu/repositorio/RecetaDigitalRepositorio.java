@@ -18,6 +18,7 @@ import java.util.Optional;
 public interface RecetaDigitalRepositorio extends JpaRepository<RecetaDigital, Long> {
 
     List<RecetaDigital> findByPacienteIdOrderByFechaEmisionDesc(Long pacienteId);
+    long countByPacienteId(Long pacienteId);
 
     List<RecetaDigital> findByPacienteUsuarioEmailOrderByFechaEmisionDesc(String email);
 

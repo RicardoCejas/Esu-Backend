@@ -12,6 +12,8 @@ import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.ConsultaBorradorRepositorio;
 import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
+import com.SaludUnificada.Esu.entidad.HistoriaClinica;
+import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
@@ -60,6 +62,9 @@ class EvolucionMedicaServicioTest {
 
     @Mock
     private RecetaDigitalServicio recetaServicio;
+
+    @Mock
+    private HistoriaClinicaRepositorio historiaClinicaRepositorio;
 
     @InjectMocks
     private EvolucionMedicaServicio evolucionMedicaServicio;
@@ -278,6 +283,11 @@ class EvolucionMedicaServicioTest {
         when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(prof1));
         when(profesionalRepositorio.findByUsuarioEmail("medico1@esu.com")).thenReturn(Optional.of(prof1));
 
+        HistoriaClinica hcExistente = new HistoriaClinica();
+        hcExistente.setId(77L);
+        hcExistente.setPaciente(pac);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(10L)).thenReturn(Optional.of(hcExistente));
+        when(historiaClinicaRepositorio.save(any(HistoriaClinica.class))).thenAnswer(inv -> inv.getArgument(0));
         when(ownershipSecurityEvaluator.canAccessPatient(10L)).thenReturn(true);
         when(evolucionRepositorio.save(any(EvolucionMedica.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -285,6 +295,53 @@ class EvolucionMedicaServicioTest {
 
         assertNotNull(resultado);
         assertEquals("Rinitis alérgica", resultado.getDiagnostico());
+        assertNotNull(resultado.getHistoriaClinica());
+        assertEquals(77L, resultado.getHistoriaClinica().getId());
         verify(evolucionRepositorio).save(any(EvolucionMedica.class));
+        verify(historiaClinicaRepositorio).save(hcExistente);
+    }
+
+    @Test
+    void testRegistrarEvolucion_CreaHCUnicaSiNoExiste() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("medico1@esu.com", "pass", List.of(new SimpleGrantedAuthority("ROLE_MEDICO")))
+        );
+
+        EvolucionMedicaDtoRequest req = new EvolucionMedicaDtoRequest();
+        req.setPacienteId(10L);
+        req.setProfesionalId(1L);
+        req.setDiagnostico("Otitis media");
+        req.setMotivoConsulta("Dolor de oido");
+
+        Paciente pac = new Paciente();
+        pac.setId(10L);
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(pac));
+
+        Profesional prof1 = new Profesional();
+        prof1.setId(1L);
+        prof1.setEstadoActivo(true);
+        Usuario u1 = new Usuario();
+        u1.setEmail("medico1@esu.com");
+        prof1.setUsuario(u1);
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(prof1));
+        when(profesionalRepositorio.findByUsuarioEmail("medico1@esu.com")).thenReturn(Optional.of(prof1));
+
+        when(ownershipSecurityEvaluator.canAccessPatient(10L)).thenReturn(true);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(10L)).thenReturn(Optional.empty());
+        when(historiaClinicaRepositorio.save(any(HistoriaClinica.class))).thenAnswer(inv -> {
+            HistoriaClinica hc = inv.getArgument(0);
+            if (hc.getId() == null) hc.setId(88L);
+            return hc;
+        });
+        when(evolucionRepositorio.save(any(EvolucionMedica.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EvolucionMedica resultado = evolucionMedicaServicio.registrarEvolucion(req);
+
+        assertNotNull(resultado);
+        assertNotNull(resultado.getHistoriaClinica());
+        assertEquals(88L, resultado.getHistoriaClinica().getId());
+        assertEquals(pac, resultado.getHistoriaClinica().getPaciente());
+        assertEquals("Otitis media", resultado.getHistoriaClinica().getDiagnostico());
+        verify(historiaClinicaRepositorio, atLeastOnce()).save(any(HistoriaClinica.class));
     }
 }
