@@ -16,6 +16,7 @@ import com.SaludUnificada.Esu.seguridad.TotpServicio;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
+import com.SaludUnificada.Esu.servicio.RefreshTokenServicio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -67,8 +68,28 @@ class AuthControladorTest {
     @Mock
     private TotpServicio totpServicio;
 
+    @Mock
+    private RefreshTokenServicio refreshTokenServicio;
+
+    @Mock
+    private com.SaludUnificada.Esu.servicio.RevokedTokenService revokedTokenService;
+
+    @Mock
+    private com.SaludUnificada.Esu.servicio.TwoFactorTempTokenServicio twoFactorTempTokenServicio;
+
+    @Mock
+    private com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter;
+
     @InjectMocks
     private AuthControlador authControlador;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        authControlador.setRefreshTokenServicio(refreshTokenServicio);
+        authControlador.setRevokedTokenService(revokedTokenService);
+        authControlador.setTwoFactorTempTokenServicio(twoFactorTempTokenServicio);
+        authControlador.setTwoFactorRateLimiter(twoFactorRateLimiter);
+    }
 
     @Test
     void testLoginExitoso() {
@@ -113,7 +134,7 @@ class AuthControladorTest {
         when(auditoriaSeguridadServicio.estaBloqueadoPorIntentosFallidos("medico@esu.com")).thenReturn(false);
         when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-        when(jwtTokenProvider.generarTokenTemporal2FA("medico@esu.com")).thenReturn("temp.2fa.token");
+        when(twoFactorTempTokenServicio.generarYRegistrarTokenTemporal(usuario)).thenReturn("temp.2fa.token");
 
         var response = authControlador.login(request);
 
@@ -138,6 +159,9 @@ class AuthControladorTest {
         when(jwtTokenProvider.validarToken("temp.2fa.token")).thenReturn(true);
         when(jwtTokenProvider.esToken2FA("temp.2fa.token")).thenReturn(true);
         when(jwtTokenProvider.obtenerUsernameDelJwt("temp.2fa.token")).thenReturn("medico@esu.com");
+        when(jwtTokenProvider.obtenerJtiDelJwt("temp.2fa.token")).thenReturn("jti-123");
+        when(twoFactorTempTokenServicio.estaDisponible("jti-123")).thenReturn(true);
+        when(twoFactorTempTokenServicio.consumirToken("jti-123")).thenReturn(true);
         when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
         when(totpServicio.validarCodigo("JBSWY3DPEHPK3PXP", "123456", null)).thenReturn(123L);
         when(jwtTokenProvider.generarTokenParaUsuario("medico@esu.com", "PROFESIONAL", 1))
@@ -365,5 +389,87 @@ class AuthControladorTest {
 
         CambiarPasswordDtoRequest req = new CambiarPasswordDtoRequest("Erronea123!", "NuevaClaveSuper456!");
         assertThrows(ResponseStatusException.class, () -> authControlador.cambiarPassword(principal, req));
+    }
+
+    @Test
+    void testLogout_revocaCookieYBodyYAccessToken() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        String cookieRt = "cookie-refresh-token-123";
+        com.SaludUnificada.Esu.dto.auth.RefreshTokenDtoRequest body = new com.SaludUnificada.Esu.dto.auth.RefreshTokenDtoRequest();
+        body.setRefreshToken("body-refresh-token-456");
+        String authHeader = "Bearer access.jwt.token.789";
+
+        when(jwtTokenProvider.validarToken("access.jwt.token.789")).thenReturn(true);
+        when(jwtTokenProvider.obtenerJtiDelJwt("access.jwt.token.789")).thenReturn("jti-access-789");
+        when(jwtTokenProvider.obtenerFechaExpiracionDelJwt("access.jwt.token.789")).thenReturn(new java.util.Date(System.currentTimeMillis() + 3600000));
+
+        var res = authControlador.logout(cookieRt, body, authHeader, response);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertNotNull(res.getBody());
+        assertEquals("Sesión cerrada correctamente.", res.getBody().get("mensaje"));
+
+        verify(refreshTokenServicio).revocarToken(cookieRt);
+        verify(refreshTokenServicio).revocarToken("body-refresh-token-456");
+        verify(revokedTokenService).revocarToken(eq("jti-access-789"), any(java.time.LocalDateTime.class), eq("LOGOUT"));
+        assertTrue(response.getHeader("Set-Cookie").contains("esu_refresh_token="));
+        assertTrue(response.getHeader("Set-Cookie").contains("Max-Age=0"));
+    }
+
+    @Test
+    void testChallenge2FA_tempTokenYaConsumido_rechazaConBadCredentials() {
+        TwoFactorChallengeDtoRequest request = new TwoFactorChallengeDtoRequest("used.temp.2fa.token", "123456", false);
+
+        when(jwtTokenProvider.validarToken("used.temp.2fa.token")).thenReturn(true);
+        when(jwtTokenProvider.esToken2FA("used.temp.2fa.token")).thenReturn(true);
+        when(jwtTokenProvider.obtenerJtiDelJwt("used.temp.2fa.token")).thenReturn("jti-consumed-999");
+        when(twoFactorTempTokenServicio.estaDisponible("jti-consumed-999")).thenReturn(false);
+
+        org.springframework.security.authentication.BadCredentialsException ex =
+                assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+                        () -> authControlador.challenge2FA(request, new MockHttpServletResponse()));
+
+        assertTrue(ex.getMessage().contains("ya fue utilizado"));
+    }
+
+    @Test
+    void testChallenge2FA_consumoAtomicoFallaReuso_rechazaConBadCredentials() {
+        TwoFactorChallengeDtoRequest request = new TwoFactorChallengeDtoRequest("temp.token", "123456", false);
+        Usuario usuario = new Usuario();
+        usuario.setId(10L);
+        usuario.setEmail("medico@esu.com");
+        usuario.setRol("PROFESIONAL");
+        usuario.setEstadoActivo(true);
+        usuario.setTwoFactorEnabled(true);
+        usuario.setTwoFactorSecret("JBSWY3DPEHPK3PXP");
+
+        when(jwtTokenProvider.validarToken("temp.token")).thenReturn(true);
+        when(jwtTokenProvider.esToken2FA("temp.token")).thenReturn(true);
+        when(jwtTokenProvider.obtenerUsernameDelJwt("temp.token")).thenReturn("medico@esu.com");
+        when(jwtTokenProvider.obtenerJtiDelJwt("temp.token")).thenReturn("jti-race");
+        when(twoFactorTempTokenServicio.estaDisponible("jti-race")).thenReturn(true);
+        when(usuarioRepositorio.findByEmail("medico@esu.com")).thenReturn(Optional.of(usuario));
+        when(totpServicio.validarCodigo("JBSWY3DPEHPK3PXP", "123456", null)).thenReturn(123L);
+        // Simular que otra petición concurrente consumió el token milisegundos antes
+        when(twoFactorTempTokenServicio.consumirToken("jti-race")).thenReturn(false);
+
+        org.springframework.security.authentication.BadCredentialsException ex =
+                assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+                        () -> authControlador.challenge2FA(request, new MockHttpServletResponse()));
+
+        assertTrue(ex.getMessage().contains("ya fue utilizado"));
+    }
+
+    @Test
+    void testChallenge2FA_rateLimitExcedido_retorna429() {
+        TwoFactorChallengeDtoRequest request = new TwoFactorChallengeDtoRequest("temp.token", "123456", false);
+        jakarta.servlet.http.HttpServletRequest httpRequest = mock(jakarta.servlet.http.HttpServletRequest.class);
+
+        when(twoFactorRateLimiter.permitirChallenge(eq(httpRequest), any())).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authControlador.challenge2FA(request, httpRequest, new MockHttpServletResponse()));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
     }
 }

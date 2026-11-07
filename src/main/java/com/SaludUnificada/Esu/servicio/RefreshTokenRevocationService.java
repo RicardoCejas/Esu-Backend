@@ -15,6 +15,18 @@ public class RefreshTokenRevocationService {
     private final RefreshTokenRepositorio refreshTokenRepositorio;
 
     /**
+     * Ejecuta la revocación de la familia comprometida en una transacción independiente (REQUIRES_NEW)
+     * para garantizar que persista en la base de datos incluso cuando la petición rechaza el token
+     * lanzando una BadCredentialsException en la transacción principal.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void revocarFamiliaPorCompromiso(String tokenFamilyId) {
+        if (tokenFamilyId == null || tokenFamilyId.isBlank()) return;
+        log.warn("Persistiendo revocación preventiva de familia de refresh tokens comprometida familyId={} (transacción independiente REQUIRES_NEW)", tokenFamilyId);
+        refreshTokenRepositorio.revocarPorTokenFamilyId(tokenFamilyId);
+    }
+
+    /**
      * Ejecuta la revocación de todas las sesiones activas en una transacción independiente (REQUIRES_NEW)
      * para garantizar que persista en la base de datos incluso cuando la petición rechaza el token
      * lanzando una BadCredentialsException en la transacción principal.

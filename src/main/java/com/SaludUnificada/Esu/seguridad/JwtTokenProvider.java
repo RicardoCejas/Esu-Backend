@@ -16,6 +16,7 @@ import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -74,6 +75,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
+                .id(UUID.randomUUID().toString())
                 .subject(userPrincipal.getUsername())
                 .claim("roles", roles)
                 .claim("tv", tokenVersion)
@@ -91,6 +93,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
+                .id(UUID.randomUUID().toString())
                 .subject(email)
                 .claim("roles", rol.startsWith("ROLE_") ? rol : "ROLE_" + rol)
                 .claim("tv", tokenVersion != null ? tokenVersion : 1)
@@ -121,6 +124,32 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    public String obtenerJtiDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.getId();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public Date obtenerFechaExpiracionDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.getExpiration();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public Integer obtenerTokenVersionDelJwt(String token) {
         try {
             Claims claims = Jwts.parser()
@@ -139,19 +168,24 @@ public class JwtTokenProvider {
         }
     }
 
-    public String generarTokenTemporal2FA(String email) {
+    public String generarTokenTemporal2FA(String email, String jti) {
         Date ahora = new Date();
         Date fechaExpiracion = new Date(ahora.getTime() + twoFactorExpirationMs);
 
         return Jwts.builder()
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
+                .id(jti != null ? jti : UUID.randomUUID().toString())
                 .subject(email)
                 .claim("tipo", "2fa")
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
                 .compact();
+    }
+
+    public String generarTokenTemporal2FA(String email) {
+        return generarTokenTemporal2FA(email, UUID.randomUUID().toString());
     }
 
     public String obtenerTipoDelJwt(String token) {

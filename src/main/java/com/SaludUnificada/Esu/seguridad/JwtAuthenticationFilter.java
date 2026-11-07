@@ -2,12 +2,14 @@ package com.SaludUnificada.Esu.seguridad;
 
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
+import com.SaludUnificada.Esu.servicio.RevokedTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,6 +30,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final CustomUserDetailsService customUserDetailsService;
     private final UsuarioRepositorio usuarioRepositorio;
 
+    @Autowired(required = false)
+    private RevokedTokenService revokedTokenService;
+
+    public void setRevokedTokenService(RevokedTokenService revokedTokenService) {
+        this.revokedTokenService = revokedTokenService;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -39,6 +48,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && jwtTokenProvider.validarToken(token)
                 && jwtTokenProvider.esTokenDeAcceso(token)) {
             try {
+                // Verificar si el token individual fue expresamente revocado (ej. vía logout)
+                String jti = jwtTokenProvider.obtenerJtiDelJwt(token);
+                if (jti != null && revokedTokenService != null && revokedTokenService.estaRevocado(jti)) {
+                    log.warn("Rechazo de token JWT revocado expresamente con jti={}", jti);
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 String username = jwtTokenProvider.obtenerUsernameDelJwt(token);
                 Integer tokenVersionEnJwt = jwtTokenProvider.obtenerTokenVersionDelJwt(token);
 

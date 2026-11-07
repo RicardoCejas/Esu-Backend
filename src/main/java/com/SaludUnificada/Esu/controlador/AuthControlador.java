@@ -24,6 +24,7 @@ import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
 import com.SaludUnificada.Esu.servicio.RefreshTokenServicio;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -48,8 +49,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -76,6 +79,11 @@ public class AuthControlador {
     private RefreshTokenServicio refreshTokenServicio;
 
     @Autowired(required = false)
+    public void setRefreshTokenServicio(RefreshTokenServicio refreshTokenServicio) {
+        this.refreshTokenServicio = refreshTokenServicio;
+    }
+
+    @Autowired(required = false)
     private com.SaludUnificada.Esu.servicio.GoogleTokenVerifierService googleTokenVerifierService;
 
     @Autowired(required = false)
@@ -89,6 +97,30 @@ public class AuthControlador {
     @Autowired(required = false)
     public void setGoogleAuthServicio(com.SaludUnificada.Esu.servicio.GoogleAuthServicio googleAuthServicio) {
         this.googleAuthServicio = googleAuthServicio;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.servicio.RevokedTokenService revokedTokenService;
+
+    @Autowired(required = false)
+    public void setRevokedTokenService(com.SaludUnificada.Esu.servicio.RevokedTokenService revokedTokenService) {
+        this.revokedTokenService = revokedTokenService;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.servicio.TwoFactorTempTokenServicio twoFactorTempTokenServicio;
+
+    @Autowired(required = false)
+    public void setTwoFactorTempTokenServicio(com.SaludUnificada.Esu.servicio.TwoFactorTempTokenServicio twoFactorTempTokenServicio) {
+        this.twoFactorTempTokenServicio = twoFactorTempTokenServicio;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter;
+
+    @Autowired(required = false)
+    public void setTwoFactorRateLimiter(com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter) {
+        this.twoFactorRateLimiter = twoFactorRateLimiter;
     }
 
     @Value("${spring.profiles.active:local}")
@@ -223,7 +255,10 @@ public class AuthControlador {
         }
 
         if (Boolean.TRUE.equals(usuario.getTwoFactorEnabled())) {
-            return ResponseEntity.ok(respuesta2FA(usuario, jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail())));
+            String tempToken = (twoFactorTempTokenServicio != null)
+                    ? twoFactorTempTokenServicio.generarYRegistrarTokenTemporal(usuario)
+                    : jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail());
+            return ResponseEntity.ok(respuesta2FA(usuario, tempToken));
         }
 
         return ResponseEntity.ok(emitirSesion(usuario, servletResponse));
@@ -303,7 +338,10 @@ public class AuthControlador {
         }
 
         if (Boolean.TRUE.equals(usuario.getTwoFactorEnabled())) {
-            return ResponseEntity.ok(respuesta2FA(usuario, jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail())));
+            String tempToken = (twoFactorTempTokenServicio != null)
+                    ? twoFactorTempTokenServicio.generarYRegistrarTokenTemporal(usuario)
+                    : jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail());
+            return ResponseEntity.ok(respuesta2FA(usuario, tempToken));
         }
 
         if (refreshTokenServicio != null && servletResponse != null) {
@@ -370,18 +408,64 @@ public class AuthControlador {
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(
             @CookieValue(name = "esu_refresh_token", required = false) String cookieRefreshToken,
+            @RequestBody(required = false) RefreshTokenDtoRequest body,
+            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
             HttpServletResponse response) {
+
+        // 1. Revocar refresh token de cookie si existe
         if (refreshTokenServicio != null && cookieRefreshToken != null && !cookieRefreshToken.isBlank()) {
             refreshTokenServicio.revocarToken(cookieRefreshToken);
         }
+
+        // 2. Revocar refresh token de body si se envió explícitamente y difiere de la cookie
+        if (refreshTokenServicio != null && body != null && body.getRefreshToken() != null && !body.getRefreshToken().isBlank()) {
+            if (!body.getRefreshToken().equals(cookieRefreshToken)) {
+                refreshTokenServicio.revocarToken(body.getRefreshToken());
+            }
+        }
+
+        // 3. Revocar access token actual si se proveyó en el encabezado Authorization
+        if (authHeader != null && authHeader.startsWith("Bearer ") && revokedTokenService != null) {
+            String accessToken = authHeader.substring(7);
+            if (jwtTokenProvider.validarToken(accessToken)) {
+                String jti = jwtTokenProvider.obtenerJtiDelJwt(accessToken);
+                Date exp = jwtTokenProvider.obtenerFechaExpiracionDelJwt(accessToken);
+                LocalDateTime fechaExpiracion = exp != null
+                        ? LocalDateTime.ofInstant(exp.toInstant(), ZoneId.systemDefault())
+                        : LocalDateTime.now().plusDays(1);
+                if (jti != null) {
+                    revokedTokenService.revocarToken(jti, fechaExpiracion, "LOGOUT");
+                }
+            }
+        }
+
+        // 4. Limpiar cookie HTTP-Only en respuesta
         limpiarCookieRefreshToken(response);
-        return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada correctamente."));
+
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Sesión cerrada correctamente.",
+                "status", "SUCCESS"
+        ));
+    }
+
+    public ResponseEntity<Map<String, String>> logout(
+            String cookieRefreshToken,
+            HttpServletResponse response) {
+        return logout(cookieRefreshToken, null, null, response);
     }
 
     @PostMapping("/2fa/setup")
     @PreAuthorize("isAuthenticated()")
     @Transactional
-    public ResponseEntity<TwoFactorSetupDtoResponse> setup2FA(Principal principal) {
+    public ResponseEntity<TwoFactorSetupDtoResponse> setup2FA(
+            Principal principal,
+            HttpServletRequest httpRequest) {
+        String username = principal != null ? principal.getName() : null;
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirSetup(httpRequest, username)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiadas solicitudes de configuración 2FA. Por favor aguarde unos momentos.");
+        }
+
         Usuario usuario = usuarioAutenticado(principal);
         String secreto = totpServicio.generarSecreto();
         List<String> codigos = totpServicio.generarCodigosRespaldo();
@@ -400,6 +484,10 @@ public class AuthControlador {
                 .qrCodeUrl(totpServicio.generarQrDataUrl(otpauthUri))
                 .backupCodes(codigos)
                 .build());
+    }
+
+    public ResponseEntity<TwoFactorSetupDtoResponse> setup2FA(Principal principal) {
+        return setup2FA(principal, null);
     }
 
     @PostMapping("/2fa/verify")
@@ -434,10 +522,27 @@ public class AuthControlador {
     @Transactional
     public ResponseEntity<JwtAuthDtoResponse> challenge2FA(
             @Valid @RequestBody TwoFactorChallengeDtoRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
+
         String tempToken = request.getTempToken();
+        String usernameTentativo = null;
+        try {
+            usernameTentativo = jwtTokenProvider.obtenerUsernameDelJwt(tempToken);
+        } catch (Exception ignored) {}
+
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirChallenge(httpRequest, usernameTentativo)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiados intentos de verificación 2FA. Por favor aguarde unos momentos.");
+        }
+
         if (!jwtTokenProvider.validarToken(tempToken) || !jwtTokenProvider.esToken2FA(tempToken)) {
             throw new BadCredentialsException("El token temporal de 2FA es invalido o expiro.");
+        }
+
+        String jti = jwtTokenProvider.obtenerJtiDelJwt(tempToken);
+        if (twoFactorTempTokenServicio != null && (jti == null || !twoFactorTempTokenServicio.estaDisponible(jti))) {
+            throw new BadCredentialsException("El token temporal de 2FA ya fue utilizado o no es valido.");
         }
 
         Usuario usuario = usuarioRepositorio.findByEmail(jwtTokenProvider.obtenerUsernameDelJwt(tempToken))
@@ -470,7 +575,25 @@ public class AuthControlador {
                     : "Codigo TOTP de 6 digitos incorrecto.");
         }
 
+        // Consumo atómico del token temporal 2FA (rechazo de segundo uso)
+        if (twoFactorTempTokenServicio != null && jti != null) {
+            boolean consumido = twoFactorTempTokenServicio.consumirToken(jti);
+            if (!consumido) {
+                throw new BadCredentialsException("El token temporal de 2FA ya fue utilizado.");
+            }
+        }
+
+        if (twoFactorRateLimiter != null && httpRequest != null) {
+            twoFactorRateLimiter.limpiarIntentosChallenge(httpRequest, usernameTentativo);
+        }
+
         return ResponseEntity.ok(emitirSesion(usuario, response));
+    }
+
+    public ResponseEntity<JwtAuthDtoResponse> challenge2FA(
+            TwoFactorChallengeDtoRequest request,
+            HttpServletResponse response) {
+        return challenge2FA(request, null, response);
     }
 
     @PostMapping("/2fa/disable")
@@ -478,7 +601,14 @@ public class AuthControlador {
     @Transactional
     public ResponseEntity<Map<String, String>> disable2FA(
             Principal principal,
-            @RequestBody(required = false) TwoFactorDisableDtoRequest request) {
+            @RequestBody(required = false) TwoFactorDisableDtoRequest request,
+            HttpServletRequest httpRequest) {
+        String username = principal != null ? principal.getName() : null;
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirDisable(httpRequest, username)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiadas solicitudes de desactivación 2FA. Por favor aguarde unos momentos.");
+        }
+
         Usuario usuario = usuarioAutenticado(principal);
 
         boolean passwordValida = request != null
@@ -509,12 +639,20 @@ public class AuthControlador {
         return ResponseEntity.ok(Map.of("message", "2FA deshabilitado y sesiones revocadas."));
     }
 
+    public ResponseEntity<Map<String, String>> disable2FA(
+            Principal principal,
+            TwoFactorDisableDtoRequest request) {
+        return disable2FA(principal, request, null);
+    }
+
     private JwtAuthDtoResponse emitirSesion(Usuario usuario, HttpServletResponse response) {
         String token = jwtTokenProvider.generarTokenParaUsuario(
                 usuario.getEmail(), usuario.getRol(), usuario.getTokenVersion());
         if (refreshTokenServicio != null && response != null) {
             var rt = refreshTokenServicio.crearRefreshToken(usuario);
-            fijarCookieRefreshToken(response, rt.getToken());
+            if (rt != null && rt.getToken() != null) {
+                fijarCookieRefreshToken(response, rt.getToken());
+            }
         }
         return construirRespuesta(usuario, token);
     }

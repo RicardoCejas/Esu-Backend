@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "refresh_token", indexes = {
         @Index(name = "idx_refresh_token_usuario", columnList = "usuario_id"),
-                @Index(name = "idx_refresh_token_hash", columnList = "token_hash")
+        @Index(name = "idx_refresh_token_hash", columnList = "token_hash"),
+        @Index(name = "idx_refresh_token_family", columnList = "token_family_id")
 })
 @Getter
 @Setter
@@ -28,6 +29,9 @@ public class RefreshToken {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
+
+    @Column(name = "token_family_id", nullable = false, length = 64)
+    private String tokenFamilyId;
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
