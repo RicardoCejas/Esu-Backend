@@ -56,6 +56,21 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.jpa.hibernate.ddl-auto:validate}")
     private String hibernateDdlAuto = "validate";
 
+    @Value("${app.demo.seed-accounts:false}")
+    private boolean seedDemoAccounts = false;
+
+    @Value("${esu.dev.secret:}")
+    private String configuredDevSecret;
+
+    @Value("${server.servlet.session.cookie.secure:false}")
+    private boolean cookieSecure = false;
+
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerUiEnabled = true;
+
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean apiDocsEnabled = true;
+
     @PostConstruct
     public void validateConfiguration() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
@@ -143,6 +158,26 @@ public class ProductionSecurityStartupValidator {
                         || googleClientId.toLowerCase().contains("ejemplo")) {
                     throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar obligatoriamente 'GOOGLE_CLIENT_ID' ('google.client.id').");
                 }
+            }
+
+            // 7. Validar que las cuentas de demostración (seeds) estén prohibidas en producción
+            if (seedDemoAccounts) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'app.demo.seed-accounts' debe ser 'false' (las cuentas semilla están prohibidas en producción).");
+            }
+
+            // 8. Validar que no se use la clave secreta por defecto de desarrollo
+            if (configuredDevSecret != null && !configuredDevSecret.isBlank() && configuredDevSecret.toLowerCase().contains("dev-secret-esu-2026")) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'esu.dev.secret' no puede usar la clave secreta por defecto de desarrollo.");
+            }
+
+            // 9. Validar que las cookies de sesión tengan el flag Secure activo
+            if (!cookieSecure) {
+                throw new IllegalStateException("FATAL: En entorno de producción las cookies de sesión deben tener 'server.servlet.session.cookie.secure=true'.");
+            }
+
+            // 10. Validar que Swagger / OpenAPI esté desactivado en producción
+            if (swaggerUiEnabled || apiDocsEnabled) {
+                throw new IllegalStateException("FATAL: En entorno de producción Swagger / OpenAPI debe estar desactivado ('springdoc.swagger-ui.enabled=false' y 'springdoc.api-docs.enabled=false').");
             }
 
             log.info("Verificación de configuración productiva completada satisfactoriamente.");
