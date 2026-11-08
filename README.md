@@ -285,5 +285,5 @@ gunzip < backup_esu_YYYYMMDD_HHMMSS.sql.gz | docker exec -i esu_mysql mysql -u e
 
 ### 🔗 Enlaces Relacionados
 * **Repositorio Frontend:** [GitHub - Esu-Frontend](https://github.com/RicardoCejas/Esu-Frontend)
-* **Gestión de Proyectos (PMI):** [Plan de Proyecto y Acta de Constitución](https://docs.google.com/document/d/1EIj0QAYjqWMrMraBL_VO3G_roSU5otVp/edit#heading=h.zbyebere09e)
+* **Gestión de Proyectos (PMI):** [Plan de Proyecto y Acta de Constitución](https://docs.google.com/document/d/1JAX4x0MIplwLKrF0S_HmMbUiuKS_gzoV/edit?usp=drive_link&ouid=110551275600190878595&rtpof=true&sd=true)
 * **Documentación Técnica:** [Carpeta Oficial ESU en Google Drive](https://drive.google.com/drive/folders/1Fkj_hzJDNtrR1ZQJit4Ro4zfghxreBYk)
