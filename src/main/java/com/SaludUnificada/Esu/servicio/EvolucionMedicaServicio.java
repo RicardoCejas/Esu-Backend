@@ -123,6 +123,10 @@ public class EvolucionMedicaServicio {
         evolucion.setPaciente(paciente);
         evolucion.setProfesional(profesional);
         evolucion.setTurno(turno);
+        if (turno != null) {
+            evolucion.setCentroSaludId(turno.getCentroSaludId());
+            evolucion.setCentroSaludNombre(turno.getCentroSaludNombre());
+        }
         evolucion.setMotivoConsulta(request.getMotivoConsulta());
         evolucion.setAnamnesis(request.getAnamnesis());
         evolucion.setExamenFisico(request.getExamenFisico());
@@ -138,17 +142,41 @@ public class EvolucionMedicaServicio {
         evolucion.setTalla(request.getTalla());
         evolucion.setImc(request.getImc());
 
+        final Turno turnoFinal = turno;
+        HistoriaClinica historiaClinica = historiaClinicaRepositorio
+                .findFirstByPacienteIdOrderByFechaAtencionDesc(paciente.getId())
+                .orElseGet(() -> {
+                    HistoriaClinica nuevaHc = new HistoriaClinica();
+                    nuevaHc.setPaciente(paciente);
+                    nuevaHc.setProfesional(profesional);
+                    if (turnoFinal != null) {
+                        nuevaHc.setCentroSaludId(turnoFinal.getCentroSaludId());
+                        nuevaHc.setCentroSaludNombre(turnoFinal.getCentroSaludNombre());
+                    }
+                    nuevaHc.setFechaAtencion(LocalDateTime.now());
+                    nuevaHc.setMotivoConsulta(request.getMotivoConsulta());
+                    nuevaHc.setDiagnostico(request.getDiagnostico());
+                    nuevaHc.setTratamiento(request.getTratamiento());
+                    return historiaClinicaRepositorio.save(nuevaHc);
+                });
+
+        historiaClinica.setFechaAtencion(LocalDateTime.now());
+        if (request.getDiagnostico() != null && !request.getDiagnostico().isBlank()) {
+            historiaClinica.setDiagnostico(request.getDiagnostico());
+        }
+        if (request.getTratamiento() != null && !request.getTratamiento().isBlank()) {
+            historiaClinica.setTratamiento(request.getTratamiento());
+        }
+        if (request.getMotivoConsulta() != null && !request.getMotivoConsulta().isBlank()) {
+            historiaClinica.setMotivoConsulta(request.getMotivoConsulta());
+        }
+        historiaClinica = historiaClinicaRepositorio.save(historiaClinica);
+        evolucion.setHistoriaClinica(historiaClinica);
+
         if (Boolean.TRUE.equals(request.getFirmar())) {
             evolucion.setFirmada(true);
             evolucion.setFechaFirma(LocalDateTime.now());
-            String dataHash = String.format("EVOLUCION|%s|%s|%s|%s|%s",
-                paciente.getDni(),
-                profesional.getMatricula(),
-                evolucion.getFechaFirma(),
-                request.getDiagnostico(),
-                request.getCodigoCie10()
-            );
-            evolucion.setHashIntegridad(pdfServicio.calcularHashSha256(dataHash));
+            evolucion.setHashIntegridad(pdfServicio.calcularFirmaHmacSha256(payloadFirmaEvolucion(evolucion)));
         }
 
         EvolucionMedica guardada = evolucionRepositorio.save(evolucion);
@@ -197,13 +225,8 @@ public class EvolucionMedicaServicio {
         adenda.setContenidoAdicional(request.getContenidoAdicional());
         adenda.setFechaFirma(LocalDateTime.now());
 
-        String dataHash = String.format("ADENDA|%d|%s|%s|%s",
-            evolucion.getId(),
-            profesional.getMatricula(),
-            adenda.getFechaFirma(),
-            request.getJustificacionClinica()
-        );
-        adenda.setHashIntegridad(pdfServicio.calcularHashSha256(dataHash));
+        String dataHash = payloadFirmaAdenda(adenda);
+        adenda.setHashIntegridad(pdfServicio.calcularFirmaHmacSha256(dataHash));
 
         return adendaRepositorio.save(adenda);
     }
@@ -553,5 +576,93 @@ public class EvolucionMedicaServicio {
     @Transactional(readOnly = true)
     public List<EvolucionAdenda> listarAdendasPorEvolucion(Long evolucionId) {
         return adendaRepositorio.findByEvolucionMedicaIdOrderByFechaFirmaDesc(evolucionId);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> verificarDocumentoPublico(String hash) {
+        Map<String, Object> respuesta = new LinkedHashMap<>();
+        if (hash == null || hash.isBlank()) {
+            respuesta.put("valido", false);
+            respuesta.put("integridadValida", false);
+            respuesta.put("mensaje", "Codigo de verificacion no proporcionado.");
+            return respuesta;
+        }
+
+        String hashLimpio = hash.trim();
+        EvolucionMedica evolucion = evolucionRepositorio.findByHashIntegridad(hashLimpio).orElse(null);
+        if (evolucion != null) {
+            boolean integridadValida = pdfServicio.verificarFirmaHmacSha256(
+                    payloadFirmaEvolucion(evolucion), evolucion.getHashIntegridad());
+            respuesta.put("valido", integridadValida);
+            respuesta.put("integridadValida", integridadValida);
+            respuesta.put("tipoDocumento", "EVOLUCION_MEDICA");
+            respuesta.put("fechaFirma", evolucion.getFechaFirma());
+            respuesta.put("matriculaProfesional", evolucion.getProfesional() != null
+                    ? evolucion.getProfesional().getMatricula() : null);
+            respuesta.put("hashIntegridad", evolucion.getHashIntegridad());
+            respuesta.put("mensaje", integridadValida
+                    ? "Evolucion clinica validada con sello de integridad HMAC-SHA256."
+                    : "La firma de integridad no coincide: el documento pudo haber sido alterado.");
+            return respuesta;
+        }
+
+        if (adendaRepositorio != null) {
+            EvolucionAdenda adenda = adendaRepositorio.findByHashIntegridad(hashLimpio).orElse(null);
+            if (adenda != null) {
+                boolean integridadValida = pdfServicio.verificarFirmaHmacSha256(
+                        payloadFirmaAdenda(adenda), adenda.getHashIntegridad());
+                respuesta.put("valido", integridadValida);
+                respuesta.put("integridadValida", integridadValida);
+                respuesta.put("tipoDocumento", "EVOLUCION_ADENDA");
+                respuesta.put("fechaFirma", adenda.getFechaFirma());
+                respuesta.put("matriculaProfesional", adenda.getProfesional() != null
+                        ? adenda.getProfesional().getMatricula() : null);
+                respuesta.put("hashIntegridad", adenda.getHashIntegridad());
+                respuesta.put("mensaje", integridadValida
+                        ? "Adenda clinica validada con sello de integridad HMAC-SHA256."
+                        : "La firma de integridad no coincide: la adenda pudo haber sido alterada.");
+                return respuesta;
+            }
+        }
+
+        respuesta.put("valido", false);
+        respuesta.put("integridadValida", false);
+        respuesta.put("mensaje", "No se encontro ningun documento clinico asociado al codigo.");
+        return respuesta;
+    }
+
+    private String payloadFirmaEvolucion(EvolucionMedica evolucion) {
+        return "EVOLUCION|"
+                + valor(evolucion.getPaciente() != null ? evolucion.getPaciente().getDni() : null) + "|"
+                + valor(evolucion.getProfesional() != null ? evolucion.getProfesional().getMatricula() : null) + "|"
+                + valor(evolucion.getTurno() != null ? String.valueOf(evolucion.getTurno().getId()) : null) + "|"
+                + valor(evolucion.getMotivoConsulta()) + "|"
+                + valor(evolucion.getAnamnesis()) + "|"
+                + valor(evolucion.getExamenFisico()) + "|"
+                + valor(evolucion.getDiagnostico()) + "|"
+                + valor(evolucion.getCodigoCie10()) + "|"
+                + valor(evolucion.getDescripcionCie10()) + "|"
+                + valor(evolucion.getTratamiento()) + "|"
+                + valor(evolucion.getPresionArterial()) + "|"
+                + valor(evolucion.getFrecuenciaCardiaca()) + "|"
+                + valor(evolucion.getTemperatura()) + "|"
+                + valor(evolucion.getPeso()) + "|"
+                + valor(evolucion.getTalla()) + "|"
+                + valor(evolucion.getImc()) + "|"
+                + valor(evolucion.getFechaFirma() != null ? evolucion.getFechaFirma().toString() : null) + "|"
+                + valor(evolucion.getFirmada() != null ? evolucion.getFirmada().toString() : null);
+    }
+
+    private String payloadFirmaAdenda(EvolucionAdenda adenda) {
+        return "ADENDA|"
+                + valor(adenda.getEvolucionMedica() != null ? String.valueOf(adenda.getEvolucionMedica().getId()) : null) + "|"
+                + valor(adenda.getProfesional() != null ? adenda.getProfesional().getMatricula() : null) + "|"
+                + valor(adenda.getJustificacionClinica()) + "|"
+                + valor(adenda.getContenidoAdicional()) + "|"
+                + valor(adenda.getFechaFirma() != null ? adenda.getFechaFirma().toString() : null);
+    }
+
+    private String valor(String valor) {
+        return valor != null ? valor.trim() : "";
     }
 }

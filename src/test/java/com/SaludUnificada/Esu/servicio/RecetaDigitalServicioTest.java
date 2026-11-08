@@ -89,7 +89,7 @@ class RecetaDigitalServicioTest {
     void testEmitirReceta_Valida() {
         when(profesionalRepositorio.findById(10L)).thenReturn(Optional.of(profesional));
         when(pacienteRepositorio.findById(1L)).thenReturn(Optional.of(paciente));
-        when(pdfServicio.calcularHashSha256(anyString())).thenReturn("hash_sha256_mock");
+        when(pdfServicio.calcularFirmaHmacSha256(anyString())).thenReturn("hash_sha256_mock");
         when(recetaRepositorio.save(any(RecetaDigital.class))).thenAnswer(i -> {
             RecetaDigital r = i.getArgument(0);
             r.setId(100L);
@@ -276,7 +276,7 @@ class RecetaDigitalServicioTest {
         r.setMedicamentos(List.of());
 
         when(recetaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(r));
-        when(pdfServicio.calcularHashSha256(anyString())).thenReturn(hash);
+        when(pdfServicio.calcularFirmaHmacSha256(anyString())).thenReturn(hash);
 
         VerificacionRecetaPublicaDtoResponse resp = recetaServicio.verificarDocumentoPublico(hash);
 
@@ -333,5 +333,26 @@ class RecetaDigitalServicioTest {
         assertEquals(1, resultado.size());
         assertEquals(101L, resultado.get(0).getId());
     }
-}
 
+    @Test
+    @DisplayName("Fase 1: Verificación pública detecta alteración en datos clínicos de receta")
+    void testVerificarDocumentoPublico_RecetaAlterada_FallaIntegridad() {
+        String hashOriginal = "a1a2a3a4a5a6a7a8a9a0b1b2b3b4b5b6b7b8b9b0c1c2c3c4c5c6c7c8c9c0d1d2";
+        RecetaDigital r = new RecetaDigital();
+        r.setId(88L);
+        r.setHashIntegridad(hashOriginal);
+        r.setEstadoReceta("VIGENTE");
+        r.setPaciente(paciente);
+
+        when(recetaRepositorio.findByHashIntegridad(hashOriginal)).thenReturn(Optional.of(r));
+        // Simulamos que el cálculo con los datos actuales difiere del hash guardado (alteración clínica)
+        when(pdfServicio.calcularFirmaHmacSha256(anyString())).thenReturn("otro_hash_invalido_por_alteracion");
+
+        VerificacionRecetaPublicaDtoResponse resp = recetaServicio.verificarDocumentoPublico(hashOriginal);
+
+        assertFalse(resp.isValido());
+        assertFalse(resp.isIntegridadValida());
+        assertEquals("INTEGRIDAD_INVALIDA", resp.getEstado());
+        assertTrue(resp.getMensaje().contains("alterado"));
+    }
+}

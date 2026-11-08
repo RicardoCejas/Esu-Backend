@@ -20,6 +20,9 @@ public class ProductionSecurityStartupValidator {
     @Value("${app.jwt.secret:}")
     private String jwtSecret;
 
+    @Value("${app.documentos.firma-secret:}")
+    private String documentosFirmaSecret;
+
     @Value("${spring.datasource.username:}")
     private String datasourceUsername;
 
@@ -53,6 +56,21 @@ public class ProductionSecurityStartupValidator {
     @Value("${spring.jpa.hibernate.ddl-auto:validate}")
     private String hibernateDdlAuto = "validate";
 
+    @Value("${app.demo.seed-accounts:false}")
+    private boolean seedDemoAccounts = false;
+
+    @Value("${esu.dev.secret:}")
+    private String configuredDevSecret;
+
+    @Value("${server.servlet.session.cookie.secure:false}")
+    private boolean cookieSecure = false;
+
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerUiEnabled = true;
+
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean apiDocsEnabled = true;
+
     @PostConstruct
     public void validateConfiguration() {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
@@ -82,6 +100,16 @@ public class ProductionSecurityStartupValidator {
             if (jwtLower.contains("miclavesecreta") || jwtLower.contains("defaultsecret") || jwtLower.contains("123456")
                     || jwtLower.contains("cambiar") || jwtLower.contains("definir") || jwtLower.contains("placeholder") || jwtLower.contains("ejemplo")) {
                 throw new IllegalStateException("FATAL: 'APP_JWT_SECRET' no puede contener valores predeterminados, placeholders ni contraseñas de ejemplo en producción.");
+            }
+
+            // 1.1 Validar secreto de firma e integridad documental
+            if (documentosFirmaSecret == null || documentosFirmaSecret.trim().isEmpty() || documentosFirmaSecret.length() < 32) {
+                throw new IllegalStateException("FATAL: En entorno de producción se requiere definir 'APP_DOCUMENTOS_FIRMA_SECRET' ('app.documentos.firma-secret') con una clave de al menos 32 caracteres (256 bits).");
+            }
+            String firmaSecretLower = documentosFirmaSecret.toLowerCase();
+            if (firmaSecretLower.contains("miclavesecreta") || firmaSecretLower.contains("defaultsecret") || firmaSecretLower.contains("123456")
+                    || firmaSecretLower.contains("cambiar") || firmaSecretLower.contains("definir") || firmaSecretLower.contains("placeholder") || firmaSecretLower.contains("ejemplo")) {
+                throw new IllegalStateException("FATAL: 'APP_DOCUMENTOS_FIRMA_SECRET' no puede contener valores predeterminados ni placeholders en producción.");
             }
 
             // 2. Validar que la base de datos no use usuario 'root' ni contraseña vacía o placeholder
@@ -130,6 +158,26 @@ public class ProductionSecurityStartupValidator {
                         || googleClientId.toLowerCase().contains("ejemplo")) {
                     throw new IllegalStateException("FATAL: En entorno de producción se requiere configurar obligatoriamente 'GOOGLE_CLIENT_ID' ('google.client.id').");
                 }
+            }
+
+            // 7. Validar que las cuentas de demostración (seeds) estén prohibidas en producción
+            if (seedDemoAccounts) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'app.demo.seed-accounts' debe ser 'false' (las cuentas semilla están prohibidas en producción).");
+            }
+
+            // 8. Validar que no se use la clave secreta por defecto de desarrollo
+            if (configuredDevSecret != null && !configuredDevSecret.isBlank() && configuredDevSecret.toLowerCase().contains("dev-secret-esu-2026")) {
+                throw new IllegalStateException("FATAL: En entorno de producción 'esu.dev.secret' no puede usar la clave secreta por defecto de desarrollo.");
+            }
+
+            // 9. Validar que las cookies de sesión tengan el flag Secure activo
+            if (!cookieSecure) {
+                throw new IllegalStateException("FATAL: En entorno de producción las cookies de sesión deben tener 'server.servlet.session.cookie.secure=true'.");
+            }
+
+            // 10. Validar que Swagger / OpenAPI esté desactivado en producción
+            if (swaggerUiEnabled || apiDocsEnabled) {
+                throw new IllegalStateException("FATAL: En entorno de producción Swagger / OpenAPI debe estar desactivado ('springdoc.swagger-ui.enabled=false' y 'springdoc.api-docs.enabled=false').");
             }
 
             log.info("Verificación de configuración productiva completada satisfactoriamente.");

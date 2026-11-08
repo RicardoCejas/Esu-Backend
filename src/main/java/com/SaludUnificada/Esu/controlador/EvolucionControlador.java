@@ -88,6 +88,12 @@ public class EvolucionControlador {
         return ResponseEntity.ok(evolucionServicio.obtenerTimelinePaciente(id));
     }
 
+    @GetMapping("/public/verificar-evolucion/{hash}")
+    @Operation(summary = "Verificar publicamente la integridad de una evolucion clinica")
+    public ResponseEntity<java.util.Map<String, Object>> verificarEvolucionPublica(@PathVariable String hash) {
+        return ResponseEntity.ok(evolucionServicio.verificarDocumentoPublico(hash));
+    }
+
     @GetMapping("/historias-clinicas/{pacienteId}/timeline")
     @PreAuthorize("@securityPolicy.canAccessPatient(#pacienteId)")
     @Operation(summary = "BÃºsqueda parametrizada y paginaciÃ³n optimizada del timeline clÃ­nico (HU-102)")

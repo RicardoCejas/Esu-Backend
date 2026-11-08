@@ -57,7 +57,7 @@ class RefreshTokenServicioTest {
     }
 
     @Test
-    @DisplayName("Crear refresh token: calcula hash SHA-256 y persiste entidad")
+    @DisplayName("Crear refresh token: calcula hash SHA-256, genera tokenFamilyId y persiste entidad")
     void crearRefreshToken_calculaHashYPersiste() {
         when(refreshTokenRepositorio.save(any(RefreshToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -66,6 +66,7 @@ class RefreshTokenServicioTest {
         assertNotNull(rt);
         assertNotNull(rt.getToken());
         assertNotNull(rt.getTokenHash());
+        assertNotNull(rt.getTokenFamilyId());
         assertEquals(64, rt.getTokenHash().length());
         assertEquals(usuario, rt.getUsuario());
         assertFalse(rt.isRevocado());
@@ -73,14 +74,16 @@ class RefreshTokenServicioTest {
     }
 
     @Test
-    @DisplayName("Rotar refresh token válido: revoca token anterior, persiste nuevo token con hash y retorna nuevo JWT")
+    @DisplayName("Rotar refresh token válido: revoca anterior, conserva tokenFamilyId y retorna nuevo JWT")
     void rotarRefreshToken_valido_rotaSatisfactoriamente() {
         String rawToken = "raw-token-1234567890";
         String tokenHash = RefreshTokenServicio.hashToken(rawToken);
+        String familyId = "family-session-uuid-123";
 
         RefreshToken tokenExistente = RefreshToken.builder()
                 .id(1L)
                 .usuario(usuario)
+                .tokenFamilyId(familyId)
                 .tokenHash(tokenHash)
                 .fechaCreacion(LocalDateTime.now().minusDays(1))
                 .fechaExpiracion(LocalDateTime.now().plusDays(6))
@@ -100,17 +103,20 @@ class RefreshTokenServicioTest {
         assertNotEquals(rawToken, result.newRefreshTokenStr());
         assertTrue(tokenExistente.isRevocado());
         assertNotNull(tokenExistente.getReemplazadoPor());
+        verify(refreshTokenRepositorio, times(2)).save(any(RefreshToken.class));
     }
 
     @Test
-    @DisplayName("Detección de reuso de token revocado: revoca todas las sesiones en transacción independiente")
-    void rotarRefreshToken_tokenYaRevocado_disparaRevocacionTotal() {
+    @DisplayName("Detección de reuso de token revocado: revoca solo la familia comprometida en transacción independiente")
+    void rotarRefreshToken_tokenYaRevocado_disparaRevocacionDeFamilia() {
         String rawToken = "reused-revoked-token";
         String tokenHash = RefreshTokenServicio.hashToken(rawToken);
+        String familyId = "compromised-family-456";
 
         RefreshToken tokenRevocado = RefreshToken.builder()
                 .id(2L)
                 .usuario(usuario)
+                .tokenFamilyId(familyId)
                 .tokenHash(tokenHash)
                 .fechaCreacion(LocalDateTime.now().minusDays(2))
                 .fechaExpiracion(LocalDateTime.now().plusDays(5))
@@ -123,7 +129,7 @@ class RefreshTokenServicioTest {
                 () -> refreshTokenServicio.rotarRefreshToken(rawToken));
 
         assertTrue(ex.getMessage().contains("Sesión comprometida"));
-        verify(refreshTokenRevocationService).revocarTodasLasSesionesPorCompromiso(usuario.getId());
+        verify(refreshTokenRevocationService).revocarFamiliaPorCompromiso(familyId);
     }
 
     @Test
@@ -135,6 +141,7 @@ class RefreshTokenServicioTest {
         RefreshToken tokenExpirado = RefreshToken.builder()
                 .id(3L)
                 .usuario(usuario)
+                .tokenFamilyId("expired-family")
                 .tokenHash(tokenHash)
                 .fechaCreacion(LocalDateTime.now().minusDays(10))
                 .fechaExpiracion(LocalDateTime.now().minusDays(3))

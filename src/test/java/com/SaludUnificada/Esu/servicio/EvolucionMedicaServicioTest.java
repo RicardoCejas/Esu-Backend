@@ -5,6 +5,8 @@ import com.SaludUnificada.Esu.dto.request.EvolucionMedicaDtoRequest;
 import com.SaludUnificada.Esu.dto.response.ConsultaBorradorDtoResponse;
 import com.SaludUnificada.Esu.entidad.ConsultaBorrador;
 import com.SaludUnificada.Esu.entidad.EvolucionMedica;
+import com.SaludUnificada.Esu.entidad.EvolucionAdenda;
+import com.SaludUnificada.Esu.repositorio.EvolucionAdendaRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -12,6 +14,8 @@ import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.ConsultaBorradorRepositorio;
 import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
+import com.SaludUnificada.Esu.entidad.HistoriaClinica;
+import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
@@ -60,6 +64,12 @@ class EvolucionMedicaServicioTest {
 
     @Mock
     private RecetaDigitalServicio recetaServicio;
+
+    @Mock
+    private HistoriaClinicaRepositorio historiaClinicaRepositorio;
+
+    @Mock
+    private EvolucionAdendaRepositorio adendaRepositorio;
 
     @InjectMocks
     private EvolucionMedicaServicio evolucionMedicaServicio;
@@ -278,6 +288,11 @@ class EvolucionMedicaServicioTest {
         when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(prof1));
         when(profesionalRepositorio.findByUsuarioEmail("medico1@esu.com")).thenReturn(Optional.of(prof1));
 
+        HistoriaClinica hcExistente = new HistoriaClinica();
+        hcExistente.setId(77L);
+        hcExistente.setPaciente(pac);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(10L)).thenReturn(Optional.of(hcExistente));
+        when(historiaClinicaRepositorio.save(any(HistoriaClinica.class))).thenAnswer(inv -> inv.getArgument(0));
         when(ownershipSecurityEvaluator.canAccessPatient(10L)).thenReturn(true);
         when(evolucionRepositorio.save(any(EvolucionMedica.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -285,6 +300,151 @@ class EvolucionMedicaServicioTest {
 
         assertNotNull(resultado);
         assertEquals("Rinitis alérgica", resultado.getDiagnostico());
+        assertNotNull(resultado.getHistoriaClinica());
+        assertEquals(77L, resultado.getHistoriaClinica().getId());
         verify(evolucionRepositorio).save(any(EvolucionMedica.class));
+        verify(historiaClinicaRepositorio).save(hcExistente);
+    }
+
+    @Test
+    void testRegistrarEvolucion_CreaHCUnicaSiNoExiste() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("medico1@esu.com", "pass", List.of(new SimpleGrantedAuthority("ROLE_MEDICO")))
+        );
+
+        EvolucionMedicaDtoRequest req = new EvolucionMedicaDtoRequest();
+        req.setPacienteId(10L);
+        req.setProfesionalId(1L);
+        req.setDiagnostico("Otitis media");
+        req.setMotivoConsulta("Dolor de oido");
+
+        Paciente pac = new Paciente();
+        pac.setId(10L);
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(pac));
+
+        Profesional prof1 = new Profesional();
+        prof1.setId(1L);
+        prof1.setEstadoActivo(true);
+        Usuario u1 = new Usuario();
+        u1.setEmail("medico1@esu.com");
+        prof1.setUsuario(u1);
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(prof1));
+        when(profesionalRepositorio.findByUsuarioEmail("medico1@esu.com")).thenReturn(Optional.of(prof1));
+
+        when(ownershipSecurityEvaluator.canAccessPatient(10L)).thenReturn(true);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(10L)).thenReturn(Optional.empty());
+        when(historiaClinicaRepositorio.save(any(HistoriaClinica.class))).thenAnswer(inv -> {
+            HistoriaClinica hc = inv.getArgument(0);
+            if (hc.getId() == null) hc.setId(88L);
+            return hc;
+        });
+        when(evolucionRepositorio.save(any(EvolucionMedica.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EvolucionMedica resultado = evolucionMedicaServicio.registrarEvolucion(req);
+
+        assertNotNull(resultado);
+        assertNotNull(resultado.getHistoriaClinica());
+        assertEquals(88L, resultado.getHistoriaClinica().getId());
+        assertEquals(pac, resultado.getHistoriaClinica().getPaciente());
+        assertEquals("Otitis media", resultado.getHistoriaClinica().getDiagnostico());
+        verify(historiaClinicaRepositorio, atLeastOnce()).save(any(HistoriaClinica.class));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_EvolucionValida_RetornaValido() {
+        String hash = "hash_evolucion_valida_123456";
+        EvolucionMedica ev = new EvolucionMedica();
+        ev.setId(10L);
+        ev.setHashIntegridad(hash);
+        Profesional prof = new Profesional();
+        prof.setMatricula("MP-9988");
+        ev.setProfesional(prof);
+
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(ev));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(true);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertTrue((Boolean) resp.get("valido"));
+        assertTrue((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_MEDICA", resp.get("tipoDocumento"));
+        assertEquals("MP-9988", resp.get("matriculaProfesional"));
+        assertTrue(((String) resp.get("mensaje")).contains("validada"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_EvolucionAlterada_FallaIntegridad() {
+        String hash = "hash_evolucion_alterada_123456";
+        EvolucionMedica ev = new EvolucionMedica();
+        ev.setId(10L);
+        ev.setHashIntegridad(hash);
+
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(ev));
+        // Simulamos que la firma no coincide con el contenido actual
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(false);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_MEDICA", resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("alterado"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_AdendaValida_RetornaValido() {
+        String hash = "hash_adenda_valida_789";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        EvolucionAdenda adenda = new EvolucionAdenda();
+        adenda.setId(5L);
+        adenda.setHashIntegridad(hash);
+        Profesional prof = new Profesional();
+        prof.setMatricula("MP-5544");
+        adenda.setProfesional(prof);
+
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(adenda));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(true);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertTrue((Boolean) resp.get("valido"));
+        assertTrue((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_ADENDA", resp.get("tipoDocumento"));
+        assertEquals("MP-5544", resp.get("matriculaProfesional"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_AdendaAlterada_FallaIntegridad() {
+        String hash = "hash_adenda_alterada_789";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        EvolucionAdenda adenda = new EvolucionAdenda();
+        adenda.setId(5L);
+        adenda.setHashIntegridad(hash);
+
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.of(adenda));
+        when(pdfServicio.verificarFirmaHmacSha256(anyString(), eq(hash))).thenReturn(false);
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertEquals("EVOLUCION_ADENDA", resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("alterada"));
+    }
+
+    @Test
+    void testVerificarDocumentoPublico_HashInexistente_RetornaRespuestaSegura() {
+        String hash = "hash_completamente_inexistente";
+        when(evolucionRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+        when(adendaRepositorio.findByHashIntegridad(hash)).thenReturn(Optional.empty());
+
+        java.util.Map<String, Object> resp = evolucionMedicaServicio.verificarDocumentoPublico(hash);
+
+        assertFalse((Boolean) resp.get("valido"));
+        assertFalse((Boolean) resp.get("integridadValida"));
+        assertNull(resp.get("tipoDocumento"));
+        assertTrue(((String) resp.get("mensaje")).contains("No se encontro ningun documento"));
     }
 }

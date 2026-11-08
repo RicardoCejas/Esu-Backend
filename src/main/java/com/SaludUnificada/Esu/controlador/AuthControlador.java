@@ -9,15 +9,22 @@ import com.SaludUnificada.Esu.dto.auth.RefreshTokenDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.RegistroDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.ResetearPasswordDtoRequest;
 import com.SaludUnificada.Esu.dto.auth.SolicitarRecuperacionDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.TwoFactorChallengeDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.TwoFactorDisableDtoRequest;
+import com.SaludUnificada.Esu.dto.auth.TwoFactorSetupDtoResponse;
+import com.SaludUnificada.Esu.dto.auth.TwoFactorVerifyDtoRequest;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import com.SaludUnificada.Esu.seguridad.JwtTokenProvider;
+import com.SaludUnificada.Esu.seguridad.TotpServicio;
 import com.SaludUnificada.Esu.servicio.AuditoriaSeguridadServicio;
 import com.SaludUnificada.Esu.servicio.EmailNotificacionServicio;
 import com.SaludUnificada.Esu.servicio.RecuperacionPasswordServicio;
 import com.SaludUnificada.Esu.servicio.RefreshTokenServicio;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,14 +42,21 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -59,9 +73,15 @@ public class AuthControlador {
     private final RecuperacionPasswordServicio recuperacionPasswordServicio;
     private final AuditoriaSeguridadServicio auditoriaSeguridadServicio;
     private final EmailNotificacionServicio emailNotificacionServicio;
+    private final TotpServicio totpServicio;
 
     @Autowired(required = false)
     private RefreshTokenServicio refreshTokenServicio;
+
+    @Autowired(required = false)
+    public void setRefreshTokenServicio(RefreshTokenServicio refreshTokenServicio) {
+        this.refreshTokenServicio = refreshTokenServicio;
+    }
 
     @Autowired(required = false)
     private com.SaludUnificada.Esu.servicio.GoogleTokenVerifierService googleTokenVerifierService;
@@ -77,6 +97,30 @@ public class AuthControlador {
     @Autowired(required = false)
     public void setGoogleAuthServicio(com.SaludUnificada.Esu.servicio.GoogleAuthServicio googleAuthServicio) {
         this.googleAuthServicio = googleAuthServicio;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.servicio.RevokedTokenService revokedTokenService;
+
+    @Autowired(required = false)
+    public void setRevokedTokenService(com.SaludUnificada.Esu.servicio.RevokedTokenService revokedTokenService) {
+        this.revokedTokenService = revokedTokenService;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.servicio.TwoFactorTempTokenServicio twoFactorTempTokenServicio;
+
+    @Autowired(required = false)
+    public void setTwoFactorTempTokenServicio(com.SaludUnificada.Esu.servicio.TwoFactorTempTokenServicio twoFactorTempTokenServicio) {
+        this.twoFactorTempTokenServicio = twoFactorTempTokenServicio;
+    }
+
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter;
+
+    @Autowired(required = false)
+    public void setTwoFactorRateLimiter(com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter) {
+        this.twoFactorRateLimiter = twoFactorRateLimiter;
     }
 
     @Value("${spring.profiles.active:local}")
@@ -205,35 +249,19 @@ public class AuthControlador {
         }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = jwtTokenProvider.generarToken(authentication);
 
         if (auditoriaSeguridadServicio != null) {
             auditoriaSeguridadServicio.registrarLoginExitoso(email);
         }
 
-        if (refreshTokenServicio != null && servletResponse != null) {
-            var rt = refreshTokenServicio.crearRefreshToken(usuario);
-            fijarCookieRefreshToken(servletResponse, rt.getToken());
+        if (Boolean.TRUE.equals(usuario.getTwoFactorEnabled())) {
+            String tempToken = (twoFactorTempTokenServicio != null)
+                    ? twoFactorTempTokenServicio.generarYRegistrarTokenTemporal(usuario)
+                    : jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail());
+            return ResponseEntity.ok(respuesta2FA(usuario, tempToken));
         }
 
-        Paciente paciente = usuario.getPaciente();
-        if (paciente == null && usuario.getId() != null) {
-            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
-        }
-
-        JwtAuthDtoResponse response = JwtAuthDtoResponse.builder()
-                .accessToken(token)
-                .tokenType("Bearer")
-                .usuarioId(usuario.getId())
-                .email(usuario.getEmail())
-                .rol(usuario.getRol())
-                .nombre(paciente != null ? paciente.getNombre() : null)
-                .apellido(paciente != null ? paciente.getApellido() : null)
-                .dni(paciente != null ? paciente.getDni() : null)
-                .emailVerificado(usuario.getEmailVerificado())
-                .build();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(emitirSesion(usuario, servletResponse));
     }
 
     @PostMapping("/google")
@@ -309,6 +337,13 @@ public class AuthControlador {
             auditoriaSeguridadServicio.registrarLoginExitoso(email);
         }
 
+        if (Boolean.TRUE.equals(usuario.getTwoFactorEnabled())) {
+            String tempToken = (twoFactorTempTokenServicio != null)
+                    ? twoFactorTempTokenServicio.generarYRegistrarTokenTemporal(usuario)
+                    : jwtTokenProvider.generarTokenTemporal2FA(usuario.getEmail());
+            return ResponseEntity.ok(respuesta2FA(usuario, tempToken));
+        }
+
         if (refreshTokenServicio != null && servletResponse != null) {
             var rt = refreshTokenServicio.crearRefreshToken(usuario);
             fijarCookieRefreshToken(servletResponse, rt.getToken());
@@ -334,6 +369,8 @@ public class AuthControlador {
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
+                .pacienteId(pacienteGoogle != null ? pacienteGoogle.getId() : null)
+                .profesionalId(null)
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
                 .nombre(pacienteGoogle != null ? pacienteGoogle.getNombre() : null)
@@ -371,12 +408,314 @@ public class AuthControlador {
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(
             @CookieValue(name = "esu_refresh_token", required = false) String cookieRefreshToken,
+            @RequestBody(required = false) RefreshTokenDtoRequest body,
+            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
             HttpServletResponse response) {
+
+        // 1. Revocar refresh token de cookie si existe
         if (refreshTokenServicio != null && cookieRefreshToken != null && !cookieRefreshToken.isBlank()) {
             refreshTokenServicio.revocarToken(cookieRefreshToken);
         }
+
+        // 2. Revocar refresh token de body si se envió explícitamente y difiere de la cookie
+        if (refreshTokenServicio != null && body != null && body.getRefreshToken() != null && !body.getRefreshToken().isBlank()) {
+            if (!body.getRefreshToken().equals(cookieRefreshToken)) {
+                refreshTokenServicio.revocarToken(body.getRefreshToken());
+            }
+        }
+
+        // 3. Revocar access token actual si se proveyó en el encabezado Authorization
+        if (authHeader != null && authHeader.startsWith("Bearer ") && revokedTokenService != null) {
+            String accessToken = authHeader.substring(7);
+            if (jwtTokenProvider.validarToken(accessToken)) {
+                String jti = jwtTokenProvider.obtenerJtiDelJwt(accessToken);
+                Date exp = jwtTokenProvider.obtenerFechaExpiracionDelJwt(accessToken);
+                LocalDateTime fechaExpiracion = exp != null
+                        ? LocalDateTime.ofInstant(exp.toInstant(), ZoneId.systemDefault())
+                        : LocalDateTime.now().plusDays(1);
+                if (jti != null) {
+                    revokedTokenService.revocarToken(jti, fechaExpiracion, "LOGOUT");
+                }
+            }
+        }
+
+        // 4. Limpiar cookie HTTP-Only en respuesta
         limpiarCookieRefreshToken(response);
-        return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada correctamente."));
+
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Sesión cerrada correctamente.",
+                "status", "SUCCESS"
+        ));
+    }
+
+    public ResponseEntity<Map<String, String>> logout(
+            String cookieRefreshToken,
+            HttpServletResponse response) {
+        return logout(cookieRefreshToken, null, null, response);
+    }
+
+    @PostMapping("/2fa/setup")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public ResponseEntity<TwoFactorSetupDtoResponse> setup2FA(
+            Principal principal,
+            HttpServletRequest httpRequest) {
+        String username = principal != null ? principal.getName() : null;
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirSetup(httpRequest, username)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiadas solicitudes de configuración 2FA. Por favor aguarde unos momentos.");
+        }
+
+        Usuario usuario = usuarioAutenticado(principal);
+        String secreto = totpServicio.generarSecreto();
+        List<String> codigos = totpServicio.generarCodigosRespaldo();
+
+        usuario.setTwoFactorSecret(secreto);
+        usuario.setTwoFactorBackupCodes(codigos.stream()
+                .map(passwordEncoder::encode)
+                .collect(Collectors.joining(",")));
+        usuario.setTwoFactorEnabled(false);
+        usuario.setTwoFactorLastCounter(null);
+        usuarioRepositorio.save(usuario);
+
+        String otpauthUri = totpServicio.generarOtpauthUri(secreto, usuario.getEmail());
+        return ResponseEntity.ok(TwoFactorSetupDtoResponse.builder()
+                .secret(secreto)
+                .qrCodeUrl(totpServicio.generarQrDataUrl(otpauthUri))
+                .backupCodes(codigos)
+                .build());
+    }
+
+    public ResponseEntity<TwoFactorSetupDtoResponse> setup2FA(Principal principal) {
+        return setup2FA(principal, null);
+    }
+
+    @PostMapping("/2fa/verify")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> verify2FA(
+            Principal principal,
+            @Valid @RequestBody TwoFactorVerifyDtoRequest request) {
+        Usuario usuario = usuarioAutenticado(principal);
+        if (usuario.getTwoFactorSecret() == null || usuario.getTwoFactorSecret().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Primero debe iniciar la configuracion de 2FA.");
+        }
+
+        long contador = totpServicio.validarCodigo(
+                usuario.getTwoFactorSecret(), request.getCode(), usuario.getTwoFactorLastCounter());
+        if (contador < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Codigo TOTP de 6 digitos invalido.");
+        }
+
+        usuario.setTwoFactorEnabled(true);
+        usuario.setTwoFactorLastCounter(contador);
+        usuarioRepositorio.save(usuario);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Autenticacion de dos factores activada con exito."
+        ));
+    }
+
+    @PostMapping("/2fa/challenge")
+    @Transactional
+    public ResponseEntity<JwtAuthDtoResponse> challenge2FA(
+            @Valid @RequestBody TwoFactorChallengeDtoRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+
+        String tempToken = request.getTempToken();
+        String usernameTentativo = null;
+        try {
+            usernameTentativo = jwtTokenProvider.obtenerUsernameDelJwt(tempToken);
+        } catch (Exception ignored) {}
+
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirChallenge(httpRequest, usernameTentativo)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiados intentos de verificación 2FA. Por favor aguarde unos momentos.");
+        }
+
+        if (!jwtTokenProvider.validarToken(tempToken) || !jwtTokenProvider.esToken2FA(tempToken)) {
+            throw new BadCredentialsException("El token temporal de 2FA es invalido o expiro.");
+        }
+
+        String jti = jwtTokenProvider.obtenerJtiDelJwt(tempToken);
+        if (twoFactorTempTokenServicio != null && (jti == null || !twoFactorTempTokenServicio.estaDisponible(jti))) {
+            throw new BadCredentialsException("El token temporal de 2FA ya fue utilizado o no es valido.");
+        }
+
+        Usuario usuario = usuarioRepositorio.findByEmail(jwtTokenProvider.obtenerUsernameDelJwt(tempToken))
+                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado."));
+        if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta se encuentra deshabilitada.");
+        }
+        if (!Boolean.TRUE.equals(usuario.getTwoFactorEnabled())
+                || usuario.getTwoFactorSecret() == null
+                || usuario.getTwoFactorSecret().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El usuario no tiene 2FA habilitado.");
+        }
+
+        boolean valido;
+        if (Boolean.TRUE.equals(request.getIsBackupCode())) {
+            valido = consumirCodigoRespaldo(usuario, request.getCode());
+        } else {
+            long contador = totpServicio.validarCodigo(
+                    usuario.getTwoFactorSecret(), request.getCode(), usuario.getTwoFactorLastCounter());
+            valido = contador >= 0;
+            if (valido) {
+                usuario.setTwoFactorLastCounter(contador);
+                usuarioRepositorio.save(usuario);
+            }
+        }
+
+        if (!valido) {
+            throw new BadCredentialsException(Boolean.TRUE.equals(request.getIsBackupCode())
+                    ? "Codigo de respaldo invalido."
+                    : "Codigo TOTP de 6 digitos incorrecto.");
+        }
+
+        // Consumo atómico del token temporal 2FA (rechazo de segundo uso)
+        if (twoFactorTempTokenServicio != null && jti != null) {
+            boolean consumido = twoFactorTempTokenServicio.consumirToken(jti);
+            if (!consumido) {
+                throw new BadCredentialsException("El token temporal de 2FA ya fue utilizado.");
+            }
+        }
+
+        if (twoFactorRateLimiter != null && httpRequest != null) {
+            twoFactorRateLimiter.limpiarIntentosChallenge(httpRequest, usernameTentativo);
+        }
+
+        return ResponseEntity.ok(emitirSesion(usuario, response));
+    }
+
+    public ResponseEntity<JwtAuthDtoResponse> challenge2FA(
+            TwoFactorChallengeDtoRequest request,
+            HttpServletResponse response) {
+        return challenge2FA(request, null, response);
+    }
+
+    @PostMapping("/2fa/disable")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public ResponseEntity<Map<String, String>> disable2FA(
+            Principal principal,
+            @RequestBody(required = false) TwoFactorDisableDtoRequest request,
+            HttpServletRequest httpRequest) {
+        String username = principal != null ? principal.getName() : null;
+        if (twoFactorRateLimiter != null && httpRequest != null && !twoFactorRateLimiter.permitirDisable(httpRequest, username)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiadas solicitudes de desactivación 2FA. Por favor aguarde unos momentos.");
+        }
+
+        Usuario usuario = usuarioAutenticado(principal);
+
+        boolean passwordValida = request != null
+                && request.getPassword() != null
+                && !request.getPassword().isBlank()
+                && passwordEncoder.matches(request.getPassword(), usuario.getPassword());
+        boolean codigoValido = request != null
+                && request.getCode() != null
+                && !request.getCode().isBlank()
+                && usuario.getTwoFactorSecret() != null
+                && totpServicio.validarCodigo(usuario.getTwoFactorSecret(), request.getCode(), null) >= 0;
+
+        if (!passwordValida && !codigoValido) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Debe confirmar su contrasena o un codigo TOTP vigente para desactivar 2FA.");
+        }
+
+        usuario.setTwoFactorEnabled(false);
+        usuario.setTwoFactorSecret(null);
+        usuario.setTwoFactorBackupCodes(null);
+        usuario.setTwoFactorLastCounter(null);
+        usuario.revocarSesiones();
+        usuarioRepositorio.save(usuario);
+        if (refreshTokenServicio != null) {
+            refreshTokenServicio.revocarTodosLosTokensDeUsuario(usuario.getId());
+        }
+
+        return ResponseEntity.ok(Map.of("message", "2FA deshabilitado y sesiones revocadas."));
+    }
+
+    public ResponseEntity<Map<String, String>> disable2FA(
+            Principal principal,
+            TwoFactorDisableDtoRequest request) {
+        return disable2FA(principal, request, null);
+    }
+
+    private JwtAuthDtoResponse emitirSesion(Usuario usuario, HttpServletResponse response) {
+        String token = jwtTokenProvider.generarTokenParaUsuario(
+                usuario.getEmail(), usuario.getRol(), usuario.getTokenVersion());
+        if (refreshTokenServicio != null && response != null) {
+            var rt = refreshTokenServicio.crearRefreshToken(usuario);
+            if (rt != null && rt.getToken() != null) {
+                fijarCookieRefreshToken(response, rt.getToken());
+            }
+        }
+        return construirRespuesta(usuario, token);
+    }
+
+    private JwtAuthDtoResponse respuesta2FA(Usuario usuario, String tempToken) {
+        JwtAuthDtoResponse base = construirRespuesta(usuario, null);
+        base.setRequires2FA(true);
+        base.setTempToken(tempToken);
+        base.setTwoFactorEnabled(true);
+        return base;
+    }
+
+    private JwtAuthDtoResponse construirRespuesta(Usuario usuario, String token) {
+        Paciente paciente = pacienteDe(usuario);
+        Profesional profesional = usuario.getProfesional();
+
+        return JwtAuthDtoResponse.builder()
+                .accessToken(token)
+                .tokenType("Bearer")
+                .usuarioId(usuario.getId())
+                .pacienteId(paciente != null ? paciente.getId() : null)
+                .profesionalId(profesional != null ? profesional.getId() : null)
+                .email(usuario.getEmail())
+                .rol(usuario.getRol())
+                .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
+                .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
+                .dni(paciente != null ? paciente.getDni() : null)
+                .emailVerificado(usuario.getEmailVerificado())
+                .twoFactorEnabled(Boolean.TRUE.equals(usuario.getTwoFactorEnabled()))
+                .requires2FA(false)
+                .build();
+    }
+
+    private Paciente pacienteDe(Usuario usuario) {
+        Paciente paciente = usuario.getPaciente();
+        if (paciente == null && usuario.getEmail() != null) {
+            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+        return paciente;
+    }
+
+    private Usuario usuarioAutenticado(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado.");
+        }
+        return usuarioRepositorio.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado."));
+    }
+
+    private boolean consumirCodigoRespaldo(Usuario usuario, String codigo) {
+        if (codigo == null || codigo.isBlank() || usuario.getTwoFactorBackupCodes() == null) {
+            return false;
+        }
+        List<String> hashes = new ArrayList<>(Arrays.asList(usuario.getTwoFactorBackupCodes().split(",")));
+        for (int i = 0; i < hashes.size(); i++) {
+            if (passwordEncoder.matches(codigo.trim(), hashes.get(i))) {
+                hashes.remove(i);
+                usuario.setTwoFactorBackupCodes(hashes.isEmpty() ? null : String.join(",", hashes));
+                usuarioRepositorio.save(usuario);
+                return true;
+            }
+        }
+        return false;
     }
 
     public ResponseEntity<JwtAuthDtoResponse> registro(RegistroDtoRequest registroDto) {
@@ -384,19 +723,28 @@ public class AuthControlador {
     }
 
     @PostMapping({"/registro", "/register"})
+    @Transactional
     public ResponseEntity<JwtAuthDtoResponse> registro(
             @Valid @RequestBody RegistroDtoRequest registroDto,
             HttpServletResponse servletResponse) {
-        if (usuarioRepositorio.existsByEmail(registroDto.getEmail())) {
-            throw new IllegalArgumentException("El email ya se encuentra registrado: " + registroDto.getEmail());
+        String email = registroDto.getEmail() != null
+                ? registroDto.getEmail().trim().toLowerCase()
+                : "";
+        if (usuarioRepositorio.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El email ya se encuentra registrado: " + email);
         }
 
-        String rol = "PACIENTE";
+        String dni = normalizarDni(registroDto.getDni());
+        if (dni != null && pacienteRepositorio.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El DNI ya se encuentra registrado: " + dni);
+        }
 
         Usuario usuario = new Usuario();
-        usuario.setEmail(registroDto.getEmail());
+        usuario.setEmail(email);
         usuario.setPassword(passwordEncoder.encode(registroDto.getPassword()));
-        usuario.setRol(rol);
+        usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
         usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
@@ -405,23 +753,15 @@ public class AuthControlador {
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
-        Paciente nuevoPaciente = null;
-        if (pacienteRepositorio != null) {
-            try {
-                if (!pacienteRepositorio.existsByUsuarioEmail(guardado.getEmail())) {
-                    nuevoPaciente = new Paciente();
-                    String nom = (registroDto.getNombre() != null && !registroDto.getNombre().isBlank()) ? registroDto.getNombre().trim() : "Paciente";
-                    String ape = (registroDto.getApellido() != null && !registroDto.getApellido().isBlank()) ? registroDto.getApellido().trim() : "Registrado";
-                    nuevoPaciente.setNombre(nom);
-                    nuevoPaciente.setApellido(ape);
-                    nuevoPaciente.setDni("DNI-" + guardado.getId());
-                    nuevoPaciente.setNroAfiliado("AF-" + guardado.getId());
-                    nuevoPaciente.setUsuario(guardado);
-                    nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
-                }
-            } catch (Exception ignored) {
-            }
-        }
+        Paciente nuevoPaciente = new Paciente();
+        nuevoPaciente.setNombre(textoONulo(registroDto.getNombre(), "Paciente"));
+        nuevoPaciente.setApellido(textoONulo(registroDto.getApellido(), "Registrado"));
+        nuevoPaciente.setDni(dni != null ? dni : "DNI-" + guardado.getId());
+        nuevoPaciente.setNroAfiliado("AF-" + nuevoPaciente.getDni());
+        nuevoPaciente.setTelefono(textoONulo(registroDto.getTelefono(), null));
+        nuevoPaciente.setUsuario(guardado);
+        nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
+        guardado.setPaciente(nuevoPaciente);
 
         String token = null;
         if (jwtTokenProvider != null) {
@@ -441,11 +781,13 @@ public class AuthControlador {
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(guardado.getId())
+                .pacienteId(nuevoPaciente.getId())
+                .profesionalId(null)
                 .email(guardado.getEmail())
                 .rol(guardado.getRol())
-                .nombre(nuevoPaciente != null ? nuevoPaciente.getNombre() : null)
-                .apellido(nuevoPaciente != null ? nuevoPaciente.getApellido() : null)
-                .dni(nuevoPaciente != null ? nuevoPaciente.getDni() : null)
+                .nombre(nuevoPaciente.getNombre())
+                .apellido(nuevoPaciente.getApellido())
+                .dni(nuevoPaciente.getDni())
                 .emailVerificado(true)
                 .build();
 
@@ -589,13 +931,27 @@ public class AuthControlador {
         }
         Usuario usuario = usuarioRepositorio.findByEmail(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
-        return ResponseEntity.ok(Map.of(
-                "id", usuario.getId(),
-                "email", usuario.getEmail(),
-                "rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE",
-                "activo", Boolean.TRUE.equals(usuario.getEstadoActivo()),
-                "verificado", Boolean.TRUE.equals(usuario.getEmailVerificado())
-        ));
+
+        Paciente paciente = usuario.getPaciente();
+        if (paciente == null && usuario.getId() != null) {
+            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+        Profesional profesional = usuario.getProfesional();
+
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("id", usuario.getId());
+        response.put("usuarioId", usuario.getId());
+        response.put("pacienteId", paciente != null ? paciente.getId() : null);
+        response.put("profesionalId", profesional != null ? profesional.getId() : null);
+        response.put("email", usuario.getEmail());
+        response.put("rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE");
+        response.put("nombre", paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null);
+        response.put("apellido", paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null);
+        response.put("dni", paciente != null ? paciente.getDni() : null);
+        response.put("activo", Boolean.TRUE.equals(usuario.getEstadoActivo()));
+        response.put("verificado", Boolean.TRUE.equals(usuario.getEmailVerificado()));
+        response.put("twoFactorEnabled", Boolean.TRUE.equals(usuario.getTwoFactorEnabled()));
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/validar-token")
@@ -610,5 +966,20 @@ public class AuthControlador {
                 "valido", valido,
                 "username", username != null ? username : ""
         ));
+    }
+
+    private String normalizarDni(String dni) {
+        if (dni == null || dni.isBlank()) {
+            return null;
+        }
+        String limpio = dni.replaceAll("[^0-9a-zA-Z-]", "").trim();
+        return limpio.isEmpty() ? null : limpio;
+    }
+
+    private String textoONulo(String valor, String porDefecto) {
+        if (valor == null || valor.isBlank()) {
+            return porDefecto;
+        }
+        return valor.trim();
     }
 }
