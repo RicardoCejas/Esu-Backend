@@ -950,6 +950,7 @@ public class AuthControlador {
         response.put("dni", paciente != null ? paciente.getDni() : null);
         response.put("activo", Boolean.TRUE.equals(usuario.getEstadoActivo()));
         response.put("verificado", Boolean.TRUE.equals(usuario.getEmailVerificado()));
+        response.put("twoFactorEnabled", Boolean.TRUE.equals(usuario.getTwoFactorEnabled()));
         return ResponseEntity.ok(response);
     }
 
