@@ -36,6 +36,9 @@ public class UsuarioMapper {
         dto.setFechaDeAlta(usuario.getFechaDeAlta());
         dto.setCentroSaludId(usuario.getCentroSaludId());
         dto.setCentroSaludNombre(usuario.getCentroSaludNombre());
+        if (usuario.getPermisos() != null) {
+            dto.setPermisos(usuario.getPermisos().stream().map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo).sorted().toList());
+        }
         return dto;
     }
 }

@@ -17,4 +17,6 @@ public interface IUsuarioServicio {
     UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo);
     void revocarSesiones(Long id);
     void revocarSesionesPorEmail(String email);
+    List<String> obtenerPermisosUsuario(Long id);
+    UsuarioDtoResponse actualizarPermisosUsuario(Long id, List<String> codigosPermisos);
 }

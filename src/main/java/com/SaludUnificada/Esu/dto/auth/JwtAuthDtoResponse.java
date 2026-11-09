@@ -29,4 +29,5 @@ public class JwtAuthDtoResponse {
     private Boolean twoFactorEnabled;
     private Boolean requires2FA;
     private String tempToken;
+    private java.util.List<String> permisos;
 }

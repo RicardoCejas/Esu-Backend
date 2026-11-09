@@ -20,6 +20,7 @@ public class UsuarioDtoResponse {
     private LocalDate fechaDeAlta;
     private Long centroSaludId;
     private String centroSaludNombre;
+    private java.util.List<String> permisos;
 
     public UsuarioDtoResponse(Long id, String username, String rol, Boolean activo, LocalDate fechaDeAlta) {
         this.id = id;

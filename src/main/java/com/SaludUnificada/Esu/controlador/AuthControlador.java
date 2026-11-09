@@ -674,6 +674,10 @@ public class AuthControlador {
 
         String centroNombre = usuario.getCentroSaludNombre() != null ? usuario.getCentroSaludNombre() : (paciente != null ? paciente.getCentroSaludReferenciaNombre() : null);
 
+        java.util.List<String> codigosPermisos = (usuario.getPermisos() != null)
+                ? usuario.getPermisos().stream().map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo).sorted().toList()
+                : java.util.Collections.emptyList();
+
 
         return JwtAuthDtoResponse.builder()
                 .accessToken(token)
@@ -691,6 +695,7 @@ public class AuthControlador {
                 .emailVerificado(usuario.getEmailVerificado())
                 .twoFactorEnabled(Boolean.TRUE.equals(usuario.getTwoFactorEnabled()))
                 .requires2FA(false)
+                .permisos(codigosPermisos)
                 .build();
     }
 

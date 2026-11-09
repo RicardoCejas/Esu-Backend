@@ -19,6 +19,10 @@ import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
+import com.SaludUnificada.Esu.repositorio.PermisoRepositorio;
+import com.SaludUnificada.Esu.entidad.Permiso;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,6 +55,9 @@ public class UsuarioServicio implements IUsuarioServicio {
     @Autowired(required = false)
     private RecetaDigitalRepositorio recetaDigitalRepositorio;
 
+    @Autowired(required = false)
+    private PermisoRepositorio permisoRepositorio;
+
     @Override
     public UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuarioDto) {
         if (usuarioRepositorio.existsByEmail(usuarioDto.getUsername())) {
@@ -58,6 +65,14 @@ public class UsuarioServicio implements IUsuarioServicio {
         }
         Usuario usuario = usuarioMapper.paraEntidad(usuarioDto);
         usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        if (permisoRepositorio != null) {
+            if (usuarioDto.getPermisos() != null && !usuarioDto.getPermisos().isEmpty()) {
+                Set<Permiso> perms = permisoRepositorio.findByCodigoIn(new HashSet<>(usuarioDto.getPermisos()));
+                usuario.setPermisos(perms);
+            } else {
+                usuario.setPermisos(obtenerPermisosDefectoPorRol(usuario.getRol()));
+            }
+        }
         Usuario usuarioGuardado = usuarioRepositorio.save(usuario);
         return usuarioMapper.paraDto(usuarioGuardado);
     }
@@ -158,5 +173,47 @@ public class UsuarioServicio implements IUsuarioServicio {
                 refreshTokenRepositorio.revocarTodosPorUsuarioId(u.getId());
             }
         });
+    }
+
+    @Override
+    public List<String> obtenerPermisosUsuario(Long id) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        if (usuario.getPermisos() == null) return java.util.Collections.emptyList();
+        return usuario.getPermisos().stream().map(Permiso::getCodigo).sorted().toList();
+    }
+
+    @Override
+    @Transactional
+    public UsuarioDtoResponse actualizarPermisosUsuario(Long id, List<String> codigosPermisos) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        if (permisoRepositorio != null) {
+            Set<Permiso> perms = (codigosPermisos != null && !codigosPermisos.isEmpty())
+                    ? permisoRepositorio.findByCodigoIn(new HashSet<>(codigosPermisos))
+                    : new HashSet<>();
+            usuario.setPermisos(perms);
+            usuario.revocarSesiones(); // Fuerzo refresh de token para que tome los nuevos permisos
+            Usuario actualizado = usuarioRepositorio.save(usuario);
+            return usuarioMapper.paraDto(actualizado);
+        }
+        return usuarioMapper.paraDto(usuario);
+    }
+
+    private Set<Permiso> obtenerPermisosDefectoPorRol(String rol) {
+        if (permisoRepositorio == null || rol == null) return new HashSet<>();
+        String rolNorm = rol.toUpperCase().trim();
+        if ("ADMIN".equals(rolNorm)) {
+            return new HashSet<>(permisoRepositorio.findAll());
+        } else if ("RECEPCIONISTA".equals(rolNorm)) {
+            return permisoRepositorio.findByCodigoIn(Set.of(
+                    "TURNOS_VER", "TURNOS_CREAR", "TURNOS_CANCELAR", "TURNOS_REAGENDAR",
+                    "SOBRETURNOS_CREAR", "SALA_ESPERA_GESTIONAR", "PACIENTES_VER",
+                    "PACIENTES_REGISTRAR", "CONSULTORIOS_VER", "MEDICOS_VER", "MEDICOS_ASIGNAR_CONSULTORIO"
+            ));
+        } else if ("MEDICO".equals(rolNorm) || "PROFESIONAL".equals(rolNorm)) {
+            return permisoRepositorio.findByCodigoIn(Set.of(
+                    "TURNOS_VER", "PACIENTES_VER", "CONSULTORIOS_VER", "MEDICOS_VER"
+            ));
+        }
+        return new HashSet<>();
     }
 }

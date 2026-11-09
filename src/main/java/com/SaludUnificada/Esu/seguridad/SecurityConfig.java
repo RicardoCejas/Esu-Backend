@@ -151,6 +151,7 @@ public class SecurityConfig {
 
                         auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/preferencias").authenticated();
                         auth.requestMatchers("/api/usuarios/**").hasRole("ADMIN");
+                        auth.requestMatchers("/api/permisos/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/centros-salud/**").permitAll();
                         auth.requestMatchers("/api/centros-salud/**").hasAnyRole("ADMIN", "RECEPCIONISTA");

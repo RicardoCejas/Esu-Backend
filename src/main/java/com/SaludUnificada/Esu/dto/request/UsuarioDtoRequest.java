@@ -24,6 +24,7 @@ public class UsuarioDtoRequest {
     private String rol;
     private Long centroSaludId;
     private String centroSaludNombre;
+    private java.util.List<String> permisos;
 
     public UsuarioDtoRequest(String username, String password) {
         this.username = username;
