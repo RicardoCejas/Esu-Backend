@@ -8,7 +8,7 @@
 ALTER TABLE refresh_token ADD COLUMN token_family_id VARCHAR(64) NULL AFTER usuario_id;
 
 -- Inicializar familia con token_hash para tokens preexistentes
-UPDATE refresh_token SET token_family_id = token_hash WHERE token_family_id IS NULL;
+UPDATE refresh_token SET token_family_id = token_hash WHERE token_family_id IS NULL AND id > 0;
 
 -- Exigir no nulidad e índice sobre la familia de refresh tokens
 ALTER TABLE refresh_token MODIFY COLUMN token_family_id VARCHAR(64) NOT NULL;
