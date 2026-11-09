@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class PacienteServicio implements IPacienteServicio {
 
@@ -99,14 +101,30 @@ public class PacienteServicio implements IPacienteServicio {
     }
 
     @Override
+    @Transactional
     public void eliminarPaciente(Long id) {
-        if (pacienteRepositorio.existsById(id)) {
-            pacienteRepositorio.deleteById(id);
-        } else {
-            throw new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id);
-        }
-    }
+        Paciente paciente = pacienteRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + id));
 
+        boolean tieneHc = historiaClinicaRepositorio != null && historiaClinicaRepositorio.countByPacienteId(id) > 0;
+        boolean tieneEvoluciones = evolucionMedicaRepositorio != null && evolucionMedicaRepositorio.countByPacienteId(id) > 0;
+        boolean tieneRecetas = recetaRepositorio != null && recetaRepositorio.countByPacienteId(id) > 0;
+
+        if (tieneHc || tieneEvoluciones || tieneRecetas) {
+            log.warn("Intento de eliminación física bloqueado para Paciente ID={} con registros clínicos (HC={}, Evoluciones={}, Recetas={}). Aplicando principio de inalterabilidad Ley 26.529.",
+                    id, tieneHc, tieneEvoluciones, tieneRecetas);
+            if (paciente.getUsuario() != null) {
+                paciente.getUsuario().setEstadoActivo(false);
+                paciente.getUsuario().revocarSesiones();
+                if (usuarioRepositorio != null) {
+                    usuarioRepositorio.save(paciente.getUsuario());
+                }
+            }
+            throw new ReglaNegocioException("Por disposición de la Ley 26.529 de Derechos del Paciente, no es posible eliminar físicamente un paciente con historia clínica o registros médicos asociados. El usuario vinculado ha sido inhabilitado para preservar la integridad legal.");
+        }
+
+        pacienteRepositorio.delete(paciente);
+    }
     @Override
     public PacienteDtoResponse buscarPorDni(String dni) {
         if (dni == null || dni.trim().isEmpty()) {
@@ -305,14 +323,18 @@ public class PacienteServicio implements IPacienteServicio {
             recetaRepositorio.saveAll(recetas);
         }
 
-        int historiasCount = 0;
+        HistoriaClinica hcDestino = null;
+        List<HistoriaClinica> historiasOrigen = new java.util.ArrayList<>();
         if (historiaClinicaRepositorio != null) {
-            List<HistoriaClinica> historias = historiaClinicaRepositorio.findByPacienteId(pacienteOrigenId);
-            historiasCount = historias.size();
-            for (HistoriaClinica hc : historias) {
-                hc.setPaciente(destino);
+            Optional<HistoriaClinica> hcDestinoOpt = historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(pacienteDestinoId);
+            historiasOrigen.addAll(historiaClinicaRepositorio.findByPacienteId(pacienteOrigenId));
+            if (hcDestinoOpt.isPresent()) {
+                hcDestino = hcDestinoOpt.get();
+            } else if (!historiasOrigen.isEmpty()) {
+                hcDestino = historiasOrigen.remove(0);
+                hcDestino.setPaciente(destino);
+                hcDestino = historiaClinicaRepositorio.save(hcDestino);
             }
-            historiaClinicaRepositorio.saveAll(historias);
         }
 
         int evolucionesCount = 0;
@@ -321,8 +343,34 @@ public class PacienteServicio implements IPacienteServicio {
             evolucionesCount = evoluciones.size();
             for (EvolucionMedica e : evoluciones) {
                 e.setPaciente(destino);
+                if (hcDestino != null) {
+                    e.setHistoriaClinica(hcDestino);
+                }
             }
             evolucionMedicaRepositorio.saveAll(evoluciones);
+        }
+
+        int historiasCount = 0;
+        if (historiaClinicaRepositorio != null) {
+            for (HistoriaClinica hcExtra : historiasOrigen) {
+                if (hcDestino != null) {
+                    if ((hcDestino.getDiagnostico() == null || hcDestino.getDiagnostico().isBlank()) && hcExtra.getDiagnostico() != null) {
+                        hcDestino.setDiagnostico(hcExtra.getDiagnostico());
+                    }
+                    if ((hcDestino.getTratamiento() == null || hcDestino.getTratamiento().isBlank()) && hcExtra.getTratamiento() != null) {
+                        hcDestino.setTratamiento(hcExtra.getTratamiento());
+                    }
+                    if ((hcDestino.getMotivoConsulta() == null || hcDestino.getMotivoConsulta().isBlank()) && hcExtra.getMotivoConsulta() != null) {
+                        hcDestino.setMotivoConsulta(hcExtra.getMotivoConsulta());
+                    }
+                }
+                historiaClinicaRepositorio.delete(hcExtra);
+                historiasCount++;
+            }
+            if (hcDestino != null) {
+                historiaClinicaRepositorio.save(hcDestino);
+                historiasCount++;
+            }
         }
 
         int estudiosCount = 0;

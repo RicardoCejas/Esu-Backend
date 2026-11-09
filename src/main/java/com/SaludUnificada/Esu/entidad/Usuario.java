@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -71,6 +72,22 @@ public class Usuario {
 
     @Column(name = "auth_provider")
     private String authProvider = "LOCAL";
+
+    @JsonIgnore
+    @Column(name = "two_factor_enabled")
+    private Boolean twoFactorEnabled = false;
+
+    @JsonIgnore
+    @Column(name = "two_factor_secret")
+    private String twoFactorSecret;
+
+    @JsonIgnore
+    @Column(name = "two_factor_backup_codes", columnDefinition = "TEXT")
+    private String twoFactorBackupCodes;
+
+    @JsonIgnore
+    @Column(name = "two_factor_last_counter")
+    private Long twoFactorLastCounter;
 
     public void revocarSesiones() {
         this.tokenVersion = (this.tokenVersion != null ? this.tokenVersion : 0) + 1;

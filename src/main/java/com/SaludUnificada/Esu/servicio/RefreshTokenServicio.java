@@ -24,6 +24,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -87,11 +88,13 @@ public class RefreshTokenServicio {
     public RefreshToken crearRefreshToken(Usuario usuario) {
         String rawToken = generarTokenAleatorio();
         String tokenHash = hashToken(rawToken);
+        String tokenFamilyId = UUID.randomUUID().toString();
         LocalDateTime fechaCreacion = ahora();
         LocalDateTime fechaExpiracion = fechaCreacion.plusDays(refreshExpirationDays);
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .usuario(usuario)
+                .tokenFamilyId(tokenFamilyId)
                 .tokenHash(tokenHash)
                 .fechaCreacion(fechaCreacion)
                 .fechaExpiracion(fechaExpiracion)
@@ -115,6 +118,7 @@ public class RefreshTokenServicio {
 
         record StepOutcome(
                 RefreshResult result,
+                String familyIdARevocarPorCompromiso,
                 Long usuarioIdARevocarPorCompromiso,
                 String mensajeRechazo
         ) {}
@@ -138,28 +142,31 @@ public class RefreshTokenServicio {
                             && !reemplazo.isRevocado()
                             && reemplazo.getFechaCreacion() != null
                             && !reemplazo.getFechaCreacion().isBefore(ahora.minusSeconds(10))) {
-                        log.warn("Colisión concurrente tolerada de refresh token para usuario ID={}. No se revocan otras sesiones.", usuario.getId());
-                        return new StepOutcome(null, null, "Sesión actualizada concurrentemente. Reintente.");
+                        log.warn("Colisión concurrente tolerada de refresh token para usuario ID={}. No se revoca la familia.", usuario.getId());
+                        return new StepOutcome(null, null, null, "Sesión actualizada concurrentemente. Reintente.");
                     }
                 }
 
+                String familyId = tokenExistente.getTokenFamilyId() != null
+                        ? tokenExistente.getTokenFamilyId()
+                        : tokenExistente.getTokenHash();
                 // Commit/finaliza TX1 antes de invocar revocación REQUIRES_NEW para evitar autodeadlock InnoDB
-                return new StepOutcome(null, usuario.getId(), "Sesión comprometida o revocada. Inicie sesión nuevamente.");
+                return new StepOutcome(null, familyId, usuario.getId(), "Sesión comprometida o revocada. Inicie sesión nuevamente.");
             }
 
             if (tokenExistente.estaExpirado(ahora)) {
                 tokenExistente.setRevocado(true);
                 refreshTokenRepositorio.save(tokenExistente);
-                return new StepOutcome(null, null, "La sesión ha expirado. Inicie sesión nuevamente.");
+                return new StepOutcome(null, null, null, "La sesión ha expirado. Inicie sesión nuevamente.");
             }
 
             if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
                 tokenExistente.setRevocado(true);
                 refreshTokenRepositorio.save(tokenExistente);
-                return new StepOutcome(null, null, "La cuenta de usuario se encuentra deshabilitada.");
+                return new StepOutcome(null, null, null, "La cuenta de usuario se encuentra deshabilitada.");
             }
 
-            // Rotación: revocar el token actual y generar uno nuevo
+            // Rotación: revocar el token actual y generar uno nuevo dentro de la misma familia
             String nuevoTokenRaw = generarTokenAleatorio();
             String nuevoTokenHash = hashToken(nuevoTokenRaw);
 
@@ -167,8 +174,13 @@ public class RefreshTokenServicio {
             tokenExistente.setReemplazadoPor(nuevoTokenHash);
             refreshTokenRepositorio.save(tokenExistente);
 
+            String familyId = tokenExistente.getTokenFamilyId() != null
+                    ? tokenExistente.getTokenFamilyId()
+                    : UUID.randomUUID().toString();
+
             RefreshToken nuevoRefreshToken = RefreshToken.builder()
                     .usuario(usuario)
+                    .tokenFamilyId(familyId)
                     .tokenHash(nuevoTokenHash)
                     .fechaCreacion(ahora)
                     .fechaExpiracion(ahora.plusDays(refreshExpirationDays))
@@ -183,15 +195,24 @@ public class RefreshTokenServicio {
                     usuario.getTokenVersion()
             );
 
+            var paciente = usuario.getPaciente();
+            var profesional = usuario.getProfesional();
+
             JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
                     .accessToken(nuevoAccessToken)
                     .tokenType("Bearer")
                     .usuarioId(usuario.getId())
+                    .pacienteId(paciente != null ? paciente.getId() : null)
+                    .profesionalId(profesional != null ? profesional.getId() : null)
                     .email(usuario.getEmail())
                     .rol(usuario.getRol())
+                    .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
+                    .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
+                    .dni(paciente != null ? paciente.getDni() : null)
+                    .emailVerificado(usuario.getEmailVerificado())
                     .build();
 
-            return new StepOutcome(new RefreshResult(authResponse, nuevoTokenRaw), null, null);
+            return new StepOutcome(new RefreshResult(authResponse, nuevoTokenRaw), null, null, null);
         };
 
         StepOutcome outcome;
@@ -206,13 +227,14 @@ public class RefreshTokenServicio {
             throw new BadCredentialsException("No se pudo procesar la renovación de sesión.");
         }
 
-        if (outcome.usuarioIdARevocarPorCompromiso() != null) {
-            Long usuarioId = outcome.usuarioIdARevocarPorCompromiso();
-            log.warn("Alerta de seguridad: Intento de reuso de refresh token ya revocado para usuario ID={}. Revocando todas las sesiones.", usuarioId);
+        if (outcome.familyIdARevocarPorCompromiso() != null) {
+            String familyId = outcome.familyIdARevocarPorCompromiso();
+            log.warn("Alerta de seguridad: Intento de reuso de refresh token ya revocado para usuario ID={} en familia {}. Revocando familia de sesiones comprometida.",
+                    outcome.usuarioIdARevocarPorCompromiso(), familyId);
             if (refreshTokenRevocationService != null) {
-                refreshTokenRevocationService.revocarTodasLasSesionesPorCompromiso(usuarioId);
+                refreshTokenRevocationService.revocarFamiliaPorCompromiso(familyId);
             } else {
-                refreshTokenRepositorio.revocarTodosPorUsuarioId(usuarioId);
+                refreshTokenRepositorio.revocarPorTokenFamilyId(familyId);
             }
         }
 
@@ -227,7 +249,8 @@ public class RefreshTokenServicio {
     public void revocarToken(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
         String tokenHash = hashToken(rawToken);
-        refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
+        int rows = refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
+        log.debug("Revocación de refresh token hash={}: {} registros afectados.", tokenHash, rows);
     }
 
     @Transactional

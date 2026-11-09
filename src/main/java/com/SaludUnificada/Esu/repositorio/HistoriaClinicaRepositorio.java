@@ -8,11 +8,14 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface HistoriaClinicaRepositorio extends JpaRepository<HistoriaClinica, Long> {
 
     List<HistoriaClinica> findByPacienteId(Long pacienteId);
+
+    Optional<HistoriaClinica> findFirstByPacienteIdOrderByFechaAtencionDesc(Long pacienteId);
 
     List<HistoriaClinica> findByFechaAtencionBetween(LocalDateTime inicio, LocalDateTime fin);
     Page<HistoriaClinica> findByFechaAtencionBetween(LocalDateTime inicio, LocalDateTime fin, Pageable pageable);

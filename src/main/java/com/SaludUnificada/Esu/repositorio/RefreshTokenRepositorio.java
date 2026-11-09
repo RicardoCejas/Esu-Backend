@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -25,6 +26,12 @@ public interface RefreshTokenRepositorio extends JpaRepository<RefreshToken, Lon
     int revocarTodosPorUsuarioId(@Param("usuarioId") Long usuarioId);
 
     @Modifying
+    @Query("UPDATE RefreshToken r SET r.revocado = true WHERE r.tokenFamilyId = :tokenFamilyId AND r.revocado = false")
+    int revocarPorTokenFamilyId(@Param("tokenFamilyId") String tokenFamilyId);
+
+    @Modifying
     @Query("UPDATE RefreshToken r SET r.revocado = true WHERE r.tokenHash = :tokenHash")
     int revocarPorTokenHash(@Param("tokenHash") String tokenHash);
+
+    List<RefreshToken> findByTokenFamilyId(String tokenFamilyId);
 }

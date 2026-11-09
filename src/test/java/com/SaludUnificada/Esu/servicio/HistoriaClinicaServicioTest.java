@@ -187,4 +187,35 @@ class HistoriaClinicaServicioTest {
         assertNotNull(response);
         verify(historiaClinicaRepositorio).save(hc);
     }
+
+    @Test
+    void testCrearHistoriaClinica_ReutilizaHistoriaExistenteDelPaciente() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("medico@hospital.gob.ar", "pass", List.of(new SimpleGrantedAuthority("ROLE_MEDICO")))
+        );
+        HistoriaClinicaDtoRequest dto = new HistoriaClinicaDtoRequest("Gripe A", "Fiebre", "Paracetamol", 1L);
+        when(pacienteRepositorio.existsById(1L)).thenReturn(true);
+
+        Profesional prof = new Profesional();
+        prof.setId(5L);
+        prof.setEstadoActivo(true);
+        when(profesionalRepositorio.findByUsuarioEmail("medico@hospital.gob.ar")).thenReturn(Optional.of(prof));
+        when(ownershipSecurityEvaluator.canAccessPatient(1L)).thenReturn(true);
+
+        HistoriaClinica existente = new HistoriaClinica();
+        existente.setId(100L);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(1L))
+                .thenReturn(Optional.of(existente));
+        when(historiaClinicaRepositorio.save(existente)).thenReturn(existente);
+        when(historiaClinicaMapper.paraDto(existente)).thenReturn(new HistoriaClinicaDtoResponse());
+
+        HistoriaClinicaDtoResponse response = historiaClinicaServicio.crearHistoriaClinica(dto);
+
+        assertNotNull(response);
+        assertEquals("Gripe A", existente.getDiagnostico());
+        assertEquals("Fiebre", existente.getMotivoConsulta());
+        assertEquals("Paracetamol", existente.getTratamiento());
+        verify(historiaClinicaRepositorio).save(existente);
+        verify(historiaClinicaMapper, never()).paraEntidad(any());
+    }
 }

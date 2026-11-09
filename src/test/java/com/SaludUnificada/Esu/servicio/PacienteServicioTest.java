@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.repositorio.*;
 import org.mockito.ArgumentCaptor;
@@ -264,5 +265,83 @@ class PacienteServicioTest {
         assertEquals(20L, audit.getPacienteDestinoId());
         assertEquals("admin@esu.com", audit.getOperadorEmail());
         assertNotNull(audit.getDetalles());
+    }
+
+    @Test
+    void testEliminarPaciente_ConDatosClinicos_LanzaReglaNegocioYDesactivaUsuario() {
+        Paciente paciente = new Paciente();
+        paciente.setId(10L);
+        Usuario usuario = new Usuario();
+        usuario.setEstadoActivo(true);
+        usuario.setTokenVersion(1);
+        paciente.setUsuario(usuario);
+
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+        when(historiaClinicaRepositorio.countByPacienteId(10L)).thenReturn(1L);
+
+        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> {
+            pacienteServicio.eliminarPaciente(10L);
+        });
+
+        assertTrue(ex.getMessage().contains("Ley 26.529"));
+        assertFalse(usuario.getEstadoActivo());
+        assertEquals(2, usuario.getTokenVersion());
+        verify(pacienteRepositorio, never()).delete(any());
+        verify(pacienteRepositorio, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void testEliminarPaciente_SinDatosClinicos_EliminaCorrectamente() {
+        Paciente paciente = new Paciente();
+        paciente.setId(15L);
+        when(pacienteRepositorio.findById(15L)).thenReturn(Optional.of(paciente));
+        when(historiaClinicaRepositorio.countByPacienteId(15L)).thenReturn(0L);
+        when(evolucionMedicaRepositorio.countByPacienteId(15L)).thenReturn(0L);
+        when(recetaRepositorio.countByPacienteId(15L)).thenReturn(0L);
+
+        pacienteServicio.eliminarPaciente(15L);
+
+        verify(pacienteRepositorio).delete(paciente);
+    }
+
+    @Test
+    void testFusionarPacientes_DestinoYaTieneHC_ConsolidaEvolucionesYBorraCabeceraDuplicada() {
+        Paciente origen = new Paciente();
+        origen.setId(1L);
+        origen.setNombre("Carlos");
+        origen.setDni("20111222");
+
+        Paciente destino = new Paciente();
+        destino.setId(2L);
+        destino.setNombre("Carlos Alberto");
+        destino.setDni("20111222");
+
+        when(pacienteRepositorio.findById(1L)).thenReturn(Optional.of(origen));
+        when(pacienteRepositorio.findById(2L)).thenReturn(Optional.of(destino));
+
+        HistoriaClinica hcDestino = new HistoriaClinica();
+        hcDestino.setId(200L);
+        hcDestino.setPaciente(destino);
+        when(historiaClinicaRepositorio.findFirstByPacienteIdOrderByFechaAtencionDesc(2L))
+                .thenReturn(Optional.of(hcDestino));
+
+        HistoriaClinica hcOrigen = new HistoriaClinica();
+        hcOrigen.setId(100L);
+        hcOrigen.setPaciente(origen);
+        hcOrigen.setDiagnostico("Diagnostico Previo");
+        when(historiaClinicaRepositorio.findByPacienteId(1L)).thenReturn(List.of(hcOrigen));
+
+        EvolucionMedica evOrigen = new EvolucionMedica();
+        evOrigen.setId(50L);
+        evOrigen.setPaciente(origen);
+        evOrigen.setHistoriaClinica(hcOrigen);
+        when(evolucionMedicaRepositorio.findByPacienteIdOrderByFechaCreacionDesc(1L)).thenReturn(List.of(evOrigen));
+
+        pacienteServicio.fusionarPacientes(1L, 2L, "Fusión duplicados", "admin@esu.gob.ar");
+
+        assertEquals(destino, evOrigen.getPaciente());
+        assertEquals(hcDestino, evOrigen.getHistoriaClinica());
+        verify(historiaClinicaRepositorio).delete(hcOrigen);
+        verify(historiaClinicaRepositorio).save(hcDestino);
     }
 }
