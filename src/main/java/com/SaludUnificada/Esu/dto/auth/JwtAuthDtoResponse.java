@@ -18,6 +18,8 @@ public class JwtAuthDtoResponse {
     private Long usuarioId;
     private Long pacienteId;
     private Long profesionalId;
+    private Long centroSaludId;
+    private String centroSaludNombre;
     private String email;
     private String rol;
     private String nombre;

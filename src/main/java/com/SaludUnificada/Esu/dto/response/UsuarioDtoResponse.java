@@ -18,6 +18,8 @@ public class UsuarioDtoResponse {
     private String rol;
     private Boolean activo;
     private LocalDate fechaDeAlta;
+    private Long centroSaludId;
+    private String centroSaludNombre;
 
     public UsuarioDtoResponse(Long id, String username, String rol, Boolean activo, LocalDate fechaDeAlta) {
         this.id = id;
@@ -26,5 +28,16 @@ public class UsuarioDtoResponse {
         this.rol = rol;
         this.activo = activo;
         this.fechaDeAlta = fechaDeAlta;
+    }
+
+    public UsuarioDtoResponse(Long id, String username, String rol, Boolean activo, LocalDate fechaDeAlta, Long centroSaludId, String centroSaludNombre) {
+        this.id = id;
+        this.username = username;
+        this.email = username;
+        this.rol = rol;
+        this.activo = activo;
+        this.fechaDeAlta = fechaDeAlta;
+        this.centroSaludId = centroSaludId;
+        this.centroSaludNombre = centroSaludNombre;
     }
 }

@@ -71,15 +71,32 @@ public class JwtTokenProvider {
         if (tokenVersion == null) {
             tokenVersion = 1;
         }
+        Long centroSaludId = null;
+        String centroSaludNombre = null;
+        if (usuarioRepositorio != null) {
+            var uOpt = usuarioRepositorio.findByEmail(userPrincipal.getUsername());
+            if (uOpt.isPresent()) {
+                var u = uOpt.get();
+                centroSaludId = u.getCentroSaludId();
+                centroSaludNombre = u.getCentroSaludNombre();
+            }
+        }
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .issuer(jwtIssuer)
                 .audience().add(jwtAudience).and()
                 .id(UUID.randomUUID().toString())
                 .subject(userPrincipal.getUsername())
                 .claim("roles", roles)
                 .claim("tv", tokenVersion)
-                .claim("tipo", "access")
+                .claim("tipo", "access");
+        if (centroSaludId != null) {
+            builder.claim("centroSaludId", centroSaludId);
+        }
+        if (centroSaludNombre != null) {
+            builder.claim("centroSaludNombre", centroSaludNombre);
+        }
+        return builder
                 .issuedAt(ahora)
                 .expiration(fechaExpiracion)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
@@ -204,6 +221,36 @@ public class JwtTokenProvider {
     public boolean esTokenDeAcceso(String token) {
         String tipo = obtenerTipoDelJwt(token);
         return tipo == null || "access".equals(tipo);
+    }
+
+    public Long obtenerCentroSaludIdDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            Object cid = claims.get("centroSaludId");
+            if (cid instanceof Number) {
+                return ((Number) cid).longValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public String obtenerCentroSaludNombreDelJwt(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.get("centroSaludNombre", String.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public boolean esToken2FA(String token) {

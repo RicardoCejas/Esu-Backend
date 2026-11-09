@@ -212,10 +212,49 @@ public class OwnershipSecurityEvaluator {
         return isDoctorAuthor(turnoOpt.get().getProfesional().getId());
     }
 
+    public boolean isReceptionistOfCenter(Long centroSaludId) {
+        if (centroSaludId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth)) return false;
+
+        Optional<Usuario> usuarioOpt = getCurrentUser(auth);
+        if (usuarioOpt.isEmpty()) return false;
+        Usuario usuario = usuarioOpt.get();
+
+        if (!esProduccion() && "dev@esu.gob.ar".equalsIgnoreCase(usuario.getEmail())) {
+            return true;
+        }
+
+        return usuario.getCentroSaludId() != null && usuario.getCentroSaludId().equals(centroSaludId);
+    }
+
+    public boolean canManageTurnoMostrador(Long turnoId) {
+        if (turnoId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+
+        Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
+        if (turnoOpt.isEmpty()) return false;
+        Turno turno = turnoOpt.get();
+
+        if (isReceptionist(auth)) {
+            return isReceptionistOfCenter(turno.getCentroSaludId());
+        }
+
+        if (isDoctor(auth)) {
+            return isTurnoDoctor(turnoId);
+        }
+
+        return false;
+    }
+
     public boolean canAccessTurno(Long turnoId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isReceptionist(auth) || isAdmin(auth)) return true;
+        if (isAdmin(auth)) return true;
 
         Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
         if (turnoOpt.isEmpty()) return false;
@@ -227,6 +266,13 @@ public class OwnershipSecurityEvaluator {
 
         if (!esProduccion() && "dev@esu.gob.ar".equalsIgnoreCase(usuario.getEmail())) {
             return true;
+        }
+
+        if (isReceptionist(auth)) {
+            if (usuario.getCentroSaludId() == null) {
+                return false;
+            }
+            return usuario.getCentroSaludId().equals(turno.getCentroSaludId());
         }
 
         if (isDoctor(auth)) {

@@ -21,6 +21,8 @@ public class UsuarioMapper {
         usuario.setEstadoActivo(true);
         usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
+        usuario.setCentroSaludId(dto.getCentroSaludId());
+        usuario.setCentroSaludNombre(dto.getCentroSaludNombre());
         return usuario;
     }
 
@@ -32,6 +34,8 @@ public class UsuarioMapper {
         dto.setRol(usuario.getRol());
         dto.setActivo(usuario.getEstadoActivo());
         dto.setFechaDeAlta(usuario.getFechaDeAlta());
+        dto.setCentroSaludId(usuario.getCentroSaludId());
+        dto.setCentroSaludNombre(usuario.getCentroSaludNombre());
         return dto;
     }
 }

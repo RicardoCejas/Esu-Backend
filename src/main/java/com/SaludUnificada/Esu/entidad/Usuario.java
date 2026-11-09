@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "usuario", indexes = {
     @Index(name = "idx_usuario_email", columnList = "email"),
-    @Index(name = "idx_usuario_rol", columnList = "rol")
+    @Index(name = "idx_usuario_rol", columnList = "rol"),
+    @Index(name = "idx_usuario_centro", columnList = "centro_salud_id")
 })
 @Getter
 @Setter
@@ -72,6 +73,12 @@ public class Usuario {
 
     @Column(name = "auth_provider")
     private String authProvider = "LOCAL";
+
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre", length = 180)
+    private String centroSaludNombre;
 
     @JsonIgnore
     @Column(name = "two_factor_enabled")

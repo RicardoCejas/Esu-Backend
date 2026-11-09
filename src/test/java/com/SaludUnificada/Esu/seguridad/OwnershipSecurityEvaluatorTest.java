@@ -305,4 +305,105 @@ class OwnershipSecurityEvaluatorTest {
         when(pacienteRepositorio.findByUsuarioEmail("paciente@esu.test")).thenReturn(Optional.of(paciente));
         assertTrue(evaluator.canAccessHistoriaClinica(500L));
     }
+    @Test
+    void receptionistCanOnlyAccessTurnoOfOwnCenter() {
+        Turno turnoCentro1 = new Turno();
+        turnoCentro1.setId(601L);
+        turnoCentro1.setCentroSaludId(1L);
+
+        when(turnoRepositorio.findById(601L)).thenReturn(Optional.of(turnoCentro1));
+
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+
+        assertTrue(evaluator.canAccessTurno(601L), "Recepcionista del Centro 1 debe poder acceder al turno de su centro");
+    }
+
+    @Test
+    void receptionistCannotAccessTurnoOfOtherCenter() {
+        Turno turnoCentro2 = new Turno();
+        turnoCentro2.setId(602L);
+        turnoCentro2.setCentroSaludId(2L);
+
+        when(turnoRepositorio.findById(602L)).thenReturn(Optional.of(turnoCentro2));
+
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+
+        assertFalse(evaluator.canAccessTurno(602L), "Recepcionista del Centro 1 NO debe poder acceder al turno del Centro 2 (aislamiento multi-tenant)");
+    }
+
+    @Test
+    void receptionistWithoutCenterIsDeniedAccess_failClosed() {
+        Turno turnoCentro1 = new Turno();
+        turnoCentro1.setId(603L);
+        turnoCentro1.setCentroSaludId(1L);
+
+        when(turnoRepositorio.findById(603L)).thenReturn(Optional.of(turnoCentro1));
+
+        Usuario recepSinCentro = new Usuario();
+        recepSinCentro.setId(102L);
+        recepSinCentro.setEmail("recep.flotante@esu.test");
+        recepSinCentro.setRol("RECEPCIONISTA");
+        recepSinCentro.setCentroSaludId(null); // Sin centro asignado
+
+        authenticate("recep.flotante@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.flotante@esu.test")).thenReturn(Optional.of(recepSinCentro));
+
+        assertFalse(evaluator.canAccessTurno(603L), "Recepcionista sin centro asignado debe ser bloqueado fail-closed");
+    }
+
+    @Test
+    void isReceptionistOfCenter_validatesInstitutionalBoundary() {
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+
+        assertTrue(evaluator.isReceptionistOfCenter(1L));
+        assertFalse(evaluator.isReceptionistOfCenter(2L));
+        assertFalse(evaluator.isReceptionistOfCenter(null));
+    }
+
+    @Test
+    void canManageTurnoMostrador_enforcesInstitutionalBoundary() {
+        Turno turnoCentro1 = new Turno();
+        turnoCentro1.setId(604L);
+        turnoCentro1.setCentroSaludId(1L);
+
+        Turno turnoCentro2 = new Turno();
+        turnoCentro2.setId(605L);
+        turnoCentro2.setCentroSaludId(2L);
+
+        when(turnoRepositorio.findById(604L)).thenReturn(Optional.of(turnoCentro1));
+        when(turnoRepositorio.findById(605L)).thenReturn(Optional.of(turnoCentro2));
+
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+
+        assertTrue(evaluator.canManageTurnoMostrador(604L), "Recepcionista debe poder gestionar mostrador de su centro");
+        assertFalse(evaluator.canManageTurnoMostrador(605L), "Recepcionista NO debe poder gestionar mostrador de otro centro");
+    }
 }

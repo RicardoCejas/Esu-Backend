@@ -198,12 +198,20 @@ public class RefreshTokenServicio {
             var paciente = usuario.getPaciente();
             var profesional = usuario.getProfesional();
 
+            Long centroId = usuario.getCentroSaludId() != null ? usuario.getCentroSaludId() : (paciente != null ? paciente.getCentroSaludReferenciaId() : null);
+
+
+            String centroNombre = usuario.getCentroSaludNombre() != null ? usuario.getCentroSaludNombre() : (paciente != null ? paciente.getCentroSaludReferenciaNombre() : null);
+
+
             JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
                     .accessToken(nuevoAccessToken)
                     .tokenType("Bearer")
                     .usuarioId(usuario.getId())
                     .pacienteId(paciente != null ? paciente.getId() : null)
                     .profesionalId(profesional != null ? profesional.getId() : null)
+                    .centroSaludId(centroId)
+                    .centroSaludNombre(centroNombre)
                     .email(usuario.getEmail())
                     .rol(usuario.getRol())
                     .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)

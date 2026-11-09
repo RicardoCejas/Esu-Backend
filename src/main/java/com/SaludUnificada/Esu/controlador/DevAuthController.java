@@ -144,6 +144,8 @@ public class DevAuthController {
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(dev.getId())
+                .centroSaludId(dev.getCentroSaludId())
+                .centroSaludNombre(dev.getCentroSaludNombre())
                 .email(dev.getEmail())
                 .rol(dev.getRol())
                 .build();

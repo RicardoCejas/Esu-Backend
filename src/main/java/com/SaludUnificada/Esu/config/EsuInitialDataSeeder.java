@@ -95,11 +95,11 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         // 2. Administrador general y cuentas institucionales de los centros
         crearUsuarioSiNoExiste("admin@esu.salud.gob.ar", "Admin123!", "ADMIN");
         crearUsuarioSiNoExiste("admin@esu.gob.ar", "Admin123!", "ADMIN");
-        crearUsuarioSiNoExiste("crespo.institucional@esu.salud.gob.ar", "Crespo123!", "RECEPCIONISTA");
-        crearUsuarioSiNoExiste("cabrera.institucional@esu.salud.gob.ar", "Cabrera123!", "RECEPCIONISTA");
-        crearUsuarioSiNoExiste("diagnostico.institucional@esu.salud.gob.ar", "Diag123!", "RECEPCIONISTA");
-        crearUsuarioSiNoExiste("mariaisabel.institucional@esu.salud.gob.ar", "MariaIsabel123!", "RECEPCIONISTA");
-        crearUsuarioSiNoExiste("recepcion@esu.gob.ar", "Recepcion123!", "RECEPCIONISTA");
+        crearUsuarioSiNoExiste("crespo.institucional@esu.salud.gob.ar", "Crespo123!", "RECEPCIONISTA", 1L, "Hospital Provincial Dr. Aurelio Crespo");
+        crearUsuarioSiNoExiste("cabrera.institucional@esu.salud.gob.ar", "Cabrera123!", "RECEPCIONISTA", 2L, "Clínica Cabrera");
+        crearUsuarioSiNoExiste("diagnostico.institucional@esu.salud.gob.ar", "Diag123!", "RECEPCIONISTA", 3L, "Centro de Diagnóstico por Imágenes Cruz del Eje");
+        crearUsuarioSiNoExiste("mariaisabel.institucional@esu.salud.gob.ar", "MariaIsabel123!", "RECEPCIONISTA", 5L, "Sanatorio María Isabel");
+        crearUsuarioSiNoExiste("recepcion@esu.gob.ar", "Recepcion123!", "RECEPCIONISTA", 1L, "Hospital Provincial Dr. Aurelio Crespo");
         crearUsuarioSiNoExiste("farmacia@esu.gob.ar", "Farmacia123!", "FARMACIA");
 
         // 3. Catálogo canónico de 28 especialidades de consultorio
@@ -403,16 +403,25 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     }
 
     private Usuario crearUsuarioSiNoExiste(String email, String rawPassword, String rol) {
-        return usuarioRepositorio.findByEmail(email).orElseGet(() -> {
-            Usuario u = new Usuario();
-            u.setEmail(email);
-            u.setPassword(passwordEncoder.encode(rawPassword));
-            u.setRol(rol);
-            u.setEstadoActivo(true);
-            u.setEmailVerificado(true);
-            u.setFechaDeAlta(LocalDate.now());
-            return usuarioRepositorio.save(u);
+        return crearUsuarioSiNoExiste(email, rawPassword, rol, null, null);
+    }
+
+    private Usuario crearUsuarioSiNoExiste(String email, String rawPassword, String rol, Long centroSaludId, String centroSaludNombre) {
+        Usuario u = usuarioRepositorio.findByEmail(email).orElseGet(() -> {
+            Usuario nuevo = new Usuario();
+            nuevo.setEmail(email);
+            nuevo.setPassword(passwordEncoder.encode(rawPassword));
+            nuevo.setRol(rol);
+            nuevo.setEstadoActivo(true);
+            nuevo.setEmailVerificado(true);
+            nuevo.setFechaDeAlta(LocalDate.now());
+            return nuevo;
         });
+        if (centroSaludId != null) {
+            u.setCentroSaludId(centroSaludId);
+            u.setCentroSaludNombre(centroSaludNombre);
+        }
+        return usuarioRepositorio.save(u);
     }
 
     private Paciente crearPacienteSiNoExiste(String nombre, String apellido, String dni, String nroAfiliado, String obraSocial,
