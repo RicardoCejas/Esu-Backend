@@ -78,6 +78,7 @@ class TurnoPublicoReservaTest {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
+                .centroSaludId(1L)
                 .dni("38123456")
                 .nombre("Maria")
                 .apellido("Lopez")
@@ -121,6 +122,7 @@ class TurnoPublicoReservaTest {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
+                .centroSaludId(1L)
                 .dni("38123456")
                 .nombre("Maria")
                 .apellido("Lopez")
@@ -158,6 +160,7 @@ class TurnoPublicoReservaTest {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
+                .centroSaludId(1L)
                 .dni("38123456")
                 .nombre("Maria")
                 .apellido("Lopez")
@@ -197,6 +200,7 @@ class TurnoPublicoReservaTest {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
+                .centroSaludId(1L)
                 .dni("38123456")
                 .nombre("Maria")
                 .apellido("Lopez")
@@ -224,6 +228,7 @@ class TurnoPublicoReservaTest {
         TurnoPublicoDtoRequest request = TurnoPublicoDtoRequest.builder()
                 .fechaHora(fechaFutura)
                 .profesionalId(1L)
+                .centroSaludId(1L)
                 .dni("38999999") // DNI diferente
                 .nombre("Intruso")
                 .apellido("Perez")
@@ -246,5 +251,20 @@ class TurnoPublicoReservaTest {
 
         assertThrows(AccessDeniedException.class, () -> turnoServicio.reservarTurnoPublico(request, null));
     }
+    @Test
+    @DisplayName("Turnero público: rechaza reserva si falta centroSaludId y no hay disponibilidad inferible")
+    void reservarTurnoPublico_sinCentroSalud_lanzaReglaNegocioException() {
+        TurnoPublicoDtoRequest req = TurnoPublicoDtoRequest.builder()
+                .fechaHora(fechaFutura)
+                .profesionalId(1L)
+                .dni("38123456")
+                .nombre("Maria")
+                .apellido("Lopez")
+                .telefono("3549112233")
+                .build();
+
+        assertThrows(ReglaNegocioException.class, () -> turnoServicio.reservarTurnoPublico(req, null));
+    }
+
 }
 

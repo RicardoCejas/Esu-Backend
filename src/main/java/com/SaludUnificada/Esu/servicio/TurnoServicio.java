@@ -162,7 +162,7 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
         if (centroIdCalc == null) {
-            centroIdCalc = 1L;
+            throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un turno.");
         }
 
         validarCombinacionCentroYCategoria(centroIdCalc, tipoAtencion, turnoDto.getServicio(), turnoDto.getEspecialidadId(), turnoDto.getProfesionalId());
@@ -266,7 +266,10 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
         if (centroId == null) {
-            centroId = 1L;
+            centroId = centroIdCalc;
+        }
+        if (centroId == null) {
+            throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un turno.");
         }
         if (centroNombre == null || centroNombre.isBlank()) {
             centroNombre = resolverNombreCentro(centroId);
@@ -376,7 +379,23 @@ public class TurnoServicio implements ITurnoServicio {
         }
 
         String tipoAtencion = request.getTipoAtencion() != null ? request.getTipoAtencion().trim().toUpperCase() : "CONSULTA";
-        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        Long centroId = request.getCentroSaludId();
+        if (centroId == null && request.getProfesionalId() != null && disponibilidadRepositorio != null) {
+            Optional<DisponibilidadProfesional> matchingDisp = disponibilidadRepositorio
+                    .findByProfesionalIdAndDiaSemanaAndActivoTrue(request.getProfesionalId(), fechaHora.getDayOfWeek())
+                    .stream()
+                    .filter(disp -> {
+                        LocalTime t = fechaHora.toLocalTime();
+                        return !t.isBefore(disp.getHoraInicio()) && t.isBefore(disp.getHoraFin());
+                    })
+                    .findFirst();
+            if (matchingDisp.isPresent()) {
+                centroId = matchingDisp.get().getCentroSaludId();
+            }
+        }
+        if (centroId == null) {
+            throw new ReglaNegocioException("El centro de salud es obligatorio para agendar un turno público.");
+        }
         validarCombinacionCentroYCategoria(centroId, tipoAtencion, request.getServicio(), request.getEspecialidadId(), request.getProfesionalId());
 
         Profesional profesional = null;
@@ -445,7 +464,7 @@ public class TurnoServicio implements ITurnoServicio {
                         : "paciente." + dniLimpio + "@salud.cruzdeleje.gob.ar");
                 dto.setObraSocial(request.getObraSocial() != null && !request.getObraSocial().isBlank() ? request.getObraSocial().trim() : "Particular");
                 dto.setNroAfiliado(request.getNroAfiliado() != null && !request.getNroAfiliado().isBlank() ? request.getNroAfiliado().trim() : dniLimpio);
-                dto.setCentroSaludReferenciaId(request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L);
+                dto.setCentroSaludReferenciaId(centroId);
                 dto.setCentroSaludReferenciaNombre(request.getCentroSaludNombre() != null ? request.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo");
 
                 Paciente nuevo;
@@ -622,7 +641,13 @@ public class TurnoServicio implements ITurnoServicio {
         sobreturno.setMotivoTurno(request.getMotivoSobreturno());
         sobreturno.setEsSobreturno(true);
         sobreturno.setMotivoSobreturno(request.getMotivoSobreturno());
-        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        Long centroId = request.getCentroSaludId();
+        if (centroId == null) {
+            throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un sobreturno.");
+        }
+        if (profesional.getCentrosSaludIds() != null && !profesional.getCentrosSaludIds().isEmpty() && !profesional.getCentrosSaludIds().contains(centroId)) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra vinculado al centro de salud indicado.");
+        }
         sobreturno.setCentroSaludId(centroId);
         sobreturno.setCentroSaludNombre(resolverNombreCentro(centroId));
         sobreturno.setConsultorioNumero("Consultorio Guardia / Sobreturnos");
@@ -711,7 +736,13 @@ public class TurnoServicio implements ITurnoServicio {
         turno.setProfesional(profesional);
         turno.setPaciente(paciente);
 
-        Long centroId = request.getCentroSaludId() != null ? request.getCentroSaludId() : 1L;
+        Long centroId = request.getCentroSaludId();
+        if (centroId == null) {
+            throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un turno de mostrador.");
+        }
+        if (profesional.getCentrosSaludIds() != null && !profesional.getCentrosSaludIds().isEmpty() && !profesional.getCentrosSaludIds().contains(centroId)) {
+            throw new ReglaNegocioException("El profesional seleccionado no se encuentra vinculado al centro de salud indicado.");
+        }
         turno.setCentroSaludId(centroId);
         turno.setCentroSaludNombre(request.getCentroSaludNombre() != null && !request.getCentroSaludNombre().isBlank()
                 ? request.getCentroSaludNombre()

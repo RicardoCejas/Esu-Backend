@@ -32,6 +32,7 @@ public class SobreturnoDtoRequest {
     private String pacienteNombre;
     private String pacienteTelefono;
     private String obraSocial;
+    @NotNull(message = "El centro de salud es obligatorio")
     private Long centroSaludId;
 
     @NotBlank(message = "El motivo de sobreturno es obligatorio")

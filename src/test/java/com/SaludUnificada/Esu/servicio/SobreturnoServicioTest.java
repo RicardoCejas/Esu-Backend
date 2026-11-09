@@ -78,6 +78,7 @@ class SobreturnoServicioTest {
         request = SobreturnoDtoRequest.builder()
                 .profesionalId(1L)
                 .pacienteId(10L)
+                .centroSaludId(1L)
                 .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
                 .motivoSobreturno("Urgencia menor por crisis hipertensiva leve")
                 .build();
@@ -152,4 +153,20 @@ class SobreturnoServicioTest {
         assertThrows(NoEncontradoExcepcion.class, () ->
                 turnoServicio.crearSobreturno(request));
     }
+    @Test
+    @DisplayName("Debe lanzar ReglaNegocioException si centroSaludId es nulo")
+    void testCrearSobreturno_FallaSiCentroSaludEsNulo() {
+        SobreturnoDtoRequest reqSinCentro = SobreturnoDtoRequest.builder()
+                .profesionalId(1L)
+                .pacienteId(10L)
+                .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
+                .motivoSobreturno("Urgencia menor")
+                .build();
+
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+
+        assertThrows(ReglaNegocioException.class, () -> turnoServicio.crearSobreturno(reqSinCentro));
+    }
+
 }

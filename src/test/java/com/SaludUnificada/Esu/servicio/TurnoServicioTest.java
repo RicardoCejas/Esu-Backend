@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -103,6 +104,7 @@ class TurnoServicioTest {
         var paciente = new Paciente(); paciente.setId(21L);
         var profesional = new Profesional(); profesional.setId(12L);
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, "Consulta");
+        request.setCentroSaludId(1L);
         when(profesionales.findByIdForUpdate(12L)).thenReturn(Optional.of(profesional));
         when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(12L, request.getFechaHora(), "CANCELADO")).thenReturn(false);
         when(pacientes.findByUsuarioEmail("patient@example.test")).thenReturn(Optional.of(paciente));
@@ -123,6 +125,7 @@ class TurnoServicioTest {
     void crearTurnoRechazaSlotOcupadoConConflicto() {
         var profesional = new Profesional(); profesional.setId(12L);
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, null);
+        request.setCentroSaludId(1L);
         when(profesionales.findByIdForUpdate(12L)).thenReturn(Optional.of(profesional));
         when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(12L, request.getFechaHora(), "CANCELADO")).thenReturn(true);
 
@@ -410,4 +413,11 @@ class TurnoServicioTest {
             list.contains("EN_SALA_DE_ESPERA") && list.contains("CONFIRMADO") && list.contains("ATENDIENDO")
         ));
     }
+    @Test
+    void crearTurnoRechazaSiCentroSaludEsNulo() {
+        var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, "Consulta");
+        request.setCentroSaludId(null);
+        assertThrows(ReglaNegocioException.class, () -> servicio.crearTurno(request, "patient@example.test"));
+    }
+
 }
