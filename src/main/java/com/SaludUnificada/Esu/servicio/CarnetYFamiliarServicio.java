@@ -41,6 +41,15 @@ public class CarnetYFamiliarServicio {
     @Autowired
     private UsuarioRepositorio usuarioRepositorio;
 
+    
+    @Transactional(readOnly = true)
+    public CarnetDigitalDtoResponse emitirCarnetDigitalPorDni(String dni) {
+        String dniLimpio = dni != null ? dni.replaceAll("[^0-9a-zA-Z-]", "").trim() : "";
+        Paciente paciente = pacienteRepositorio.findByDni(dniLimpio)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con DNI: " + dni));
+        return emitirCarnetDigital(paciente.getId());
+    }
+
     @Transactional(readOnly = true)
     public CarnetDigitalDtoResponse emitirCarnetDigital(Long pacienteId) {
         Paciente paciente = pacienteRepositorio.findById(pacienteId)
