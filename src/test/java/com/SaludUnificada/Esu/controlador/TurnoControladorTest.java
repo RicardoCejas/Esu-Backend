@@ -56,4 +56,31 @@ class TurnoControladorTest {
 
         assertEquals(result, response.getBody());
     }
+    @Test
+    void obtenerTurnosHoyCentroDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        LocalDate date = LocalDate.of(2026, 11, 9);
+        when(service.obtenerTurnosHoyCentro(1L, date)).thenReturn(List.of());
+
+        var response = controller.obtenerTurnosHoyCentro(1L, date);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).obtenerTurnosHoyCentro(1L, date);
+    }
+
+    @Test
+    void obtenerTurnosKanbanCentroDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        LocalDate date = LocalDate.of(2026, 11, 9);
+        when(service.obtenerTurnosKanbanCentro(2L, date)).thenReturn(List.of());
+
+        var response = controller.obtenerTurnosKanbanCentro(2L, date);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).obtenerTurnosKanbanCentro(2L, date);
+    }
 }

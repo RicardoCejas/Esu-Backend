@@ -117,8 +117,26 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnoPorId(id));
     }
 
+    @GetMapping("/centro/{centroId}/hoy")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos del día acotados por centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosHoyCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosHoyCentro(centroId, fecha));
+    }
+
+    @GetMapping("/centro/{centroId}/kanban")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos activos de sala de espera (Kanban) acotados por centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosKanbanCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosKanbanCentro(centroId, fecha));
+    }
+
     @GetMapping({"", "/obtener/todos"})
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
     }

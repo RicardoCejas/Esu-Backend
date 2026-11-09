@@ -74,6 +74,26 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
     List<Turno> findByPacienteIdAndFechaHoraLessThanOrderByFechaHoraDesc(Long pacienteId, LocalDateTime hasta);
 
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
+           "WHERE t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosCentroEntre(
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
+
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
+           "WHERE t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND t.estado IN :estados " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosCentroEntreYEstados(
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("estados") List<String> estados);
+
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
            "WHERE t.profesional.id = :profesionalId " +
            "AND (:centroSaludId IS NULL OR t.centroSaludId = :centroSaludId) " +
            "AND (:inicio IS NULL OR t.fechaHora >= :inicio) " +

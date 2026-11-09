@@ -355,4 +355,51 @@ class TurnoServicioTest {
         );
         verify(turnos, never()).save(any());
     }
+    @Test
+    void obtenerTurnosHoyCentro_filtraPorCentroYJornada() {
+        LocalDate fecha = LocalDate.of(2026, 10, 14);
+        Turno t = new Turno();
+        t.setId(101L);
+        t.setCentroSaludId(1L);
+        t.setFechaHora(fecha.atTime(9, 0));
+
+        when(turnos.findTurnosCentroEntre(eq(1L), eq(fecha.atStartOfDay()), any(LocalDateTime.class)))
+                .thenReturn(List.of(t));
+        when(mapper.paraDto(t)).thenReturn(TurnoDtoResponse.builder().id(101L).centroSaludId(1L).build());
+
+        List<TurnoDtoResponse> resultado = servicio.obtenerTurnosHoyCentro(1L, fecha);
+
+        assertNotNull(resultado);
+        assertEquals(1, resultado.size());
+        assertEquals(101L, resultado.get(0).getId());
+        verify(turnos).findTurnosCentroEntre(eq(1L), eq(fecha.atStartOfDay()), any(LocalDateTime.class));
+    }
+
+    @Test
+    void obtenerTurnosHoyCentro_rechazaCentroNulo() {
+        assertThrows(IllegalArgumentException.class, () -> servicio.obtenerTurnosHoyCentro(null, LocalDate.now()));
+    }
+
+    @Test
+    void obtenerTurnosKanbanCentro_filtraPorCentroYEstadosValidos() {
+        LocalDate fecha = LocalDate.of(2026, 10, 14);
+        Turno t = new Turno();
+        t.setId(102L);
+        t.setCentroSaludId(2L);
+        t.setEstado("EN_SALA_DE_ESPERA");
+        t.setFechaHora(fecha.atTime(10, 0));
+
+        when(turnos.findTurnosCentroEntreYEstados(eq(2L), eq(fecha.atStartOfDay()), any(LocalDateTime.class), anyList()))
+                .thenReturn(List.of(t));
+        when(mapper.paraDto(t)).thenReturn(TurnoDtoResponse.builder().id(102L).estado("EN_SALA_DE_ESPERA").build());
+
+        List<TurnoDtoResponse> resultado = servicio.obtenerTurnosKanbanCentro(2L, fecha);
+
+        assertNotNull(resultado);
+        assertEquals(1, resultado.size());
+        assertEquals("EN_SALA_DE_ESPERA", resultado.get(0).getEstado());
+        verify(turnos).findTurnosCentroEntreYEstados(eq(2L), eq(fecha.atStartOfDay()), any(LocalDateTime.class), argThat(list -> 
+            list.contains("EN_SALA_DE_ESPERA") && list.contains("CONFIRMADO") && list.contains("ATENDIENDO")
+        ));
+    }
 }

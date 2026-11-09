@@ -1435,6 +1435,47 @@ public class TurnoServicio implements ITurnoServicio {
 
     @Override
     @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerTurnosHoyCentro(Long centroId, LocalDate fecha) {
+        if (centroId == null) {
+            throw new IllegalArgumentException("El ID del centro de salud es obligatorio.");
+        }
+        LocalDate fechaEfectiva = fecha != null ? fecha : hoy();
+        LocalDateTime inicio = fechaEfectiva.atStartOfDay();
+        LocalDateTime fin = fechaEfectiva.atTime(LocalTime.MAX);
+
+        return turnoRepositorio.findTurnosCentroEntre(centroId, inicio, fin)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerTurnosKanbanCentro(Long centroId, LocalDate fecha) {
+        if (centroId == null) {
+            throw new IllegalArgumentException("El ID del centro de salud es obligatorio.");
+        }
+        LocalDate fechaEfectiva = fecha != null ? fecha : hoy();
+        LocalDateTime inicio = fechaEfectiva.atStartOfDay();
+        LocalDateTime fin = fechaEfectiva.atTime(LocalTime.MAX);
+
+        List<String> estadosKanban = List.of(
+                "PENDIENTE",
+                "CONFIRMADO",
+                "EN_SALA_DE_ESPERA",
+                "EN_ESPERA",
+                "ATENDIENDO",
+                "COMPLETADO"
+        );
+
+        return turnoRepositorio.findTurnosCentroEntreYEstados(centroId, inicio, fin, estadosKanban)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<TurnoDtoResponse> obtenerAgendaProfesional(Long profesionalId, Long centroSaludId, LocalDate fecha) {
         if (!profesionalRepositorio.existsById(profesionalId)) {
             throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId);
