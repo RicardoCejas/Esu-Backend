@@ -98,14 +98,14 @@ public class ProfesionalControlador {
     }
 
     @PostMapping("/{id:\\d+}/centros/{centroId:\\d+}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
     @Operation(summary = "Vincular profesional a un centro de salud")
     public ResponseEntity<Set<Long>> vincularCentro(@PathVariable Long id, @PathVariable Long centroId) {
         return ResponseEntity.ok(profesionalServicio.vincularCentro(id, centroId));
     }
 
     @DeleteMapping("/{id:\\d+}/centros/{centroId:\\d+}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
     @Operation(summary = "Desvincular profesional de un centro de salud")
     public ResponseEntity<Set<Long>> desvincularCentro(@PathVariable Long id, @PathVariable Long centroId) {
         return ResponseEntity.ok(profesionalServicio.desvincularCentro(id, centroId));

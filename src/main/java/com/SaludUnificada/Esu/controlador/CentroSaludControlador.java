@@ -60,6 +60,13 @@ public class CentroSaludControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{centroId}/consultorios")
+    @Operation(summary = "Listar consultorios físicos de una sede específica")
+    public ResponseEntity<List<ConsultorioFisicoDtoResponse>> listarConsultoriosPorCentro(
+            @PathVariable Long centroId) {
+        return ResponseEntity.ok(centroSaludServicio.listarConsultorios(centroId));
+    }
+
     @GetMapping("/consultorios")
     @Operation(summary = "Listar consultorios físicos", description = "Permite filtrar opcionalmente por ID de centro de salud.")
     public ResponseEntity<List<ConsultorioFisicoDtoResponse>> listarConsultorios(

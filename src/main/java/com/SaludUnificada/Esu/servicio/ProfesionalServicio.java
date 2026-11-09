@@ -232,6 +232,9 @@ public class ProfesionalServicio implements IProfesionalServicio {
     public java.util.Set<Long> desvincularCentro(Long id, Long centroId) {
         Profesional profesional = profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+        if (turnoRepositorio != null && turnoRepositorio.existsTurnosActivosFuturosDeProfesionalEnCentro(id, centroId, ahora())) {
+            throw new ReglaNegocioException("No se puede desvincular al profesional del centro porque posee turnos programados pendientes. Debe cancelarlos o reasignarlos previamente.");
+        }
         profesional.getCentrosSaludIds().remove(centroId);
         profesionalRepositorio.save(profesional);
         return new java.util.HashSet<>(profesional.getCentrosSaludIds());

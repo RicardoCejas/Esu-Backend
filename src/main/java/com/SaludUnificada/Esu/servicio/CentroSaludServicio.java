@@ -142,6 +142,10 @@ public class CentroSaludServicio {
             throw new IllegalArgumentException("El número de consultorio es obligatorio");
         }
 
+        if (consultorioRepositorio.existsByCentroSaludIdAndNumeroIgnoreCase(request.getCentroSaludId(), request.getNumero().trim())) {
+            throw new ReglaNegocioException("Ya existe un consultorio físico con el número/código " + request.getNumero().trim() + " en esta sede.");
+        }
+
         ConsultorioFisico consultorio = ConsultorioFisico.builder()
                 .centroSaludId(request.getCentroSaludId())
                 .numero(request.getNumero().trim())

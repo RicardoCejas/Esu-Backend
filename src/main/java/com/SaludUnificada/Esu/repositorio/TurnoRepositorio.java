@@ -73,6 +73,15 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
 
     List<Turno> findByPacienteIdAndFechaHoraLessThanOrderByFechaHoraDesc(Long pacienteId, LocalDateTime hasta);
 
+    @Query("SELECT COUNT(t) > 0 FROM Turno t WHERE t.profesional.id = :profesionalId " +
+           "AND t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde " +
+           "AND t.estado IN ('PENDIENTE', 'CONFIRMADO', 'EN_SALA_DE_ESPERA', 'EN_ESPERA')")
+    boolean existsTurnosActivosFuturosDeProfesionalEnCentro(
+            @Param("profesionalId") Long profesionalId,
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde);
+
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
            "WHERE t.centroSaludId = :centroId " +
            "AND t.fechaHora >= :desde AND t.fechaHora <= :hasta " +

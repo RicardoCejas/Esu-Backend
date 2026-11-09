@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.entidad.DisponibilidadProfesional;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.entidad.Usuario;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.mapper.PacienteMapper;
 import com.SaludUnificada.Esu.mapper.ProfesionalMapper;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
@@ -230,5 +231,29 @@ class MulticentroAgendaProfesionalTest {
         when(disponibilidadRepositorio.findById(501L)).thenReturn(Optional.of(dispAjena));
 
         assertFalse(securityEvaluator.canAccessDisponibilidad(501L));
+    }
+    @Test
+    @DisplayName("Desvincular centro rechaza la operación si el profesional tiene turnos activos futuros en esa sede")
+    void desvincularCentro_rechazaSiTieneTurnosActivosFuturos() {
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional1));
+        when(turnoRepositorio.existsTurnosActivosFuturosDeProfesionalEnCentro(eq(1L), eq(1L), any(LocalDateTime.class)))
+                .thenReturn(true);
+
+        assertThrows(ReglaNegocioException.class, () -> profesionalServicio.desvincularCentro(1L, 1L));
+        verify(profesionalRepositorio, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Desvincular centro permite la desvinculación cuando no hay turnos activos futuros")
+    void desvincularCentro_permiteSiNoTieneTurnosActivosFuturos() {
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional1));
+        when(turnoRepositorio.existsTurnosActivosFuturosDeProfesionalEnCentro(eq(1L), eq(1L), any(LocalDateTime.class)))
+                .thenReturn(false);
+
+        Set<Long> centrosRestantes = profesionalServicio.desvincularCentro(1L, 1L);
+
+        assertNotNull(centrosRestantes);
+        assertFalse(centrosRestantes.contains(1L));
+        verify(profesionalRepositorio).save(profesional1);
     }
 }
