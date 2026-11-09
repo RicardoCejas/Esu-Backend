@@ -13,4 +13,5 @@ WHERE email = 'dev@esu.gob.ar';
 -- obligando a que cualquier acceso legítimo requiera asignación explícita de credenciales seguras.
 UPDATE usuario
 SET password = CONCAT('$2a$10$LOCKED_PROD_', SUBSTRING(SHA2(CONCAT(UUID(), email, NOW()), 256), 1, 35))
-WHERE password = '$2a$10$eDkZ5FpG9zPq5F2uJ4hQ.eW5eS3Q1.K7Gz1o3rY3qN8w7p3o8bS.a';
+WHERE id > 0
+  AND password = '$2a$10$eDkZ5FpG9zPq5F2uJ4hQ.eW5eS3Q1.K7Gz1o3rY3qN8w7p3o8bS.a';
