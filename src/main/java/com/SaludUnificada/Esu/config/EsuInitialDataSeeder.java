@@ -63,7 +63,6 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     };
 
     @Override
-    @Transactional
     public void run(String... args) {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
         boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
@@ -73,7 +72,7 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             return;
         }
 
-        if (usuarioRepositorio.existsByEmail("dev@esu.gob.ar")) {
+        if (usuarioRepositorio.existsByEmail("crespo.institucional@esu.salud.gob.ar")) {
             log.info("Cuentas de demostración ya sincronizadas en la base de datos. Omitiendo seeder para acelerar arranque.");
             return;
         }
