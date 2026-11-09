@@ -14,7 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -207,7 +209,12 @@ public class PacienteServicio implements IPacienteServicio {
     @Transactional
     public PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado, String dni) {
         Paciente paciente = obtenerEntidadPacientePorId(id);
-        if (telefono != null) paciente.setTelefono(telefono.replaceAll("[^0-9+ ]", "").trim());
+        if (telefono != null && !telefono.isBlank()) {
+            String telLimpio = telefono.replaceAll("[^0-9+\\- ]", "").trim();
+            if (!telLimpio.isBlank()) {
+                paciente.setTelefono(telLimpio);
+            }
+        }
         if (obraSocial != null && !obraSocial.isBlank()) paciente.setObraSocial(obraSocial.trim());
         if (nroAfiliado != null && !nroAfiliado.isBlank()) paciente.setNroAfiliado(nroAfiliado.trim());
         if (dni != null && !dni.isBlank()) {
@@ -239,19 +246,35 @@ public class PacienteServicio implements IPacienteServicio {
         String fn = body.get("fechaNacimiento");
         String nom = body.get("nombre");
         String ape = body.get("apellido");
+        String gs = body.get("grupoSanguineo");
+        String centro = body.get("centroSaludReferenciaNombre");
 
         if (nom != null && !nom.isBlank()) paciente.setNombre(nom.trim());
         if (ape != null && !ape.isBlank()) paciente.setApellido(ape.trim());
         if (fn != null && !fn.isBlank()) {
+            String fnClean = fn.trim();
             try {
-                paciente.setFechaNacimiento(java.time.LocalDate.parse(fn.trim()));
-            } catch (Exception ignored) {
+                paciente.setFechaNacimiento(LocalDate.parse(fnClean));
+            } catch (Exception e1) {
+                try {
+                    DateTimeFormatter dmy = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    paciente.setFechaNacimiento(LocalDate.parse(fnClean, dmy));
+                } catch (Exception ignored) {
+                }
             }
         }
 
-        if (tel != null) paciente.setTelefono(tel.replaceAll("[^0-9+ ]", "").trim());
+        if (tel != null && !tel.isBlank()) {
+            String telLimpio = tel.replaceAll("[^0-9+\\- ]", "").trim();
+            if (!telLimpio.isBlank()) {
+                paciente.setTelefono(telLimpio);
+            }
+        }
         if (os != null && !os.isBlank()) paciente.setObraSocial(os.trim());
         if (af != null && !af.isBlank()) paciente.setNroAfiliado(af.trim());
+        if (gs != null && !gs.isBlank()) paciente.setGrupoSanguineo(gs.trim());
+        if (centro != null && !centro.isBlank()) paciente.setCentroSaludReferenciaNombre(centro.trim());
+
         if (dni != null && !dni.isBlank()) {
             String dniLimpio = dni.replaceAll("[^0-9a-zA-Z-]", "").trim();
             if (!dniLimpio.equalsIgnoreCase(paciente.getDni())) {

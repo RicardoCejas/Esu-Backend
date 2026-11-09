@@ -1,5 +1,6 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.response.PacienteDtoResponse;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
@@ -12,8 +13,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -74,6 +78,86 @@ class PacienteServicioTest {
         assertThrows(NoEncontradoExcepcion.class, () -> {
             pacienteServicio.buscarPorDni("12345678");
         });
+    }
+
+    @Test
+    void testActualizarMiPerfilPorEmail_PreservaGuionYPersisteTodosLosCampos() {
+        Paciente paciente = new Paciente();
+        paciente.setId(31L);
+        paciente.setNombre("Ricardo");
+        paciente.setApellido("Cejas");
+        paciente.setDni("G-12345678");
+        paciente.setNroAfiliado("GGL-12345678");
+
+        when(pacienteRepositorio.findByUsuarioEmail("ricardo@gmail.com")).thenReturn(Optional.of(paciente));
+        when(pacienteRepositorio.findByDni("40026880")).thenReturn(Optional.empty());
+        when(pacienteRepositorio.save(any(Paciente.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(pacienteMapper.paraDto(any(Paciente.class))).thenAnswer(inv -> {
+            Paciente p = inv.getArgument(0);
+            PacienteDtoResponse dto = new PacienteDtoResponse();
+            dto.setId(p.getId());
+            dto.setNombre(p.getNombre());
+            dto.setApellido(p.getApellido());
+            dto.setDni(p.getDni());
+            dto.setTelefono(p.getTelefono());
+            dto.setFechaNacimiento(p.getFechaNacimiento());
+            dto.setObraSocial(p.getObraSocial());
+            dto.setNroAfiliado(p.getNroAfiliado());
+            dto.setGrupoSanguineo(p.getGrupoSanguineo());
+            dto.setCentroSaludReferenciaNombre(p.getCentroSaludReferenciaNombre());
+            return dto;
+        });
+
+        Map<String, String> body = new HashMap<>();
+        body.put("nombre", "Ricardo");
+        body.put("apellido", "Cejas");
+        body.put("dni", "40026880");
+        body.put("telefono", "3549-123456");
+        body.put("fechaNacimiento", "14/08/1993");
+        body.put("obraSocial", "APROSS (Córdoba)");
+        body.put("nroAfiliado", "20-40026880-4/01");
+        body.put("grupoSanguineo", "A+");
+        body.put("centroSaludReferenciaNombre", "Hospital Provincial Dr. Aurelio Crespo");
+
+        PacienteDtoResponse res = pacienteServicio.actualizarMiPerfilPorEmail("ricardo@gmail.com", body);
+
+        assertEquals("40026880", res.getDni());
+        assertEquals("3549-123456", res.getTelefono());
+        assertEquals(LocalDate.of(1993, 8, 14), res.getFechaNacimiento());
+        assertEquals("APROSS (Córdoba)", res.getObraSocial());
+        assertEquals("20-40026880-4/01", res.getNroAfiliado());
+        assertEquals("A+", res.getGrupoSanguineo());
+        assertEquals("Hospital Provincial Dr. Aurelio Crespo", res.getCentroSaludReferenciaNombre());
+    }
+
+    @Test
+    void testActualizarMiPerfilPorEmail_NoSobrescribeTelefonoConCadenaVacia() {
+        Paciente paciente = new Paciente();
+        paciente.setId(31L);
+        paciente.setNombre("Ricardo");
+        paciente.setApellido("Cejas");
+        paciente.setDni("40026880");
+        paciente.setTelefono("3549-654321");
+        paciente.setFechaNacimiento(LocalDate.of(1992, 5, 18));
+
+        when(pacienteRepositorio.findByUsuarioEmail("ricardo@gmail.com")).thenReturn(Optional.of(paciente));
+        when(pacienteRepositorio.save(any(Paciente.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(pacienteMapper.paraDto(any(Paciente.class))).thenAnswer(inv -> {
+            Paciente p = inv.getArgument(0);
+            PacienteDtoResponse dto = new PacienteDtoResponse();
+            dto.setTelefono(p.getTelefono());
+            dto.setFechaNacimiento(p.getFechaNacimiento());
+            return dto;
+        });
+
+        Map<String, String> body = new HashMap<>();
+        body.put("telefono", "   ");
+        body.put("obraSocial", "Particular");
+
+        PacienteDtoResponse res = pacienteServicio.actualizarMiPerfilPorEmail("ricardo@gmail.com", body);
+
+        assertEquals("3549-654321", res.getTelefono());
+        assertEquals(LocalDate.of(1992, 5, 18), res.getFechaNacimiento());
     }
 
     @Test

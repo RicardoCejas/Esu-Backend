@@ -1,6 +1,5 @@
 package com.SaludUnificada.Esu.servicio;
 
-import com.SaludUnificada.Esu.dto.auth.JwtAuthDtoResponse;
 import com.SaludUnificada.Esu.entidad.RefreshToken;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.repositorio.RefreshTokenRepositorio;
@@ -17,6 +16,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -104,6 +104,48 @@ class RefreshTokenServicioTest {
         assertTrue(tokenExistente.isRevocado());
         assertNotNull(tokenExistente.getReemplazadoPor());
         verify(refreshTokenRepositorio, times(2)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    @DisplayName("Colisión concurrente reciente: tolera reintento sin revocar la familia de sesiones")
+    void rotarRefreshToken_colisionConcurrenteReciente_noRevocaOtrasSesiones() {
+        String rawToken = "concurrent-race-token";
+        String tokenHash = RefreshTokenServicio.hashToken(rawToken);
+        String reemplazoHash = RefreshTokenServicio.hashToken("newly-issued-replacement-token");
+        String familyId = "concurrent-family-123";
+        LocalDateTime ahoraArg = LocalDateTime.now(ZoneId.of("America/Argentina/Cordoba"));
+
+        RefreshToken tokenExistente = RefreshToken.builder()
+                .id(4L)
+                .usuario(usuario)
+                .tokenFamilyId(familyId)
+                .tokenHash(tokenHash)
+                .reemplazadoPor(reemplazoHash)
+                .fechaCreacion(ahoraArg.minusHours(1))
+                .fechaExpiracion(ahoraArg.plusDays(6))
+                .revocado(true)
+                .build();
+
+        RefreshToken tokenReemplazo = RefreshToken.builder()
+                .id(5L)
+                .usuario(usuario)
+                .tokenFamilyId(familyId)
+                .tokenHash(reemplazoHash)
+                .fechaCreacion(ahoraArg.minusSeconds(2))
+                .fechaExpiracion(ahoraArg.plusDays(7))
+                .revocado(false)
+                .build();
+
+        when(refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)).thenReturn(Optional.of(tokenExistente));
+        when(refreshTokenRepositorio.findByTokenHash(reemplazoHash)).thenReturn(Optional.of(tokenReemplazo));
+
+        BadCredentialsException ex = assertThrows(BadCredentialsException.class,
+                () -> refreshTokenServicio.rotarRefreshToken(rawToken));
+
+        assertTrue(ex.getMessage().contains("concurrentemente"));
+        verifyNoInteractions(refreshTokenRevocationService);
+        verify(refreshTokenRepositorio, never()).revocarPorTokenFamilyId(any());
+        verify(refreshTokenRepositorio, never()).revocarTodosPorUsuarioId(any());
     }
 
     @Test
