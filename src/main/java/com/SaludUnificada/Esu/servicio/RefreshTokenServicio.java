@@ -12,7 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -22,6 +24,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -34,6 +37,9 @@ public class RefreshTokenServicio {
 
     @Autowired(required = false)
     private RefreshTokenRevocationService refreshTokenRevocationService;
+
+    @Autowired(required = false)
+    private PlatformTransactionManager transactionManager;
 
     @Autowired(required = false)
     private Clock clock;
@@ -86,7 +92,7 @@ public class RefreshTokenServicio {
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .usuario(usuario)
-                                .tokenHash(tokenHash)
+                .tokenHash(tokenHash)
                 .fechaCreacion(fechaCreacion)
                 .fechaExpiracion(fechaExpiracion)
                 .revocado(false)
@@ -99,88 +105,129 @@ public class RefreshTokenServicio {
 
     public record RefreshResult(JwtAuthDtoResponse authResponse, String newRefreshTokenStr) {}
 
-    @Transactional
     public RefreshResult rotarRefreshToken(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BadCredentialsException("Refresh token no proporcionado o inválido.");
         }
 
         String tokenHash = hashToken(rawToken);
-
-        // Bloqueo pesimista para serializar rotaciones concurrentes de un mismo token y evitar condiciones de carrera
-        RefreshToken tokenExistente = refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)
-                                .orElseThrow(() -> {
-                    log.warn("Intento de refresh con token inexistente.");
-                    return new BadCredentialsException("Refresh token inválido.");
-                });
-
-        Usuario usuario = tokenExistente.getUsuario();
         LocalDateTime ahora = ahora();
 
-        // Detección de reuso de token revocado (posible robo de sesión)
-        if (tokenExistente.isRevocado()) {
-            log.warn("Alerta de seguridad: Intento de reuso de refresh token ya revocado para usuario ID={}. Revocando todas las sesiones.", usuario.getId());
-            if (refreshTokenRevocationService != null) {
-                refreshTokenRevocationService.revocarTodasLasSesionesPorCompromiso(usuario.getId());
-            } else {
-                refreshTokenRepositorio.revocarTodosPorUsuarioId(usuario.getId());
+        record StepOutcome(
+                RefreshResult result,
+                Long usuarioIdARevocarPorCompromiso,
+                String mensajeRechazo
+        ) {}
+
+        Supplier<StepOutcome> dbStep = () -> {
+            // Bloqueo pesimista para serializar rotaciones concurrentes de un mismo token y evitar condiciones de carrera
+            RefreshToken tokenExistente = refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)
+                    .orElseThrow(() -> {
+                        log.warn("Intento de refresh con token inexistente.");
+                        return new BadCredentialsException("Refresh token inválido.");
+                    });
+
+            Usuario usuario = tokenExistente.getUsuario();
+
+            // Detección de reuso de token revocado (posible robo de sesión vs. carrera concurrente reciente)
+            if (tokenExistente.isRevocado()) {
+                String reemplazoHash = tokenExistente.getReemplazadoPor();
+                if (reemplazoHash != null && !reemplazoHash.isBlank()) {
+                    RefreshToken reemplazo = refreshTokenRepositorio.findByTokenHash(reemplazoHash).orElse(null);
+                    if (reemplazo != null
+                            && !reemplazo.isRevocado()
+                            && reemplazo.getFechaCreacion() != null
+                            && !reemplazo.getFechaCreacion().isBefore(ahora.minusSeconds(10))) {
+                        log.warn("Colisión concurrente tolerada de refresh token para usuario ID={}. No se revocan otras sesiones.", usuario.getId());
+                        return new StepOutcome(null, null, "Sesión actualizada concurrentemente. Reintente.");
+                    }
+                }
+
+                // Commit/finaliza TX1 antes de invocar revocación REQUIRES_NEW para evitar autodeadlock InnoDB
+                return new StepOutcome(null, usuario.getId(), "Sesión comprometida o revocada. Inicie sesión nuevamente.");
             }
-            throw new BadCredentialsException("Sesión comprometida o revocada. Inicie sesión nuevamente.");
-        }
 
-        if (tokenExistente.estaExpirado(ahora)) {
+            if (tokenExistente.estaExpirado(ahora)) {
+                tokenExistente.setRevocado(true);
+                refreshTokenRepositorio.save(tokenExistente);
+                return new StepOutcome(null, null, "La sesión ha expirado. Inicie sesión nuevamente.");
+            }
+
+            if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
+                tokenExistente.setRevocado(true);
+                refreshTokenRepositorio.save(tokenExistente);
+                return new StepOutcome(null, null, "La cuenta de usuario se encuentra deshabilitada.");
+            }
+
+            // Rotación: revocar el token actual y generar uno nuevo
+            String nuevoTokenRaw = generarTokenAleatorio();
+            String nuevoTokenHash = hashToken(nuevoTokenRaw);
+
             tokenExistente.setRevocado(true);
+            tokenExistente.setReemplazadoPor(nuevoTokenHash);
             refreshTokenRepositorio.save(tokenExistente);
-            throw new BadCredentialsException("La sesión ha expirado. Inicie sesión nuevamente.");
+
+            RefreshToken nuevoRefreshToken = RefreshToken.builder()
+                    .usuario(usuario)
+                    .tokenHash(nuevoTokenHash)
+                    .fechaCreacion(ahora)
+                    .fechaExpiracion(ahora.plusDays(refreshExpirationDays))
+                    .revocado(false)
+                    .build();
+            refreshTokenRepositorio.save(nuevoRefreshToken);
+
+            // Generar nuevo JWT Access Token
+            String nuevoAccessToken = jwtTokenProvider.generarTokenParaUsuario(
+                    usuario.getEmail(),
+                    usuario.getRol(),
+                    usuario.getTokenVersion()
+            );
+
+            JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
+                    .accessToken(nuevoAccessToken)
+                    .tokenType("Bearer")
+                    .usuarioId(usuario.getId())
+                    .email(usuario.getEmail())
+                    .rol(usuario.getRol())
+                    .build();
+
+            return new StepOutcome(new RefreshResult(authResponse, nuevoTokenRaw), null, null);
+        };
+
+        StepOutcome outcome;
+        if (transactionManager != null) {
+            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            outcome = txTemplate.execute(status -> dbStep.get());
+        } else {
+            outcome = dbStep.get();
         }
 
-        if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
-            tokenExistente.setRevocado(true);
-            refreshTokenRepositorio.save(tokenExistente);
-            throw new BadCredentialsException("La cuenta de usuario se encuentra deshabilitada.");
+        if (outcome == null) {
+            throw new BadCredentialsException("No se pudo procesar la renovación de sesión.");
         }
 
-        // Rotación: revocar el token actual y generar uno nuevo
-        String nuevoTokenRaw = generarTokenAleatorio();
-        String nuevoTokenHash = hashToken(nuevoTokenRaw);
+        if (outcome.usuarioIdARevocarPorCompromiso() != null) {
+            Long usuarioId = outcome.usuarioIdARevocarPorCompromiso();
+            log.warn("Alerta de seguridad: Intento de reuso de refresh token ya revocado para usuario ID={}. Revocando todas las sesiones.", usuarioId);
+            if (refreshTokenRevocationService != null) {
+                refreshTokenRevocationService.revocarTodasLasSesionesPorCompromiso(usuarioId);
+            } else {
+                refreshTokenRepositorio.revocarTodosPorUsuarioId(usuarioId);
+            }
+        }
 
-        tokenExistente.setRevocado(true);
-        tokenExistente.setReemplazadoPor(nuevoTokenHash);
-        refreshTokenRepositorio.save(tokenExistente);
+        if (outcome.mensajeRechazo() != null) {
+            throw new BadCredentialsException(outcome.mensajeRechazo());
+        }
 
-        RefreshToken nuevoRefreshToken = RefreshToken.builder()
-                .usuario(usuario)
-                                .tokenHash(nuevoTokenHash)
-                .fechaCreacion(ahora)
-                .fechaExpiracion(ahora.plusDays(refreshExpirationDays))
-                .revocado(false)
-                .build();
-        refreshTokenRepositorio.save(nuevoRefreshToken);
-
-        // Generar nuevo JWT Access Token
-        String nuevoAccessToken = jwtTokenProvider.generarTokenParaUsuario(
-                usuario.getEmail(),
-                usuario.getRol(),
-                usuario.getTokenVersion()
-        );
-
-        JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
-                .accessToken(nuevoAccessToken)
-                .tokenType("Bearer")
-                .usuarioId(usuario.getId())
-                .email(usuario.getEmail())
-                .rol(usuario.getRol())
-                .build();
-
-        return new RefreshResult(authResponse, nuevoTokenRaw);
+        return outcome.result();
     }
 
     @Transactional
     public void revocarToken(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
         String tokenHash = hashToken(rawToken);
-        int rows = refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
-        
+        refreshTokenRepositorio.revocarPorTokenHash(tokenHash);
     }
 
     @Transactional
