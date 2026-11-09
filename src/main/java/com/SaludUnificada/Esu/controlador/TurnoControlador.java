@@ -65,7 +65,7 @@ public class TurnoControlador {
     }
 
     @PostMapping("/mostrador")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN', 'MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#request.centroSaludId)")
     @Operation(summary = "Registrar turno presencial de mostrador en recepcion")
     public ResponseEntity<TurnoDtoResponse> crearTurnoMostrador(@Valid @RequestBody TurnoMostradorDtoRequest request, Principal principal) {
         TurnoDtoResponse nuevoTurno = turnoServicio.crearTurnoMostrador(request, principal != null ? principal.getName() : "RECEPCION");
@@ -188,7 +188,7 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/cancelar-mostrador")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Cancelar turno desde mostrador o bloqueo medico con justificativo auditable")
     public ResponseEntity<TurnoDtoResponse> cancelarTurnoMostrador(
             @PathVariable Long id,
@@ -208,13 +208,13 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/check-in")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> realizarCheckIn(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.realizarCheckIn(id, principal != null ? principal.getName() : "RECEPCION"));
     }
 
     @PutMapping("/{id}/llamar")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Llamar paciente en sala de espera a consultorio")
     public ResponseEntity<TurnoDtoResponse> llamarPaciente(
             @PathVariable Long id,
@@ -225,7 +225,7 @@ public class TurnoControlador {
     }
 
     @PatchMapping("/{id}/estado")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Actualizar estado operativo de un turno")
     public ResponseEntity<TurnoDtoResponse> actualizarEstado(
             @PathVariable Long id,
@@ -236,7 +236,7 @@ public class TurnoControlador {
     }
 
     @RequestMapping(value = "/{id}/copago", method = {RequestMethod.POST, RequestMethod.PUT})
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> registrarCopago(@PathVariable Long id, @Valid @RequestBody CopagoDtoRequest copagoDto) {
         return ResponseEntity.ok(turnoServicio.registrarCopago(id, copagoDto));
     }
@@ -281,7 +281,7 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/ausente")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> marcarAusente(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.marcarAusente(id, principal != null ? principal.getName() : null));
     }

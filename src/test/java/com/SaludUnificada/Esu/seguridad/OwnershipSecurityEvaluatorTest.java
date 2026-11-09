@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.seguridad;
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.repositorio.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -57,8 +58,9 @@ class OwnershipSecurityEvaluatorTest {
     private Paciente paciente;
     private Profesional profesional;
 
-    @BeforeEach
+        @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         adminUser = new Usuario();
         adminUser.setId(1L);
         adminUser.setEmail("admin@esu.test");
@@ -82,6 +84,11 @@ class OwnershipSecurityEvaluatorTest {
         profesional.setId(20L);
         profesional.setUsuario(doctorUser);
         profesional.setEstadoActivo(true);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     private void authenticate(String email, String role) {

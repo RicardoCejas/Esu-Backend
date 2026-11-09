@@ -14,6 +14,8 @@ import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -45,9 +47,15 @@ class TurnoServicioTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         MockitoAnnotations.openMocks(this);
         servicio = new TurnoServicio(turnos, mapper, pacientes, profesionales, recordatorios, CLOCK, ZONE,
                 java.time.LocalTime.of(8, 0), java.time.LocalTime.of(17, 0), 30);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
