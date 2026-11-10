@@ -964,6 +964,14 @@ public class AuthControlador {
         response.put("activo", Boolean.TRUE.equals(usuario.getEstadoActivo()));
         response.put("verificado", Boolean.TRUE.equals(usuario.getEmailVerificado()));
         response.put("twoFactorEnabled", Boolean.TRUE.equals(usuario.getTwoFactorEnabled()));
+        Long centroSaludId = usuario.getCentroSaludId();
+        String centroSaludNombre = usuario.getCentroSaludNombre();
+        response.put("centroSaludId", centroSaludId);
+        response.put("centroSaludNombre", centroSaludNombre);
+        List<String> codigosPermisos = usuario.getPermisos() != null
+                ? usuario.getPermisos().stream().map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo).sorted().toList()
+                : List.of();
+        response.put("permisos", codigosPermisos);
         return ResponseEntity.ok(response);
     }
 
