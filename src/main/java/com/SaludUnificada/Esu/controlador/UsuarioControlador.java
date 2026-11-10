@@ -96,6 +96,22 @@ public class UsuarioControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/asignacion")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UsuarioDtoResponse> actualizarAsignacion(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        String rol = body != null && body.get("rol") instanceof String r ? r : null;
+        Long centroId = null;
+        if (body != null && body.get("centroSaludId") != null) {
+            try {
+                centroId = Long.valueOf(body.get("centroSaludId").toString());
+            } catch (NumberFormatException ignored) {}
+        }
+        String centroNombre = body != null && body.get("centroSaludNombre") instanceof String cn ? cn : null;
+        return ResponseEntity.ok(usuarioServicio.actualizarRolYCentro(id, rol, centroId, centroNombre));
+    }
+
     @PostMapping("/{id}/revocar-sesiones")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> revocarSesionesUsuario(@PathVariable Long id) {

@@ -198,6 +198,21 @@ public class UsuarioServicio implements IUsuarioServicio {
         return usuarioMapper.paraDto(usuario);
     }
 
+    @Override
+    public UsuarioDtoResponse actualizarRolYCentro(Long id, String nuevoRol, Long nuevoCentroSaludId, String nuevoCentroSaludNombre) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        if (nuevoRol != null && !nuevoRol.isBlank()) {
+            usuario.setRol(nuevoRol.trim().toUpperCase());
+        }
+        if (nuevoCentroSaludId != null) {
+            usuario.setCentroSaludId(nuevoCentroSaludId);
+            usuario.setCentroSaludNombre(nuevoCentroSaludNombre);
+        }
+        usuario.revocarSesiones();
+        Usuario actualizado = usuarioRepositorio.save(usuario);
+        return usuarioMapper.paraDto(actualizado);
+    }
+
     private Set<Permiso> obtenerPermisosDefectoPorRol(String rol) {
         if (permisoRepositorio == null || rol == null) return new HashSet<>();
         String rolNorm = rol.toUpperCase().trim();

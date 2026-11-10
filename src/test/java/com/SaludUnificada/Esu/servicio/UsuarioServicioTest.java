@@ -132,4 +132,24 @@ class UsuarioServicioTest {
         verify(usuarioRepositorio, never()).delete(any());
         verify(usuarioRepositorio, never()).deleteById(anyLong());
     }
+    @Test
+    void testActualizarRolYCentro_Exitoso_RevocaSesionesYGuarda() {
+        Usuario usuario = new Usuario();
+        usuario.setId(30L);
+        usuario.setRol("ROLE_RECEPCIONISTA");
+        usuario.setTokenVersion(1);
+
+        when(usuarioRepositorio.findById(30L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(usuario);
+        when(usuarioMapper.paraDto(usuario)).thenReturn(new UsuarioDtoResponse());
+
+        UsuarioDtoResponse resp = usuarioServicio.actualizarRolYCentro(30L, "ROLE_ADMIN", 5L, "Hospital Central");
+
+        assertNotNull(resp);
+        assertEquals("ROLE_ADMIN", usuario.getRol());
+        assertEquals(5L, usuario.getCentroSaludId());
+        assertEquals("Hospital Central", usuario.getCentroSaludNombre());
+        assertEquals(2, usuario.getTokenVersion());
+        verify(usuarioRepositorio).save(usuario);
+    }
 }

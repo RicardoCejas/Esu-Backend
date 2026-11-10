@@ -19,4 +19,5 @@ public interface IUsuarioServicio {
     void revocarSesionesPorEmail(String email);
     List<String> obtenerPermisosUsuario(Long id);
     UsuarioDtoResponse actualizarPermisosUsuario(Long id, List<String> codigosPermisos);
+    UsuarioDtoResponse actualizarRolYCentro(Long id, String nuevoRol, Long nuevoCentroSaludId, String nuevoCentroSaludNombre);
 }
