@@ -1500,7 +1500,7 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fin = hoy.atTime(LocalTime.MAX);
         return turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin)
                 .stream()
-                .filter(t -> t.getPaciente() != null && !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                .filter(t -> !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
@@ -1640,7 +1640,7 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fin = fecha != null ? fecha.atTime(LocalTime.MAX) : null;
         return turnoRepositorio.findAgendaProfesional(profesionalId, centroSaludId, inicio, fin)
                 .stream()
-                .filter(t -> t.getPaciente() != null && !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                .filter(t -> !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
