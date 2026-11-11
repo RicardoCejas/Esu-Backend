@@ -9,11 +9,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "usuario", indexes = {
     @Index(name = "idx_usuario_email", columnList = "email"),
-    @Index(name = "idx_usuario_rol", columnList = "rol")
+    @Index(name = "idx_usuario_rol", columnList = "rol"),
+    @Index(name = "idx_usuario_centro", columnList = "centro_salud_id")
 })
 @Getter
 @Setter
@@ -27,6 +30,15 @@ public class Usuario {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(length = 100)
+    private String nombre;
+
+    @Column(length = 100)
+    private String apellido;
+
+    @Column(length = 20)
+    private String dni;
 
     @Column(nullable = false)
     private String password;
@@ -73,6 +85,12 @@ public class Usuario {
     @Column(name = "auth_provider")
     private String authProvider = "LOCAL";
 
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre", length = 180)
+    private String centroSaludNombre;
+
     @JsonIgnore
     @Column(name = "two_factor_enabled")
     private Boolean twoFactorEnabled = false;
@@ -98,4 +116,12 @@ public class Usuario {
 
     @OneToOne(mappedBy = "usuario")
     private Profesional profesional;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "usuario_permiso",
+        joinColumns = @JoinColumn(name = "usuario_id"),
+        inverseJoinColumns = @JoinColumn(name = "permiso_id")
+    )
+    private Set<Permiso> permisos = new HashSet<>();
 }

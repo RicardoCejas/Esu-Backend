@@ -78,6 +78,7 @@ class SobreturnoServicioTest {
         request = SobreturnoDtoRequest.builder()
                 .profesionalId(1L)
                 .pacienteId(10L)
+                .centroSaludId(1L)
                 .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
                 .motivoSobreturno("Urgencia menor por crisis hipertensiva leve")
                 .build();
@@ -118,6 +119,40 @@ class SobreturnoServicioTest {
     }
 
     @Test
+    @DisplayName("Debe persistir consultorio y planta asignados al sobreturno")
+    void testCrearSobreturno_ConConsultorioYPlanta() {
+        request.setConsultorioNumero("Box 4");
+        request.setPlanta("Planta Alta");
+
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+        when(turnoRepositorio.contarSobreturnosEnDia(eq(1L), any(), any())).thenReturn(0L);
+        when(turnoRepositorio.save(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            t.setId(101L);
+            return t;
+        });
+
+        TurnoDtoResponse esperado = TurnoDtoResponse.builder()
+                .id(101L)
+                .consultorioNumero("Box 4")
+                .planta("Planta Alta")
+                .esSobreturno(true)
+                .build();
+        when(turnoMapper.paraDto(any(Turno.class))).thenReturn(esperado);
+
+        TurnoDtoResponse response = turnoServicio.crearSobreturno(request);
+
+        assertNotNull(response);
+        assertEquals("Box 4", response.getConsultorioNumero());
+        assertEquals("Planta Alta", response.getPlanta());
+
+        verify(turnoRepositorio).save(argThat(t ->
+                "Box 4".equals(t.getConsultorioNumero()) && "Planta Alta".equals(t.getPlanta())
+        ));
+    }
+
+    @Test
     @DisplayName("Debe lanzar ReglaNegocioException cuando se alcanza el cupo máximo diario de sobreturnos")
     void testCrearSobreturno_SuperaLimite_LanzaReglaNegocioException() {
         when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
@@ -152,4 +187,20 @@ class SobreturnoServicioTest {
         assertThrows(NoEncontradoExcepcion.class, () ->
                 turnoServicio.crearSobreturno(request));
     }
+    @Test
+    @DisplayName("Debe lanzar ReglaNegocioException si centroSaludId es nulo")
+    void testCrearSobreturno_FallaSiCentroSaludEsNulo() {
+        SobreturnoDtoRequest reqSinCentro = SobreturnoDtoRequest.builder()
+                .profesionalId(1L)
+                .pacienteId(10L)
+                .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
+                .motivoSobreturno("Urgencia menor")
+                .build();
+
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+
+        assertThrows(ReglaNegocioException.class, () -> turnoServicio.crearSobreturno(reqSinCentro));
+    }
+
 }

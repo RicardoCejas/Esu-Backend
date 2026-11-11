@@ -24,7 +24,6 @@ public class BloqueoAgendaDtoRequest {
 
     @Schema(description = "ID del centro de salud opcional", example = "1")
     private Long centroSaludId;
-
     @NotNull(message = "La fecha y hora de inicio del bloqueo son obligatorias")
     @Schema(description = "Inicio del período de bloqueo (ISO DateTime)", example = "2026-11-01T08:00:00")
     private LocalDateTime fechaInicio;

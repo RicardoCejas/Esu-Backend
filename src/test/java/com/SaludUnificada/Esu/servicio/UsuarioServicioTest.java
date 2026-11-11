@@ -1,8 +1,12 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
+import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Permiso;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
@@ -11,6 +15,7 @@ import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.PermisoRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +24,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,5 +139,138 @@ class UsuarioServicioTest {
         verify(usuarioRepositorio).save(usuario);
         verify(usuarioRepositorio, never()).delete(any());
         verify(usuarioRepositorio, never()).deleteById(anyLong());
+    }
+    @Test
+    void testActualizarRolYCentro_Exitoso_RevocaSesionesYGuarda() {
+        Usuario usuario = new Usuario();
+        usuario.setId(30L);
+        usuario.setRol("ROLE_RECEPCIONISTA");
+        usuario.setTokenVersion(1);
+
+        when(usuarioRepositorio.findById(30L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(usuario);
+        when(usuarioMapper.paraDto(usuario)).thenReturn(new UsuarioDtoResponse());
+
+        UsuarioDtoResponse resp = usuarioServicio.actualizarRolYCentro(30L, "ROLE_ADMIN", 5L, "Hospital Central");
+
+        assertNotNull(resp);
+        assertEquals("ROLE_ADMIN", usuario.getRol());
+        assertEquals(5L, usuario.getCentroSaludId());
+        assertEquals("Hospital Central", usuario.getCentroSaludNombre());
+        assertEquals(2, usuario.getTokenVersion());
+        verify(usuarioRepositorio).save(usuario);
+    }
+
+    @Test
+    void testListarPorCentro_ExcluyeAdminYPaciente() {
+        Usuario admin = new Usuario();
+        admin.setId(1L);
+        admin.setRol("ADMIN");
+        admin.setCentroSaludId(10L);
+
+        Usuario paciente = new Usuario();
+        paciente.setId(2L);
+        paciente.setRol("PACIENTE");
+        paciente.setCentroSaludId(10L);
+
+        Usuario recep = new Usuario();
+        recep.setId(3L);
+        recep.setRol("RECEPCIONISTA");
+        recep.setCentroSaludId(10L);
+
+        Usuario medico = new Usuario();
+        medico.setId(4L);
+        medico.setRol("PROFESIONAL");
+        medico.setCentroSaludId(10L);
+
+        UsuarioDtoResponse dtoRecep = new UsuarioDtoResponse();
+        dtoRecep.setId(3L);
+        dtoRecep.setRol("RECEPCIONISTA");
+
+        UsuarioDtoResponse dtoMedico = new UsuarioDtoResponse();
+        dtoMedico.setId(4L);
+        dtoMedico.setRol("PROFESIONAL");
+
+        when(usuarioRepositorio.findByCentroSaludId(10L)).thenReturn(List.of(admin, paciente, recep, medico));
+        when(usuarioMapper.paraDto(recep)).thenReturn(dtoRecep);
+        when(usuarioMapper.paraDto(medico)).thenReturn(dtoMedico);
+
+        List<UsuarioDtoResponse> result = usuarioServicio.listarPorCentro(10L);
+
+        assertEquals(2, result.size());
+        assertEquals(List.of(3L, 4L), result.stream().map(UsuarioDtoResponse::getId).toList());
+        assertTrue(usuarioServicio.listarPorCentro(null).isEmpty());
+    }
+
+    @Test
+    void testCrearUsuarioRecepcionista_AsignaPermisosCentroYReportesPorDefecto() {
+        PermisoRepositorio permisoRepo = mock(PermisoRepositorio.class);
+        ReflectionTestUtils.setField(usuarioServicio, "permisoRepositorio", permisoRepo);
+
+        UsuarioDtoRequest req = new UsuarioDtoRequest();
+        req.setUsername("recep.centro@esu.gob.ar");
+        req.setPassword("Password123!");
+        req.setRol("RECEPCIONISTA");
+
+        Usuario entidad = new Usuario();
+        entidad.setEmail("recep.centro@esu.gob.ar");
+        entidad.setPassword("Password123!");
+        entidad.setRol("RECEPCIONISTA");
+
+        Permiso permisoReportes = new Permiso();
+        permisoReportes.setCodigo("REPORTES_VER");
+
+        when(usuarioRepositorio.existsByEmail("recep.centro@esu.gob.ar")).thenReturn(false);
+        when(usuarioMapper.paraEntidad(req)).thenReturn(entidad);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encoded");
+        when(permisoRepo.findByCodigoIn(anySet())).thenReturn(Set.of(permisoReportes));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(entidad);
+        when(usuarioMapper.paraDto(entidad)).thenReturn(new UsuarioDtoResponse());
+
+        usuarioServicio.crearUsuario(req);
+
+        verify(permisoRepo).findByCodigoIn(argThat(codigos ->
+                codigos.contains("CONSULTORIOS_ADMINISTRAR")
+                        && codigos.contains("REPORTES_VER")
+                        && codigos.contains("USUARIOS_ADMINISTRAR")
+        ));
+    }
+
+    @Test
+    void testActualizarPerfilOperativo_ActualizaUsuarioYSincronizaProfesionalVinculado() {
+        ProfesionalRepositorio profesionalRepo = mock(ProfesionalRepositorio.class);
+        ReflectionTestUtils.setField(usuarioServicio, "profesionalRepositorio", profesionalRepo);
+
+        Usuario entidad = new Usuario();
+        entidad.setId(44L);
+        entidad.setEmail("medico.centro@esu.gob.ar");
+        entidad.setRol("PROFESIONAL");
+
+        Profesional prof = new Profesional();
+        prof.setId(9L);
+        prof.setUsuario(entidad);
+
+        UsuarioPerfilOperativoDtoRequest perfilReq = new UsuarioPerfilOperativoDtoRequest("  Ana  ", "  Morales  ", " 33444555 ");
+
+        when(usuarioRepositorio.findById(44L)).thenReturn(Optional.of(entidad));
+        when(profesionalRepo.findByUsuarioEmail("medico.centro@esu.gob.ar")).thenReturn(Optional.of(prof));
+        when(usuarioRepositorio.save(entidad)).thenReturn(entidad);
+        UsuarioDtoResponse esperado = new UsuarioDtoResponse();
+        esperado.setId(44L);
+        esperado.setNombre("Ana");
+        esperado.setApellido("Morales");
+        esperado.setDni("33444555");
+        when(usuarioMapper.paraDto(entidad)).thenReturn(esperado);
+
+        UsuarioDtoResponse res = usuarioServicio.actualizarPerfilOperativo(44L, perfilReq);
+
+        assertEquals("Ana", entidad.getNombre());
+        assertEquals("Morales", entidad.getApellido());
+        assertEquals("33444555", entidad.getDni());
+        assertEquals("Ana", prof.getNombre());
+        assertEquals("Morales", prof.getApellido());
+        assertEquals("33444555", res.getDni());
+        verify(profesionalRepo).save(prof);
+        verify(usuarioRepositorio).save(entidad);
     }
 }

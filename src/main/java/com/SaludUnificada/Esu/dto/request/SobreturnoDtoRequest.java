@@ -32,7 +32,14 @@ public class SobreturnoDtoRequest {
     private String pacienteNombre;
     private String pacienteTelefono;
     private String obraSocial;
+    @NotNull(message = "El centro de salud es obligatorio")
     private Long centroSaludId;
+
+    @Schema(description = "Número o identificación del consultorio físico", example = "3B")
+    private String consultorioNumero;
+
+    @Schema(description = "Planta o nivel del consultorio", example = "Planta Baja")
+    private String planta;
 
     @NotBlank(message = "El motivo de sobreturno es obligatorio")
     @Size(min = 3, max = 255, message = "El motivo debe tener entre 3 y 255 caracteres")

@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.repositorio.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,12 @@ public class OwnershipSecurityEvaluator {
 
     @Autowired(required = false)
     private java.time.ZoneId turnosZoneId;
+
+    @Autowired(required = false)
+    private ConsultorioFisicoRepositorio consultorioFisicoRepositorio;
+
+    @Autowired(required = false)
+    private BloqueoAgendaRepositorio bloqueoAgendaRepositorio;
 
     private boolean esProduccion() {
         if (environment == null) return false;
@@ -203,7 +210,11 @@ public class OwnershipSecurityEvaluator {
         if (disponibilidadRepositorio == null) return false;
         Optional<DisponibilidadProfesional> dispOpt = disponibilidadRepositorio.findById(dispId);
         if (dispOpt.isEmpty() || dispOpt.get().getProfesional() == null) return false;
-        return isDoctorAuthor(dispOpt.get().getProfesional().getId());
+        Long profId = dispOpt.get().getProfesional().getId();
+        if (isReceptionist(auth)) {
+            return isReceptionistOfDoctor(profId);
+        }
+        return isDoctorAuthor(profId);
     }
 
     public boolean isTurnoDoctor(Long turnoId) {
@@ -215,10 +226,49 @@ public class OwnershipSecurityEvaluator {
         return isDoctorAuthor(turnoOpt.get().getProfesional().getId());
     }
 
+    public boolean isReceptionistOfCenter(Long centroSaludId) {
+        if (centroSaludId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth)) return false;
+
+        Optional<Usuario> usuarioOpt = getCurrentUser(auth);
+        if (usuarioOpt.isEmpty()) return false;
+        Usuario usuario = usuarioOpt.get();
+
+        if (!esProduccion() && "dev@esu.gob.ar".equalsIgnoreCase(usuario.getEmail())) {
+            return true;
+        }
+
+        return usuario.getCentroSaludId() != null && usuario.getCentroSaludId().equals(centroSaludId);
+    }
+
+    public boolean canManageTurnoMostrador(Long turnoId) {
+        if (turnoId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+
+        Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
+        if (turnoOpt.isEmpty()) return false;
+        Turno turno = turnoOpt.get();
+
+        if (isReceptionist(auth)) {
+            return isReceptionistOfCenter(turno.getCentroSaludId());
+        }
+
+        if (isDoctor(auth)) {
+            return isTurnoDoctor(turnoId);
+        }
+
+        return false;
+    }
+
     public boolean canAccessTurno(Long turnoId) {
         Authentication auth = getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (isReceptionist(auth) || isAdmin(auth)) return true;
+        if (isAdmin(auth)) return true;
 
         Optional<Turno> turnoOpt = turnoRepositorio.findById(turnoId);
         if (turnoOpt.isEmpty()) return false;
@@ -230,6 +280,13 @@ public class OwnershipSecurityEvaluator {
 
         if (!esProduccion() && "dev@esu.gob.ar".equalsIgnoreCase(usuario.getEmail())) {
             return true;
+        }
+
+        if (isReceptionist(auth)) {
+            if (usuario.getCentroSaludId() == null) {
+                return false;
+            }
+            return usuario.getCentroSaludId().equals(turno.getCentroSaludId());
         }
 
         if (isDoctor(auth)) {
@@ -380,5 +437,106 @@ public class OwnershipSecurityEvaluator {
             return canAccessPatient(v.getTitular().getId());
         }
         return false;
+    }
+
+    public boolean isCurrentUserAdmin() {
+        return isAdmin(getAuthentication());
+    }
+
+    public Optional<Long> getAuthenticatedCentroSaludId() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getCentroSaludId);
+    }
+
+    public Optional<String> getAuthenticatedCentroSaludNombre() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getCentroSaludNombre);
+    }
+
+    public Optional<Long> getAuthenticatedUserId() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getId);
+    }
+
+    public Long getAuthenticatedCentroSaludIdOrThrow() {
+        return getAuthenticatedCentroSaludId()
+                .orElseThrow(() -> new AccessDeniedException("La cuenta institucional no posee un centro de salud asignado."));
+    }
+
+    public boolean isReceptionistOfConsultorio(Long consultorioId) {
+        if (consultorioId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth) || consultorioFisicoRepositorio == null) return false;
+        return consultorioFisicoRepositorio.findById(consultorioId)
+                .map(c -> isReceptionistOfCenter(c.getCentroSaludId()))
+                .orElse(false);
+    }
+
+    public boolean isReceptionistOfUser(Long targetUsuarioId) {
+        if (targetUsuarioId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth)) return false;
+
+        Optional<Usuario> currentOpt = getCurrentUser(auth);
+        if (currentOpt.isEmpty() || currentOpt.get().getCentroSaludId() == null) return false;
+        Long miCentroId = currentOpt.get().getCentroSaludId();
+
+        Optional<Usuario> targetOpt = usuarioRepositorio.findById(targetUsuarioId);
+        if (targetOpt.isEmpty()) return false;
+        Usuario target = targetOpt.get();
+        if (target.getCentroSaludId() == null || !miCentroId.equals(target.getCentroSaludId())) {
+            return false;
+        }
+        String rolNorm = target.getRol() != null ? target.getRol().trim().toUpperCase().replaceFirst("^ROLE_", "") : "";
+        return "RECEPCIONISTA".equals(rolNorm) || "PROFESIONAL".equals(rolNorm) || "MEDICO".equals(rolNorm);
+    }
+
+    public boolean isReceptionistOfDoctor(Long profesionalId) {
+        if (profesionalId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth)) return false;
+
+        Optional<Usuario> usuarioOpt = getCurrentUser(auth);
+        if (usuarioOpt.isEmpty()) return false;
+        Usuario usuario = usuarioOpt.get();
+
+        if (!esProduccion() && "dev@esu.gob.ar".equalsIgnoreCase(usuario.getEmail())) {
+            return true;
+        }
+
+        Long miCentroId = usuario.getCentroSaludId();
+        if (miCentroId == null) return false;
+
+        Optional<Profesional> profOpt = profesionalRepositorio.findById(profesionalId);
+        if (profOpt.isEmpty()) return false;
+        Profesional prof = profOpt.get();
+
+        if (prof.getCentrosSaludIds() != null && prof.getCentrosSaludIds().contains(miCentroId)) {
+            return true;
+        }
+
+        if (prof.getUsuario() != null && miCentroId.equals(prof.getUsuario().getCentroSaludId())) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean canAccessBloqueo(Long bloqueoId) {
+        if (bloqueoId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (bloqueoAgendaRepositorio == null) return false;
+        Optional<BloqueoAgenda> bOpt = bloqueoAgendaRepositorio.findById(bloqueoId);
+        if (bOpt.isEmpty() || bOpt.get().getProfesional() == null) return false;
+        Long profId = bOpt.get().getProfesional().getId();
+        if (isReceptionist(auth)) {
+            return isReceptionistOfDoctor(profId);
+        }
+        return isDoctorAuthor(profId);
     }
 }

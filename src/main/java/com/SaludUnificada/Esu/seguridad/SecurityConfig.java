@@ -151,7 +151,14 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/bloqueos-agenda/**").hasAnyRole("ADMIN", "PROFESIONAL", "MEDICO", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/preferencias").authenticated();
+                        auth.requestMatchers("/api/usuarios/me/**").authenticated();
+                        auth.requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/obtener/todos", "/api/usuarios/obtener/*").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.POST, "/api/usuarios", "/api/usuarios/crear").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/*/estado").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PUT, "/api/usuarios/*/asignacion").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/usuarios/eliminar/*").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/usuarios/**").hasRole("ADMIN");
+                        auth.requestMatchers("/api/permisos/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.GET, "/api/centros-salud/**").permitAll();
                         auth.requestMatchers("/api/centros-salud/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
@@ -167,6 +174,7 @@ public class SecurityConfig {
 
                         auth.requestMatchers(HttpMethod.GET, "/api/turnos/disponibles").permitAll();
                         auth.requestMatchers(HttpMethod.POST, "/api/turnos/publico/reservar").permitAll();
+                        auth.requestMatchers(HttpMethod.GET, "/api/turnos/publico/cartelera/**").permitAll();
                         auth.requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN");

@@ -19,6 +19,9 @@ public class DashboardMetricasDtoResponse {
     private Long centroId;
     private String centroNombre;
     private String especialidad;
+    private Long profesionalId;
+    private String profesionalNombre;
+    private String consultorio;
     private LocalDateTime fechaActualizacion;
     private Boolean respuestaIncompleta;
     private String periodoDescripcion;
@@ -42,7 +45,7 @@ public class DashboardMetricasDtoResponse {
     private double tasaCancelacion;
 
     // Tiempos promedio
-    private double tiempoPromedioConsultaMinutos;
+    private Double tiempoPromedioConsultaMinutos;
 
     // Especialidad más demandada
     private String especialidadMasDemandada;

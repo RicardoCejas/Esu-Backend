@@ -69,7 +69,7 @@ public class TurnoControlador {
     }
 
     @PostMapping("/mostrador")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN', 'MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#request.centroSaludId)")
     @Operation(summary = "Registrar turno presencial de mostrador en recepcion")
     public ResponseEntity<TurnoDtoResponse> crearTurnoMostrador(@Valid @RequestBody TurnoMostradorDtoRequest request, Principal principal) {
         TurnoDtoResponse nuevoTurno = turnoServicio.crearTurnoMostrador(request, principal != null ? principal.getName() : "RECEPCION");
@@ -121,8 +121,45 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnoPorId(id));
     }
 
+    @GetMapping("/centro/{centroId}")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos de un centro de salud con filtros opcionales de fecha y estado")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) String estado) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosCentro(centroId, desde, hasta, estado));
+    }
+
+    @GetMapping("/centro/{centroId}/hoy")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos del día acotados por centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosHoyCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosHoyCentro(centroId, fecha));
+    }
+
+    @GetMapping("/centro/{centroId}/kanban")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos activos de sala de espera (Kanban) acotados por centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosKanbanCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosKanbanCentro(centroId, fecha));
+    }
+
+    @GetMapping("/publico/cartelera/{centroId}")
+    @Operation(summary = "Obtener turnos activos de cartelera pública / pantalla TV para un centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerCarteleraPublicaCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosKanbanCentro(centroId, fecha));
+    }
+
     @GetMapping({"", "/obtener/todos"})
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
         return ResponseEntity.ok(turnoServicio.listarTodos());
     }
@@ -196,7 +233,7 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/cancelar-mostrador")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Cancelar turno desde mostrador o bloqueo medico con justificativo auditable")
     public ResponseEntity<TurnoDtoResponse> cancelarTurnoMostrador(
             @PathVariable Long id,
@@ -216,13 +253,13 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/check-in")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> realizarCheckIn(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.realizarCheckIn(id, principal != null ? principal.getName() : "RECEPCION"));
     }
 
     @PutMapping("/{id}/llamar")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Llamar paciente en sala de espera a consultorio")
     public ResponseEntity<TurnoDtoResponse> llamarPaciente(
             @PathVariable Long id,
@@ -233,7 +270,7 @@ public class TurnoControlador {
     }
 
     @PatchMapping("/{id}/estado")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     @Operation(summary = "Actualizar estado operativo de un turno")
     public ResponseEntity<TurnoDtoResponse> actualizarEstado(
             @PathVariable Long id,
@@ -244,7 +281,7 @@ public class TurnoControlador {
     }
 
     @RequestMapping(value = "/{id}/copago", method = {RequestMethod.POST, RequestMethod.PUT})
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> registrarCopago(@PathVariable Long id, @Valid @RequestBody CopagoDtoRequest copagoDto) {
         return ResponseEntity.ok(turnoServicio.registrarCopago(id, copagoDto));
     }
@@ -289,7 +326,7 @@ public class TurnoControlador {
     }
 
     @PutMapping("/{id}/ausente")
-    @PreAuthorize("hasAnyRole('RECEPCIONISTA', 'ADMIN') or @securityPolicy.isTurnoDoctor(#id)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canManageTurnoMostrador(#id)")
     public ResponseEntity<TurnoDtoResponse> marcarAusente(@PathVariable Long id, Principal principal) {
         return ResponseEntity.ok(turnoServicio.marcarAusente(id, principal != null ? principal.getName() : null));
     }

@@ -11,6 +11,15 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import com.lowagie.text.Document;
+import com.lowagie.text.Element;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,11 +73,18 @@ public class ReporteTurnosServicio {
 
     @Transactional(readOnly = true)
     public byte[] exportarTurnosExcel(LocalDateTime desde, LocalDateTime hasta) {
+        return exportarTurnosExcel(desde, hasta, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportarTurnosExcel(LocalDateTime desde, LocalDateTime hasta, Long centroId) {
         validarRangoFechas(desde, hasta);
         LocalDateTime fechaInicio = desde != null ? desde : ahora().minusMonths(1);
         LocalDateTime fechaFin = hasta != null ? hasta : ahora().plusMonths(3);
 
-        List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
+        List<Turno> turnos = (centroId != null)
+                ? turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin, centroId)
+                : turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
         if (turnos.size() > MAX_REGISTROS_REPORTE) {
             turnos = turnos.subList(0, MAX_REGISTROS_REPORTE);
             log.warn("Se truncó el reporte Excel a {} registros por límite de seguridad operacional.", MAX_REGISTROS_REPORTE);
@@ -168,11 +184,18 @@ public class ReporteTurnosServicio {
 
     @Transactional(readOnly = true)
     public byte[] exportarTurnosCsv(LocalDateTime desde, LocalDateTime hasta) {
+        return exportarTurnosCsv(desde, hasta, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportarTurnosCsv(LocalDateTime desde, LocalDateTime hasta, Long centroId) {
         validarRangoFechas(desde, hasta);
         LocalDateTime fechaInicio = desde != null ? desde : ahora().minusMonths(1);
         LocalDateTime fechaFin = hasta != null ? hasta : ahora().plusMonths(3);
 
-        List<Turno> turnos = turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
+        List<Turno> turnos = (centroId != null)
+                ? turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin, centroId)
+                : turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
         if (turnos.size() > MAX_REGISTROS_REPORTE) {
             turnos = turnos.subList(0, MAX_REGISTROS_REPORTE);
             log.warn("Se truncó el reporte CSV a {} registros por límite de seguridad operacional.", MAX_REGISTROS_REPORTE);
@@ -253,8 +276,145 @@ public class ReporteTurnosServicio {
     }
 
     @Transactional(readOnly = true)
+    public byte[] exportarTurnosPdf(LocalDateTime desde, LocalDateTime hasta) {
+        return exportarTurnosPdf(desde, hasta, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportarTurnosPdf(LocalDateTime desde, LocalDateTime hasta, Long centroId) {
+        validarRangoFechas(desde, hasta);
+        LocalDateTime fechaInicio = desde != null ? desde : ahora().minusMonths(1);
+        LocalDateTime fechaFin = hasta != null ? hasta : ahora().plusMonths(3);
+
+        List<Turno> turnos = (centroId != null)
+                ? turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin, centroId)
+                : turnoRepositorio.findReporteTurnosEntre(fechaInicio, fechaFin);
+
+        if (turnos.size() > MAX_REGISTROS_REPORTE) {
+            turnos = turnos.subList(0, MAX_REGISTROS_REPORTE);
+            log.warn("Se truncó el reporte PDF a {} registros por límite de seguridad operacional.", MAX_REGISTROS_REPORTE);
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean soloAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
+                && auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECEPCIONISTA"));
+
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4.rotate(), 20, 20, 30, 30);
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            com.lowagie.text.Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, new java.awt.Color(2, 132, 199));
+            com.lowagie.text.Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, java.awt.Color.DARK_GRAY);
+            com.lowagie.text.Font infoFont = FontFactory.getFont(FontFactory.HELVETICA, 9, java.awt.Color.GRAY);
+            com.lowagie.text.Font thFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, java.awt.Color.WHITE);
+            com.lowagie.text.Font tdFont = FontFactory.getFont(FontFactory.HELVETICA, 8, java.awt.Color.BLACK);
+            com.lowagie.text.Font tdBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, java.awt.Color.BLACK);
+
+            Paragraph title = new Paragraph("ESU — ECOSISTEMA DE SALUD UNIFICADO", titleFont);
+            title.setAlignment(Element.ALIGN_CENTER);
+            document.add(title);
+
+            String centroTitulo = centroId != null ? "REPORTE OFICIAL DE TURNOS — CENTRO #" + centroId : "REPORTE CONSOLIDADO DE TURNOS — RED SANITARIA";
+            Paragraph subTitle = new Paragraph(centroTitulo, subTitleFont);
+            subTitle.setAlignment(Element.ALIGN_CENTER);
+            document.add(subTitle);
+
+            String periodo = String.format("Período: %s a %s | Total turnos: %d | Generado: %s",
+                    fechaInicio.format(DATE_FORMATTER), fechaFin.format(DATE_FORMATTER), turnos.size(),
+                    ahora().format(DATE_FORMATTER));
+            Paragraph info = new Paragraph(periodo, infoFont);
+            info.setAlignment(Element.ALIGN_CENTER);
+            document.add(info);
+            document.add(new Paragraph(" "));
+
+            PdfPTable table = new PdfPTable(8);
+            table.setWidthPercentage(100);
+            table.setWidths(new float[]{1.0f, 2.2f, 2.5f, 2.0f, 2.5f, 2.5f, 1.5f, 1.8f});
+
+            String[] headers = {"ID", "Fecha/Hora", "Centro de Salud", "Servicio", "Paciente", "Profesional", "Consultorio", "Estado"};
+            java.awt.Color headerColor = new java.awt.Color(2, 132, 199);
+            for (String h : headers) {
+                PdfPCell cell = new PdfPCell(new Phrase(h, thFont));
+                cell.setBackgroundColor(headerColor);
+                cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                cell.setPadding(5f);
+                table.addCell(cell);
+            }
+
+            java.awt.Color zebra = new java.awt.Color(248, 250, 252);
+            int idx = 0;
+            for (Turno t : turnos) {
+                java.awt.Color bg = (idx++ % 2 == 0) ? java.awt.Color.WHITE : zebra;
+
+                String dniPaciente = (t.getPaciente() != null && t.getPaciente().getDni() != null) ? t.getPaciente().getDni() : "-";
+                String nomPaciente = (t.getPaciente() != null)
+                        ? ((t.getPaciente().getNombre() != null ? t.getPaciente().getNombre() : "") + " " +
+                           (t.getPaciente().getApellido() != null ? t.getPaciente().getApellido() : "")).trim()
+                        : "-";
+                if (soloAdmin) {
+                    dniPaciente = MascaraDatosUtil.enmascararDni(dniPaciente);
+                    if (!nomPaciente.isBlank()) nomPaciente = nomPaciente.charAt(0) + "***";
+                }
+
+                String nomProf = (t.getProfesional() != null)
+                        ? ((t.getProfesional().getNombre() != null ? t.getProfesional().getNombre() : "") + " " +
+                           (t.getProfesional().getApellido() != null ? t.getProfesional().getApellido() : "")).trim()
+                        : "-";
+
+                String centro = (t.getCentroSaludNombre() != null && !t.getCentroSaludNombre().isBlank())
+                        ? t.getCentroSaludNombre()
+                        : (t.getCentroSaludId() != null ? "Centro #" + t.getCentroSaludId() : "-");
+
+                String consultorio = (t.getConsultorioNumero() != null && !t.getConsultorioNumero().isBlank())
+                        ? "Cons. " + t.getConsultorioNumero()
+                        : "-";
+
+                addPdfCell(table, String.valueOf(t.getId() != null ? t.getId() : "-"), tdFont, bg, Element.ALIGN_CENTER);
+                addPdfCell(table, t.getFechaHora() != null ? t.getFechaHora().format(DATE_FORMATTER) : "-", tdFont, bg, Element.ALIGN_CENTER);
+                addPdfCell(table, centro, tdFont, bg, Element.ALIGN_LEFT);
+                addPdfCell(table, t.getServicio() != null ? t.getServicio() : (t.getTipoAtencion() != null ? t.getTipoAtencion() : "CONSULTA"), tdFont, bg, Element.ALIGN_LEFT);
+                addPdfCell(table, nomPaciente + " (" + dniPaciente + ")", tdFont, bg, Element.ALIGN_LEFT);
+                addPdfCell(table, nomProf, tdFont, bg, Element.ALIGN_LEFT);
+                addPdfCell(table, consultorio, tdFont, bg, Element.ALIGN_CENTER);
+                addPdfCell(table, t.getEstado() != null ? t.getEstado() : "-", tdBold, bg, Element.ALIGN_CENTER);
+            }
+
+            document.add(table);
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("Error al generar PDF de reporte de turnos: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al generar el reporte PDF de turnos", e);
+        }
+    }
+
+    private void addPdfCell(PdfPTable table, String text, com.lowagie.text.Font font, java.awt.Color bg, int align) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setBackgroundColor(bg);
+        cell.setHorizontalAlignment(align);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        cell.setPadding(4f);
+        table.addCell(cell);
+    }
+
+    @Transactional(readOnly = true)
     public byte[] exportarPacientesCsv() {
-        List<Paciente> pacientes = pacienteRepositorio.findAll();
+        return exportarPacientesCsv(null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportarPacientesCsv(Long centroId) {
+        List<Paciente> pacientes;
+        if (centroId != null) {
+            List<Long> pacienteIds = turnoRepositorio.findDistinctPacienteIdsByCentroSaludId(centroId);
+            pacientes = (pacienteIds != null && !pacienteIds.isEmpty() && pacienteRepositorio != null)
+                    ? pacienteRepositorio.findAllById(pacienteIds)
+                    : java.util.Collections.emptyList();
+        } else {
+            pacientes = (pacienteRepositorio != null) ? pacienteRepositorio.findAll() : java.util.Collections.emptyList();
+        };
         StringBuilder sb = new StringBuilder();
         sb.append("ID,DNI,Nombre,Apellido,ObraSocial,NroAfiliado,Telefono,GrupoSanguineo\n");
         for (Paciente p : pacientes) {

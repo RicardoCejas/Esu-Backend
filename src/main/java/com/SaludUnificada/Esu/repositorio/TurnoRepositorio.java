@@ -67,11 +67,64 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH p.usuario LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.usuario WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta ORDER BY t.fechaHora ASC")
     List<Turno> findReporteTurnosEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
 
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH p.usuario LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.usuario " +
+           "WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND (:centroId IS NULL OR t.centroSaludId = :centroId) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findReporteTurnosEntre(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("centroId") Long centroId);
+
+    @Query("SELECT DISTINCT t.paciente.id FROM Turno t WHERE t.centroSaludId = :centroId AND t.paciente IS NOT NULL")
+    List<Long> findDistinctPacienteIdsByCentroSaludId(@Param("centroId") Long centroId);
+
     List<Turno> findByPacienteIdAndFechaHoraGreaterThanEqualOrderByFechaHoraAsc(Long pacienteId, LocalDateTime desde);
 
     boolean existsByProfesionalIdAndPacienteId(Long profesionalId, Long pacienteId);
 
     List<Turno> findByPacienteIdAndFechaHoraLessThanOrderByFechaHoraDesc(Long pacienteId, LocalDateTime hasta);
+
+    @Query("SELECT COUNT(t) > 0 FROM Turno t WHERE t.profesional.id = :profesionalId " +
+           "AND t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde " +
+           "AND t.estado IN ('PENDIENTE', 'CONFIRMADO', 'EN_SALA_DE_ESPERA', 'EN_ESPERA')")
+    boolean existsTurnosActivosFuturosDeProfesionalEnCentro(
+            @Param("profesionalId") Long profesionalId,
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde);
+
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
+           "WHERE t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosCentroEntre(
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
+
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
+           "WHERE t.centroSaludId = :centroId " +
+           "AND (:desde IS NULL OR t.fechaHora >= :desde) " +
+           "AND (:hasta IS NULL OR t.fechaHora <= :hasta) " +
+           "AND (:estado IS NULL OR t.estado = :estado) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosCentroFiltrados(
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("estado") String estado);
+
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
+           "WHERE t.centroSaludId = :centroId " +
+           "AND t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND t.estado IN :estados " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosCentroEntreYEstados(
+            @Param("centroId") Long centroId,
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("estados") List<String> estados);
 
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH t.profesional prof " +
            "WHERE t.profesional.id = :profesionalId " +
@@ -95,5 +148,20 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
             @Param("hasta") LocalDateTime hasta,
             @Param("centroId") Long centroId,
             @Param("especialidad") String especialidad);
+
+    @Query("SELECT DISTINCT t FROM Turno t LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.especialidades esp " +
+           "WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND (:centroId IS NULL OR t.centroSaludId = :centroId) " +
+           "AND (:profesionalId IS NULL OR prof.id = :profesionalId) " +
+           "AND (:consultorio IS NULL OR LOWER(t.consultorioNumero) LIKE LOWER(CONCAT('%', :consultorio, '%'))) " +
+           "AND (:especialidad IS NULL OR LOWER(esp.nombre) LIKE LOWER(CONCAT('%', :especialidad, '%'))) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosParaMetricasConFiltros(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("centroId") Long centroId,
+            @Param("especialidad") String especialidad,
+            @Param("profesionalId") Long profesionalId,
+            @Param("consultorio") String consultorio);
 
 }

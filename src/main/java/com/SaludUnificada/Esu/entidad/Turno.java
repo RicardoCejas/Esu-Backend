@@ -65,6 +65,9 @@ public class Turno {
     @Column(name = "consultorio_numero", length = 50)
     private String consultorioNumero;
 
+    @Column(name = "planta", length = 50)
+    private String planta;
+
     @Column(name = "tipo_atencion", length = 50)
     private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
 

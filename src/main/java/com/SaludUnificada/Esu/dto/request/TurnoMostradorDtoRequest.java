@@ -28,9 +28,11 @@ public class TurnoMostradorDtoRequest {
     private String fecha;
     private String hora;
 
+    @NotNull(message = "El centro de salud es obligatorio")
     private Long centroSaludId;
     private String centroSaludNombre;
     private String consultorioNumero;
+    private String planta;
 
     @JsonAlias("motivoConsulta")
     private String motivoTurno;

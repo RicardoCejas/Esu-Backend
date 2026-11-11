@@ -18,6 +18,8 @@ public class JwtAuthDtoResponse {
     private Long usuarioId;
     private Long pacienteId;
     private Long profesionalId;
+    private Long centroSaludId;
+    private String centroSaludNombre;
     private String email;
     private String rol;
     private String nombre;
@@ -27,4 +29,5 @@ public class JwtAuthDtoResponse {
     private Boolean twoFactorEnabled;
     private Boolean requires2FA;
     private String tempToken;
+    private java.util.List<String> permisos;
 }

@@ -160,6 +160,15 @@ public class PacienteControlador {
         return ResponseEntity.ok(dtos);
     }
 
+    @PutMapping({"/{id:\\d+}", "/actualizar/{id:\\d+}"})
+    @PreAuthorize("@securityPolicy.canAccessPatientAdmin(#id)")
+    @Operation(summary = "Actualizar información administrativa completa del paciente")
+    public ResponseEntity<PacienteDtoResponse> actualizarPaciente(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(pacienteServicio.actualizarPacienteCompleto(id, body));
+    }
+
     @PutMapping("/{id:\\d+}/contacto")
     @PreAuthorize("@securityPolicy.canAccessPatientAdmin(#id)")
     @Operation(summary = "Actualizar datos de contacto y cobertura del paciente")

@@ -47,4 +47,10 @@ public interface ITurnoServicio {
     List<TurnoDtoResponse> obtenerAgendaProfesional(Long profesionalId, Long centroSaludId, java.time.LocalDate fecha);
 
     List<TurnoDtoResponse> obtenerMiAgenda(String emailProfesional, Long centroSaludId, java.time.LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerTurnosHoyCentro(Long centroId, LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerTurnosCentro(Long centroId, LocalDate desde, LocalDate hasta, String estado);
+
+    List<TurnoDtoResponse> obtenerTurnosKanbanCentro(Long centroId, LocalDate fecha);
 }

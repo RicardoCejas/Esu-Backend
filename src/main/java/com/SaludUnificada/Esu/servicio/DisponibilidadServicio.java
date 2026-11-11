@@ -47,6 +47,9 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
     private final DisponibilidadMapper disponibilidadMapper;
     private final FeriadoServicio feriadoServicio;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.ConsultorioFisicoRepositorio consultorioFisicoRepositorio;
+
     @Override
     @Transactional
     public DisponibilidadDtoResponse configurarDisponibilidad(DisponibilidadDtoRequest request) {

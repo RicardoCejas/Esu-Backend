@@ -39,8 +39,18 @@ public class BloqueoAgendaControlador {
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
+    @PostMapping("/api/bloqueos-agenda")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#request.profesionalId)) or @securityPolicy.isReceptionistOfDoctor(#request.profesionalId)")
+    public ResponseEntity<BloqueoAgendaDtoResponse> registrarBloqueoGenerico(@Valid @RequestBody BloqueoAgendaDtoRequest request) {
+        if (request.getProfesionalId() == null) {
+            throw new IllegalArgumentException("El ID del profesional es obligatorio para registrar un bloqueo de agenda.");
+        }
+        BloqueoAgendaDtoResponse response = bloqueoAgendaServicio.registrarBloqueo(request.getProfesionalId(), request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
     @PostMapping("/api/profesionales/{id}/bloquear-agenda")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#id))")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#id)) or @securityPolicy.isReceptionistOfDoctor(#id)")
     public ResponseEntity<BloqueoAgendaDtoResponse> bloquearAgenda(
             @Parameter(description = "ID del profesional", example = "1")
             @PathVariable Long id,
@@ -90,9 +100,9 @@ public class BloqueoAgendaControlador {
         return ResponseEntity.ok(bloqueoAgendaServicio.obtenerBloqueoPorId(bloqueoId));
     }
 
-    @DeleteMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId))")
-    public ResponseEntity<Void> eliminarBloqueo(@PathVariable Long profesionalId, @PathVariable Long bloqueoId) {
+    @DeleteMapping({"/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}", "/api/bloqueos-agenda/{bloqueoId}"})
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId)) or @securityPolicy.canAccessBloqueo(#bloqueoId)")
+    public ResponseEntity<Void> eliminarBloqueo(@PathVariable(required = false) Long profesionalId, @PathVariable Long bloqueoId) {
         bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
         return ResponseEntity.noContent().build();
     }

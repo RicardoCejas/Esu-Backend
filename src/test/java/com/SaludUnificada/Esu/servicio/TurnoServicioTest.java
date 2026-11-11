@@ -4,6 +4,7 @@ import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
 import com.SaludUnificada.Esu.entidad.Turno;
@@ -14,6 +15,8 @@ import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio;
 import com.SaludUnificada.Esu.repositorio.TurnoRepositorio;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -45,9 +48,71 @@ class TurnoServicioTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         MockitoAnnotations.openMocks(this);
         servicio = new TurnoServicio(turnos, mapper, pacientes, profesionales, recordatorios, CLOCK, ZONE,
                 java.time.LocalTime.of(8, 0), java.time.LocalTime.of(17, 0), 30);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void obtenerTurnosCentroAplicaFiltrosDeRangoYEstado() {
+        LocalDate desde = LocalDate.of(2026, 11, 1);
+        LocalDate hasta = LocalDate.of(2026, 11, 10);
+        when(turnos.findTurnosCentroFiltrados(eq(5L), any(LocalDateTime.class), any(LocalDateTime.class), eq("CONFIRMADO")))
+                .thenReturn(List.of());
+
+        List<TurnoDtoResponse> res = servicio.obtenerTurnosCentro(5L, desde, hasta, "confirmado");
+
+        assertNotNull(res);
+        verify(turnos).findTurnosCentroFiltrados(eq(5L), eq(desde.atStartOfDay()), eq(hasta.atTime(java.time.LocalTime.MAX)), eq("CONFIRMADO"));
+    }
+
+    @Test
+    void crearTurnoMostradorPersisteConsultorioYPlanta() {
+        Profesional prof = new Profesional();
+        prof.setId(10L);
+        prof.setCentrosSaludIds(java.util.Set.of(2L));
+        when(profesionales.findById(10L)).thenReturn(Optional.of(prof));
+
+        Paciente pac = new Paciente();
+        pac.setId(20L);
+        pac.setDni("32123456");
+        when(pacientes.findById(20L)).thenReturn(Optional.of(pac));
+
+        when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(eq(10L), any(), any())).thenReturn(false);
+        when(turnos.save(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            t.setId(100L);
+            return t;
+        });
+        when(mapper.paraDto(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            TurnoDtoResponse dto = new TurnoDtoResponse();
+            dto.setId(t.getId());
+            dto.setConsultorioNumero(t.getConsultorioNumero());
+            dto.setPlanta(t.getPlanta());
+            return dto;
+        });
+
+        com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest req = new com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest();
+        req.setProfesionalId(10L);
+        req.setPacienteId(20L);
+        req.setCentroSaludId(2L);
+        req.setConsultorioNumero("Consultorio 3");
+        req.setPlanta("1° Piso");
+        req.setFechaHora(LocalDateTime.of(2026, 11, 11, 10, 0));
+
+        TurnoDtoResponse res = servicio.crearTurnoMostrador(req, "recepcion@esu.gob.ar");
+
+        assertNotNull(res);
+        assertEquals("Consultorio 3", res.getConsultorioNumero());
+        assertEquals("1° Piso", res.getPlanta());
+        verify(turnos).save(argThat(t -> "Consultorio 3".equals(t.getConsultorioNumero()) && "1° Piso".equals(t.getPlanta())));
     }
 
     @Test
@@ -95,6 +160,7 @@ class TurnoServicioTest {
         var paciente = new Paciente(); paciente.setId(21L);
         var profesional = new Profesional(); profesional.setId(12L);
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, "Consulta");
+        request.setCentroSaludId(1L);
         when(profesionales.findByIdForUpdate(12L)).thenReturn(Optional.of(profesional));
         when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(12L, request.getFechaHora(), "CANCELADO")).thenReturn(false);
         when(pacientes.findByUsuarioEmail("patient@example.test")).thenReturn(Optional.of(paciente));
@@ -115,6 +181,7 @@ class TurnoServicioTest {
     void crearTurnoRechazaSlotOcupadoConConflicto() {
         var profesional = new Profesional(); profesional.setId(12L);
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, null);
+        request.setCentroSaludId(1L);
         when(profesionales.findByIdForUpdate(12L)).thenReturn(Optional.of(profesional));
         when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(12L, request.getFechaHora(), "CANCELADO")).thenReturn(true);
 
@@ -355,4 +422,58 @@ class TurnoServicioTest {
         );
         verify(turnos, never()).save(any());
     }
+    @Test
+    void obtenerTurnosHoyCentro_filtraPorCentroYJornada() {
+        LocalDate fecha = LocalDate.of(2026, 10, 14);
+        Turno t = new Turno();
+        t.setId(101L);
+        t.setCentroSaludId(1L);
+        t.setFechaHora(fecha.atTime(9, 0));
+
+        when(turnos.findTurnosCentroEntre(eq(1L), eq(fecha.atStartOfDay()), any(LocalDateTime.class)))
+                .thenReturn(List.of(t));
+        when(mapper.paraDto(t)).thenReturn(TurnoDtoResponse.builder().id(101L).centroSaludId(1L).build());
+
+        List<TurnoDtoResponse> resultado = servicio.obtenerTurnosHoyCentro(1L, fecha);
+
+        assertNotNull(resultado);
+        assertEquals(1, resultado.size());
+        assertEquals(101L, resultado.get(0).getId());
+        verify(turnos).findTurnosCentroEntre(eq(1L), eq(fecha.atStartOfDay()), any(LocalDateTime.class));
+    }
+
+    @Test
+    void obtenerTurnosHoyCentro_rechazaCentroNulo() {
+        assertThrows(IllegalArgumentException.class, () -> servicio.obtenerTurnosHoyCentro(null, LocalDate.now()));
+    }
+
+    @Test
+    void obtenerTurnosKanbanCentro_filtraPorCentroYEstadosValidos() {
+        LocalDate fecha = LocalDate.of(2026, 10, 14);
+        Turno t = new Turno();
+        t.setId(102L);
+        t.setCentroSaludId(2L);
+        t.setEstado("EN_SALA_DE_ESPERA");
+        t.setFechaHora(fecha.atTime(10, 0));
+
+        when(turnos.findTurnosCentroEntreYEstados(eq(2L), eq(fecha.atStartOfDay()), any(LocalDateTime.class), anyList()))
+                .thenReturn(List.of(t));
+        when(mapper.paraDto(t)).thenReturn(TurnoDtoResponse.builder().id(102L).estado("EN_SALA_DE_ESPERA").build());
+
+        List<TurnoDtoResponse> resultado = servicio.obtenerTurnosKanbanCentro(2L, fecha);
+
+        assertNotNull(resultado);
+        assertEquals(1, resultado.size());
+        assertEquals("EN_SALA_DE_ESPERA", resultado.get(0).getEstado());
+        verify(turnos).findTurnosCentroEntreYEstados(eq(2L), eq(fecha.atStartOfDay()), any(LocalDateTime.class), argThat(list -> 
+            list.contains("EN_SALA_DE_ESPERA") && list.contains("CONFIRMADO") && list.contains("ATENDIENDO")
+        ));
+    }
+    @Test
+    void crearTurnoRechazaSiCentroSaludEsNulo() {
+        var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, "Consulta");
+        request.setCentroSaludId(null);
+        assertThrows(ReglaNegocioException.class, () -> servicio.crearTurno(request, "patient@example.test"));
+    }
+
 }

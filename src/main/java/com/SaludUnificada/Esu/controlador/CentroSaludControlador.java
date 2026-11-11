@@ -1,7 +1,9 @@
 package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.CentroSaludDtoRequest;
+import com.SaludUnificada.Esu.dto.request.ConsultorioEstadoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.ConsultorioFisicoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.ConsultorioFisicoUpdateDtoRequest;
 import com.SaludUnificada.Esu.dto.response.CentroSaludDtoResponse;
 import com.SaludUnificada.Esu.dto.response.ConsultorioFisicoDtoResponse;
 import com.SaludUnificada.Esu.servicio.CentroSaludServicio;
@@ -44,8 +46,8 @@ public class CentroSaludControlador {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Actualizar datos o coordenadas de un centro de salud", description = "Exclusivo para administradores.")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#id)")
+    @Operation(summary = "Actualizar datos o coordenadas de un centro de salud", description = "Disponible para administradores y gestión operativa de la propia sede.")
     public ResponseEntity<CentroSaludDtoResponse> actualizarCentro(
             @PathVariable Long id,
             @Valid @RequestBody CentroSaludDtoRequest request) {
@@ -60,6 +62,20 @@ public class CentroSaludControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{centroId}/especialidades")
+    @Operation(summary = "Listar especialidades habilitadas en una sede específica")
+    public ResponseEntity<List<com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse>> listarEspecialidadesPorCentro(
+            @PathVariable Long centroId) {
+        return ResponseEntity.ok(centroSaludServicio.listarEspecialidadesPorCentro(centroId));
+    }
+
+    @GetMapping("/{centroId}/consultorios")
+    @Operation(summary = "Listar consultorios físicos de una sede específica")
+    public ResponseEntity<List<ConsultorioFisicoDtoResponse>> listarConsultoriosPorCentro(
+            @PathVariable Long centroId) {
+        return ResponseEntity.ok(centroSaludServicio.listarConsultorios(centroId));
+    }
+
     @GetMapping("/consultorios")
     @Operation(summary = "Listar consultorios físicos", description = "Permite filtrar opcionalmente por ID de centro de salud.")
     public ResponseEntity<List<ConsultorioFisicoDtoResponse>> listarConsultorios(
@@ -68,15 +84,40 @@ public class CentroSaludControlador {
     }
 
     @PostMapping("/consultorios")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#request.centroSaludId)")
     @Operation(summary = "Registrar nuevo consultorio físico en una sede")
     public ResponseEntity<ConsultorioFisicoDtoResponse> crearConsultorio(
             @Valid @RequestBody ConsultorioFisicoDtoRequest request) {
         return new ResponseEntity<>(centroSaludServicio.crearConsultorio(request), HttpStatus.CREATED);
     }
 
+    @GetMapping("/consultorios/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfConsultorio(#id)")
+    @Operation(summary = "Obtener detalle de un consultorio físico")
+    public ResponseEntity<ConsultorioFisicoDtoResponse> obtenerConsultorio(@PathVariable Long id) {
+        return ResponseEntity.ok(centroSaludServicio.obtenerConsultorioPorId(id));
+    }
+
+    @PutMapping("/consultorios/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfConsultorio(#id)")
+    @Operation(summary = "Actualizar datos de un consultorio físico")
+    public ResponseEntity<ConsultorioFisicoDtoResponse> actualizarConsultorio(
+            @PathVariable Long id,
+            @Valid @RequestBody ConsultorioFisicoUpdateDtoRequest request) {
+        return ResponseEntity.ok(centroSaludServicio.actualizarConsultorio(id, request));
+    }
+
+    @PatchMapping("/consultorios/{id}/estado")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfConsultorio(#id)")
+    @Operation(summary = "Activar o pausar un consultorio físico")
+    public ResponseEntity<ConsultorioFisicoDtoResponse> cambiarEstadoConsultorio(
+            @PathVariable Long id,
+            @Valid @RequestBody ConsultorioEstadoDtoRequest request) {
+        return ResponseEntity.ok(centroSaludServicio.cambiarEstadoConsultorio(id, Boolean.TRUE.equals(request.getActivo())));
+    }
+
     @DeleteMapping("/consultorios/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfConsultorio(#id)")
     @Operation(summary = "Eliminar consultorio físico")
     public ResponseEntity<Void> eliminarConsultorio(@PathVariable Long id) {
         centroSaludServicio.eliminarConsultorio(id);

@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -21,7 +22,19 @@ public class UsuarioDtoRequest {
     @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
 
+    @Size(max = 100, message = "El nombre no puede superar los 100 caracteres")
+    private String nombre;
+
+    @Size(max = 100, message = "El apellido no puede superar los 100 caracteres")
+    private String apellido;
+
+    @Pattern(regexp = "^$|^[0-9]{7,8}$", message = "El DNI debe contener 7 u 8 dígitos numéricos")
+    private String dni;
+
     private String rol;
+    private Long centroSaludId;
+    private String centroSaludNombre;
+    private java.util.List<String> permisos;
 
     public UsuarioDtoRequest(String username, String password) {
         this.username = username;

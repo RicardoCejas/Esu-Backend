@@ -672,20 +672,33 @@ public class AuthControlador {
         Paciente paciente = pacienteDe(usuario);
         Profesional profesional = profesionalDe(usuario);
 
+        Long centroId = usuario.getCentroSaludId() != null ? usuario.getCentroSaludId() : (paciente != null ? paciente.getCentroSaludReferenciaId() : null);
+
+
+        String centroNombre = usuario.getCentroSaludNombre() != null ? usuario.getCentroSaludNombre() : (paciente != null ? paciente.getCentroSaludReferenciaNombre() : null);
+
+        java.util.List<String> codigosPermisos = (usuario.getPermisos() != null)
+                ? usuario.getPermisos().stream().map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo).sorted().toList()
+                : java.util.Collections.emptyList();
+
+
         return JwtAuthDtoResponse.builder()
                 .accessToken(token)
                 .tokenType("Bearer")
                 .usuarioId(usuario.getId())
                 .pacienteId(paciente != null ? paciente.getId() : null)
                 .profesionalId(profesional != null ? profesional.getId() : null)
+                .centroSaludId(centroId)
+                .centroSaludNombre(centroNombre)
                 .email(usuario.getEmail())
                 .rol(usuario.getRol())
-                .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
-                .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
-                .dni(paciente != null ? paciente.getDni() : null)
+                .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : usuario.getNombre())
+                .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : usuario.getApellido())
+                .dni(paciente != null ? paciente.getDni() : usuario.getDni())
                 .emailVerificado(usuario.getEmailVerificado())
                 .twoFactorEnabled(Boolean.TRUE.equals(usuario.getTwoFactorEnabled()))
                 .requires2FA(false)
+                .permisos(codigosPermisos)
                 .build();
     }
 
@@ -959,12 +972,20 @@ public class AuthControlador {
         response.put("profesionalId", profesional != null ? profesional.getId() : null);
         response.put("email", usuario.getEmail());
         response.put("rol", usuario.getRol() != null ? usuario.getRol() : "PACIENTE");
-        response.put("nombre", paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null);
-        response.put("apellido", paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null);
-        response.put("dni", paciente != null ? paciente.getDni() : null);
+        response.put("nombre", paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : usuario.getNombre());
+        response.put("apellido", paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : usuario.getApellido());
+        response.put("dni", paciente != null ? paciente.getDni() : usuario.getDni());
         response.put("activo", Boolean.TRUE.equals(usuario.getEstadoActivo()));
         response.put("verificado", Boolean.TRUE.equals(usuario.getEmailVerificado()));
         response.put("twoFactorEnabled", Boolean.TRUE.equals(usuario.getTwoFactorEnabled()));
+        Long centroSaludId = usuario.getCentroSaludId();
+        String centroSaludNombre = usuario.getCentroSaludNombre();
+        response.put("centroSaludId", centroSaludId);
+        response.put("centroSaludNombre", centroSaludNombre);
+        List<String> codigosPermisos = usuario.getPermisos() != null
+                ? usuario.getPermisos().stream().map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo).sorted().toList()
+                : List.of();
+        response.put("permisos", codigosPermisos);
         return ResponseEntity.ok(response);
     }
 

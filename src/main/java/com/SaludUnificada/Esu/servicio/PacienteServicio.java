@@ -292,6 +292,106 @@ public class PacienteServicio implements IPacienteServicio {
 
     @Override
     @Transactional
+    public PacienteDtoResponse actualizarPacienteCompleto(Long id, java.util.Map<String, Object> body) {
+        Paciente paciente = obtenerEntidadPacientePorId(id);
+        if (body == null) return pacienteMapper.paraDto(paciente);
+
+        if (body.get("nombre") != null) {
+            String nom = String.valueOf(body.get("nombre")).trim();
+            if (!nom.isBlank()) paciente.setNombre(nom);
+        }
+        if (body.get("apellido") != null) {
+            String ape = String.valueOf(body.get("apellido")).trim();
+            if (!ape.isBlank()) paciente.setApellido(ape);
+        }
+        if (body.get("dni") != null) {
+            String dniRaw = String.valueOf(body.get("dni")).replaceAll("[^0-9a-zA-Z-]", "").trim();
+            if (!dniRaw.isBlank() && !dniRaw.equalsIgnoreCase(paciente.getDni())) {
+                pacienteRepositorio.findByDni(dniRaw).ifPresent(otro -> {
+                    if (!otro.getId().equals(paciente.getId())) {
+                        throw new ReglaNegocioException("Ya existe otro paciente registrado con el DNI ingresado: " + dniRaw);
+                    }
+                });
+                paciente.setDni(dniRaw);
+                if (paciente.getUsuario() != null) {
+                    paciente.getUsuario().setDni(dniRaw);
+                }
+            }
+        }
+        if (body.get("telefono") != null) {
+            String telLimpio = String.valueOf(body.get("telefono")).replaceAll("[^0-9+\\- ]", "").trim();
+            paciente.setTelefono(telLimpio);
+        }
+        if (body.get("obraSocial") != null) {
+            String os = String.valueOf(body.get("obraSocial")).trim();
+            if (!os.isBlank()) paciente.setObraSocial(os);
+        }
+        if (body.get("nroAfiliado") != null || body.get("numeroAfiliado") != null) {
+            Object afVal = body.getOrDefault("nroAfiliado", body.get("numeroAfiliado"));
+            if (afVal != null) {
+                String af = String.valueOf(afVal).trim();
+                if (!af.isBlank()) paciente.setNroAfiliado(af);
+            }
+        }
+        if (body.get("grupoSanguineo") != null) {
+            String gs = String.valueOf(body.get("grupoSanguineo")).trim();
+            if (!gs.isBlank()) paciente.setGrupoSanguineo(gs);
+        }
+        if (body.get("fechaNacimiento") != null) {
+            String fnClean = String.valueOf(body.get("fechaNacimiento")).trim();
+            if (!fnClean.isBlank() && !"null".equalsIgnoreCase(fnClean)) {
+                try {
+                    paciente.setFechaNacimiento(LocalDate.parse(fnClean));
+                } catch (Exception e1) {
+                    try {
+                        DateTimeFormatter dmy = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                        paciente.setFechaNacimiento(LocalDate.parse(fnClean, dmy));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+        if (body.get("centroSaludReferenciaId") != null) {
+            try {
+                paciente.setCentroSaludReferenciaId(Long.valueOf(String.valueOf(body.get("centroSaludReferenciaId"))));
+            } catch (Exception ignored) {}
+        }
+        if (body.get("centroSaludReferenciaNombre") != null) {
+            String cNom = String.valueOf(body.get("centroSaludReferenciaNombre")).trim();
+            if (!cNom.isBlank()) paciente.setCentroSaludReferenciaNombre(cNom);
+        }
+
+        if (body.containsKey("activo") || body.containsKey("estadoActivo")) {
+            Object actVal = body.containsKey("activo") ? body.get("activo") : body.get("estadoActivo");
+            if (actVal != null) {
+                boolean nuevoEstado = Boolean.parseBoolean(String.valueOf(actVal));
+                if (paciente.getUsuario() != null) {
+                    paciente.getUsuario().setEstadoActivo(nuevoEstado);
+                    if (!nuevoEstado) {
+                        paciente.getUsuario().revocarSesiones();
+                    }
+                }
+            }
+        }
+
+        if (body.get("email") != null) {
+            String emailClean = String.valueOf(body.get("email")).trim().toLowerCase();
+            if (!emailClean.isBlank() && !"null".equalsIgnoreCase(emailClean) && paciente.getUsuario() != null) {
+                if (!emailClean.equalsIgnoreCase(paciente.getUsuario().getEmail())) {
+                    if (usuarioRepositorio != null && usuarioRepositorio.existsByEmail(emailClean)) {
+                        throw new ReglaNegocioException("El correo electrónico ya pertenece a otro usuario del sistema.");
+                    }
+                    paciente.getUsuario().setEmail(emailClean);
+                }
+            }
+        }
+
+        Paciente guardado = pacienteRepositorio.save(paciente);
+        return pacienteMapper.paraDto(guardado);
+    }
+
+    @Override
+    @Transactional
     public void fusionarPacientes(Long pacienteOrigenId, Long pacienteDestinoId, String motivo, String emailAdmin) {
         if (pacienteOrigenId == null || pacienteDestinoId == null || pacienteOrigenId.equals(pacienteDestinoId)) {
             throw new IllegalArgumentException("Los IDs de paciente origen y destino deben ser distintos y no nulos.");

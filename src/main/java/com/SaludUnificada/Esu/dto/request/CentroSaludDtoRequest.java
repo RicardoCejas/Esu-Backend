@@ -1,8 +1,12 @@
 package com.SaludUnificada.Esu.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -47,4 +51,12 @@ public class CentroSaludDtoRequest {
 
     @Schema(description = "Habilitado para estudios y prácticas diagnósticas", example = "true")
     private Boolean permiteEstudios;
+
+    @Min(value = 1, message = "El centro debe contar con al menos 1 planta física")
+    @Max(value = 30, message = "La cantidad máxima admitida es de 30 plantas")
+    @Schema(description = "Cantidad total de plantas o pisos habilitados en la sede (1 = solo Planta Baja)", example = "3")
+    private Integer cantidadPlantas;
+
+    @Schema(description = "Listado de prácticas y estudios diagnósticos habilitados en la sede")
+    private List<String> estudiosDisponibles;
 }

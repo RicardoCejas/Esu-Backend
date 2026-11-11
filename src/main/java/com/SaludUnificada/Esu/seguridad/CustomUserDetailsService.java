@@ -39,6 +39,16 @@ public class CustomUserDetailsService implements UserDetailsService {
             authorities.add(new SimpleGrantedAuthority("ROLE_DESARROLLADOR"));
         }
 
+        if (usuario.getPermisos() != null) {
+            for (com.SaludUnificada.Esu.entidad.Permiso permiso : usuario.getPermisos()) {
+                if (permiso != null && permiso.getCodigo() != null && !permiso.getCodigo().isBlank()) {
+                    String code = permiso.getCodigo().trim().toUpperCase();
+                    authorities.add(new SimpleGrantedAuthority(code));
+                    authorities.add(new SimpleGrantedAuthority("PERM_" + code));
+                }
+            }
+        }
+
         return new User(
                 usuario.getEmail(),
                 usuario.getPassword(),

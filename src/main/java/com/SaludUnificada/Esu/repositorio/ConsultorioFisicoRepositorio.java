@@ -10,4 +10,5 @@ import java.util.List;
 public interface ConsultorioFisicoRepositorio extends JpaRepository<ConsultorioFisico, Long> {
     List<ConsultorioFisico> findByCentroSaludIdOrderByNumeroAsc(Long centroSaludId);
     List<ConsultorioFisico> findByActivoTrueOrderByCentroSaludIdAscNumeroAsc();
+    boolean existsByCentroSaludIdAndNumeroIgnoreCase(Long centroSaludId, String numero);
 }

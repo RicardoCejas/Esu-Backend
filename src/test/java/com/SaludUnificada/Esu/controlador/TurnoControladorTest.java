@@ -56,4 +56,87 @@ class TurnoControladorTest {
 
         assertEquals(result, response.getBody());
     }
+    @Test
+    void obtenerTurnosCentroDelegaEnServicioConFiltros() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        LocalDate desde = LocalDate.of(2026, 11, 1);
+        LocalDate hasta = LocalDate.of(2026, 11, 30);
+        when(service.obtenerTurnosCentro(1L, desde, hasta, "CONFIRMADO")).thenReturn(List.of());
+
+        var response = controller.obtenerTurnosCentro(1L, desde, hasta, "CONFIRMADO");
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).obtenerTurnosCentro(1L, desde, hasta, "CONFIRMADO");
+    }
+
+    @Test
+    void obtenerTurnosHoyCentroDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        LocalDate date = LocalDate.of(2026, 11, 9);
+        when(service.obtenerTurnosHoyCentro(1L, date)).thenReturn(List.of());
+
+        var response = controller.obtenerTurnosHoyCentro(1L, date);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).obtenerTurnosHoyCentro(1L, date);
+    }
+
+    @Test
+    void obtenerTurnosKanbanCentroDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        LocalDate date = LocalDate.of(2026, 11, 9);
+        when(service.obtenerTurnosKanbanCentro(2L, date)).thenReturn(List.of());
+
+        var response = controller.obtenerTurnosKanbanCentro(2L, date);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).obtenerTurnosKanbanCentro(2L, date);
+    }
+    @Test
+    void realizarCheckInDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        Principal principal = () -> "recepcion@crespo.test";
+        when(service.realizarCheckIn(10L, "recepcion@crespo.test")).thenReturn(new com.SaludUnificada.Esu.dto.response.TurnoDtoResponse());
+
+        var response = controller.realizarCheckIn(10L, principal);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).realizarCheckIn(10L, "recepcion@crespo.test");
+    }
+
+    @Test
+    void llamarPacienteDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        Principal principal = () -> "recepcion@crespo.test";
+        when(service.llamarPaciente(10L, "102", "recepcion@crespo.test")).thenReturn(new com.SaludUnificada.Esu.dto.response.TurnoDtoResponse());
+
+        var response = controller.llamarPaciente(10L, java.util.Map.of("consultorio", "102"), principal);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).llamarPaciente(10L, "102", "recepcion@crespo.test");
+    }
+
+    @Test
+    void registrarCopagoDelegaEnServicio() {
+        ITurnoServicio service = mock(ITurnoServicio.class);
+        RecordatorioTurnoServicio reminders = mock(RecordatorioTurnoServicio.class);
+        TurnoControlador controller = new TurnoControlador(service, reminders);
+        com.SaludUnificada.Esu.dto.request.CopagoDtoRequest copago = new com.SaludUnificada.Esu.dto.request.CopagoDtoRequest();
+        when(service.registrarCopago(10L, copago)).thenReturn(new com.SaludUnificada.Esu.dto.response.TurnoDtoResponse());
+
+        var response = controller.registrarCopago(10L, copago);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(service).registrarCopago(10L, copago);
+    }
 }

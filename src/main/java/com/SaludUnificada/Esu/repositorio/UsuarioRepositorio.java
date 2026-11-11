@@ -18,4 +18,6 @@ public interface UsuarioRepositorio extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByTokenVerificacion(String tokenVerificacion);
 
     Optional<Usuario> findByGoogleSub(String googleSub);
+
+    List<Usuario> findByCentroSaludId(Long centroSaludId);
 }

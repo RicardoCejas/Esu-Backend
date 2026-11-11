@@ -76,6 +76,11 @@ public class ProfesionalServicio implements IProfesionalServicio {
             }
             Usuario usuario = new Usuario();
             usuario.setEmail(emailNormalizado);
+            usuario.setNombre(profesional.getNombre());
+            usuario.setApellido(profesional.getApellido());
+            if (profesionalDto.getCentrosSaludIds() != null && !profesionalDto.getCentrosSaludIds().isEmpty()) {
+                usuario.setCentroSaludId(profesionalDto.getCentrosSaludIds().iterator().next());
+            }
             String rawPass = (profesionalDto.getPassword() != null && !profesionalDto.getPassword().isBlank())
                     ? profesionalDto.getPassword()
                     : matriculaLimpia;
@@ -118,6 +123,10 @@ public class ProfesionalServicio implements IProfesionalServicio {
         }
         if (profesionalDto.getCentrosSaludIds() != null && !profesionalDto.getCentrosSaludIds().isEmpty()) {
             profesional.setCentrosSaludIds(new HashSet<>(profesionalDto.getCentrosSaludIds()));
+        }
+        if (profesional.getUsuario() != null) {
+            profesional.getUsuario().setNombre(profesional.getNombre());
+            profesional.getUsuario().setApellido(profesional.getApellido());
         }
 
         Profesional guardado = profesionalRepositorio.save(profesional);
@@ -232,6 +241,9 @@ public class ProfesionalServicio implements IProfesionalServicio {
     public java.util.Set<Long> desvincularCentro(Long id, Long centroId) {
         Profesional profesional = profesionalRepositorio.findById(id)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + id));
+        if (turnoRepositorio != null && turnoRepositorio.existsTurnosActivosFuturosDeProfesionalEnCentro(id, centroId, ahora())) {
+            throw new ReglaNegocioException("No se puede desvincular al profesional del centro porque posee turnos programados pendientes. Debe cancelarlos o reasignarlos previamente.");
+        }
         profesional.getCentrosSaludIds().remove(centroId);
         profesionalRepositorio.save(profesional);
         return new java.util.HashSet<>(profesional.getCentrosSaludIds());

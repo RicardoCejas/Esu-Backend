@@ -22,6 +22,7 @@ public interface IPacienteServicio {
     PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado);
     PacienteDtoResponse actualizarDatosContacto(Long id, String telefono, String obraSocial, String nroAfiliado, String dni);
     PacienteDtoResponse actualizarMiPerfilPorEmail(String email, Map<String, String> body);
+    PacienteDtoResponse actualizarPacienteCompleto(Long id, Map<String, Object> body);
     PacienteDtoResponse obtenerPerfilAutenticado(String email);
     void fusionarPacientes(Long pacienteOrigenId, Long pacienteDestinoId, String motivo, String emailAdmin);
 }
