@@ -173,6 +173,7 @@ public class SecurityConfig {
 
                         auth.requestMatchers(HttpMethod.GET, "/api/turnos/disponibles").permitAll();
                         auth.requestMatchers(HttpMethod.POST, "/api/turnos/publico/reservar").permitAll();
+                        auth.requestMatchers(HttpMethod.GET, "/api/turnos/publico/cartelera/**").permitAll();
                         auth.requestMatchers(HttpMethod.DELETE, "/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/obtener/todos").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/turnos/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "RECEPCIONISTA", "ADMIN");

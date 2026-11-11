@@ -650,7 +650,13 @@ public class TurnoServicio implements ITurnoServicio {
         }
         sobreturno.setCentroSaludId(centroId);
         sobreturno.setCentroSaludNombre(resolverNombreCentro(centroId));
-        sobreturno.setConsultorioNumero("Consultorio Guardia / Sobreturnos");
+        String consNum = (request.getConsultorioNumero() != null && !request.getConsultorioNumero().isBlank())
+                ? request.getConsultorioNumero().trim()
+                : "Consultorio Guardia / Sobreturnos";
+        sobreturno.setConsultorioNumero(consNum);
+        if (request.getPlanta() != null && !request.getPlanta().isBlank()) {
+            sobreturno.setPlanta(request.getPlanta().trim());
+        }
         sobreturno.setProfesional(profesional);
         sobreturno.setPaciente(paciente);
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {

@@ -146,6 +146,14 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnosKanbanCentro(centroId, fecha));
     }
 
+    @GetMapping("/publico/cartelera/{centroId}")
+    @Operation(summary = "Obtener turnos activos de cartelera pública / pantalla TV para un centro de salud")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerCarteleraPublicaCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosKanbanCentro(centroId, fecha));
+    }
+
     @GetMapping({"", "/obtener/todos"})
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<TurnoDtoResponse>> listarTodos() {
