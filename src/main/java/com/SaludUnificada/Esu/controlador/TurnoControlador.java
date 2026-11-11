@@ -117,6 +117,17 @@ public class TurnoControlador {
         return ResponseEntity.ok(turnoServicio.obtenerTurnoPorId(id));
     }
 
+    @GetMapping("/centro/{centroId}")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @Operation(summary = "Obtener turnos de un centro de salud con filtros opcionales de fecha y estado")
+    public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosCentro(
+            @PathVariable Long centroId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) String estado) {
+        return ResponseEntity.ok(turnoServicio.obtenerTurnosCentro(centroId, desde, hasta, estado));
+    }
+
     @GetMapping("/centro/{centroId}/hoy")
     @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
     @Operation(summary = "Obtener turnos del día acotados por centro de salud")

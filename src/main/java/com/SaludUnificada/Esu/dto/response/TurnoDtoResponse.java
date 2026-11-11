@@ -24,6 +24,7 @@ public class TurnoDtoResponse {
     private Long centroSaludId;
     private String centroSaludNombre;
     private String consultorioNumero;
+    private String planta;
     private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
     private String servicio;
     private Long especialidadId;

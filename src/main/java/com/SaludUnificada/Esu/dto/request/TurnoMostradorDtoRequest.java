@@ -32,6 +32,7 @@ public class TurnoMostradorDtoRequest {
     private Long centroSaludId;
     private String centroSaludNombre;
     private String consultorioNumero;
+    private String planta;
 
     @JsonAlias("motivoConsulta")
     private String motivoTurno;

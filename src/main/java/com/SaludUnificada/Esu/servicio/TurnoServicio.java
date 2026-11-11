@@ -748,8 +748,11 @@ public class TurnoServicio implements ITurnoServicio {
                 ? request.getCentroSaludNombre()
                 : resolverNombreCentro(centroId));
         turno.setConsultorioNumero(request.getConsultorioNumero() != null && !request.getConsultorioNumero().isBlank()
-                ? request.getConsultorioNumero()
-                : "Consultorio 102");
+                ? request.getConsultorioNumero().trim()
+                : null);
+        turno.setPlanta(request.getPlanta() != null && !request.getPlanta().isBlank()
+                ? request.getPlanta().trim()
+                : null);
 
         if (request.getCopagoMonto() != null) {
             turno.setMontoCopago(request.getCopagoMonto());
@@ -1476,6 +1479,22 @@ public class TurnoServicio implements ITurnoServicio {
         if (centroId == 3L) return "Centro de Diagnóstico por Imágenes Cruz del Eje";
         if (centroId == 5L) return "Sanatorio María Isabel";
         return "Centro de Salud #" + centroId;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TurnoDtoResponse> obtenerTurnosCentro(Long centroId, LocalDate desde, LocalDate hasta, String estado) {
+        if (centroId == null) {
+            throw new IllegalArgumentException("El ID del centro de salud es obligatorio.");
+        }
+        LocalDateTime inicio = desde != null ? desde.atStartOfDay() : null;
+        LocalDateTime fin = hasta != null ? hasta.atTime(java.time.LocalTime.MAX) : null;
+        String estadoNorm = (estado != null && !estado.isBlank()) ? estado.trim().toUpperCase() : null;
+
+        return turnoRepositorio.findTurnosCentroFiltrados(centroId, inicio, fin, estadoNorm)
+                .stream()
+                .map(turnoMapper::paraDto)
+                .collect(Collectors.toList());
     }
 
     @Override

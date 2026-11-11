@@ -49,5 +49,7 @@ public interface ITurnoServicio {
 
     List<TurnoDtoResponse> obtenerTurnosHoyCentro(Long centroId, LocalDate fecha);
 
+    List<TurnoDtoResponse> obtenerTurnosCentro(Long centroId, LocalDate desde, LocalDate hasta, String estado);
+
     List<TurnoDtoResponse> obtenerTurnosKanbanCentro(Long centroId, LocalDate fecha);
 }

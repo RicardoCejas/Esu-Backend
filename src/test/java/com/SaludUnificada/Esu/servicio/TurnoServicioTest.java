@@ -60,6 +60,62 @@ class TurnoServicioTest {
     }
 
     @Test
+    void obtenerTurnosCentroAplicaFiltrosDeRangoYEstado() {
+        LocalDate desde = LocalDate.of(2026, 11, 1);
+        LocalDate hasta = LocalDate.of(2026, 11, 10);
+        when(turnos.findTurnosCentroFiltrados(eq(5L), any(LocalDateTime.class), any(LocalDateTime.class), eq("CONFIRMADO")))
+                .thenReturn(List.of());
+
+        List<TurnoDtoResponse> res = servicio.obtenerTurnosCentro(5L, desde, hasta, "confirmado");
+
+        assertNotNull(res);
+        verify(turnos).findTurnosCentroFiltrados(eq(5L), eq(desde.atStartOfDay()), eq(hasta.atTime(java.time.LocalTime.MAX)), eq("CONFIRMADO"));
+    }
+
+    @Test
+    void crearTurnoMostradorPersisteConsultorioYPlanta() {
+        Profesional prof = new Profesional();
+        prof.setId(10L);
+        prof.setCentrosSaludIds(java.util.Set.of(2L));
+        when(profesionales.findById(10L)).thenReturn(Optional.of(prof));
+
+        Paciente pac = new Paciente();
+        pac.setId(20L);
+        pac.setDni("32123456");
+        when(pacientes.findById(20L)).thenReturn(Optional.of(pac));
+
+        when(turnos.existsByProfesionalIdAndFechaHoraAndEstadoNot(eq(10L), any(), any())).thenReturn(false);
+        when(turnos.save(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            t.setId(100L);
+            return t;
+        });
+        when(mapper.paraDto(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            TurnoDtoResponse dto = new TurnoDtoResponse();
+            dto.setId(t.getId());
+            dto.setConsultorioNumero(t.getConsultorioNumero());
+            dto.setPlanta(t.getPlanta());
+            return dto;
+        });
+
+        com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest req = new com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest();
+        req.setProfesionalId(10L);
+        req.setPacienteId(20L);
+        req.setCentroSaludId(2L);
+        req.setConsultorioNumero("Consultorio 3");
+        req.setPlanta("1° Piso");
+        req.setFechaHora(LocalDateTime.of(2026, 11, 11, 10, 0));
+
+        TurnoDtoResponse res = servicio.crearTurnoMostrador(req, "recepcion@esu.gob.ar");
+
+        assertNotNull(res);
+        assertEquals("Consultorio 3", res.getConsultorioNumero());
+        assertEquals("1° Piso", res.getPlanta());
+        verify(turnos).save(argThat(t -> "Consultorio 3".equals(t.getConsultorioNumero()) && "1° Piso".equals(t.getPlanta())));
+    }
+
+    @Test
     void disponibilidadSoloIncluyeSlotsFuturosYNoOcupados() {
         LocalDate fecha = LocalDate.of(2026, 10, 14);
         when(profesionales.existsById(12L)).thenReturn(true);
