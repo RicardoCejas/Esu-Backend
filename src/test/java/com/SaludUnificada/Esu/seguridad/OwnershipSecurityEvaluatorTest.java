@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,6 +49,8 @@ class OwnershipSecurityEvaluatorTest {
     private EvolucionMedicaRepositorio evolucionMedicaRepositorio;
     @Mock
     private VinculoFamiliarRepositorio vinculoFamiliarRepositorio;
+    @Mock
+    private ConsultorioFisicoRepositorio consultorioFisicoRepositorio;
 
     @InjectMocks
     private OwnershipSecurityEvaluator evaluator;
@@ -84,6 +87,7 @@ class OwnershipSecurityEvaluatorTest {
         profesional.setId(20L);
         profesional.setUsuario(doctorUser);
         profesional.setEstadoActivo(true);
+        ReflectionTestUtils.setField(evaluator, "consultorioFisicoRepositorio", consultorioFisicoRepositorio);
     }
 
     @AfterEach
@@ -412,5 +416,90 @@ class OwnershipSecurityEvaluatorTest {
 
         assertTrue(evaluator.canManageTurnoMostrador(604L), "Recepcionista debe poder gestionar mostrador de su centro");
         assertFalse(evaluator.canManageTurnoMostrador(605L), "Recepcionista NO debe poder gestionar mostrador de otro centro");
+    }
+
+    @Test
+    void isReceptionistOfConsultorio_enforcesCenterOwnership() {
+        ConsultorioFisico consultorioCentro1 = ConsultorioFisico.builder().id(701L).centroSaludId(1L).numero("C-01").build();
+        ConsultorioFisico consultorioCentro2 = ConsultorioFisico.builder().id(702L).centroSaludId(2L).numero("C-02").build();
+
+        when(consultorioFisicoRepositorio.findById(701L)).thenReturn(Optional.of(consultorioCentro1));
+        when(consultorioFisicoRepositorio.findById(702L)).thenReturn(Optional.of(consultorioCentro2));
+
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+
+        assertTrue(evaluator.isReceptionistOfConsultorio(701L));
+        assertFalse(evaluator.isReceptionistOfConsultorio(702L));
+        assertFalse(evaluator.isReceptionistOfConsultorio(null));
+
+        Usuario recepSinCentro = new Usuario();
+        recepSinCentro.setId(102L);
+        recepSinCentro.setEmail("recep.sincentro@esu.test");
+        recepSinCentro.setRol("RECEPCIONISTA");
+        recepSinCentro.setCentroSaludId(null);
+
+        authenticate("recep.sincentro@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.sincentro@esu.test")).thenReturn(Optional.of(recepSinCentro));
+
+        assertFalse(evaluator.isReceptionistOfConsultorio(701L));
+    }
+
+    @Test
+    void isReceptionistOfUser_allowsSameCenterStaffOnly() {
+        Usuario recepCentro1 = new Usuario();
+        recepCentro1.setId(101L);
+        recepCentro1.setEmail("recep.crespo@esu.test");
+        recepCentro1.setRol("RECEPCIONISTA");
+        recepCentro1.setCentroSaludId(1L);
+
+        Usuario staffMismoCentro = new Usuario();
+        staffMismoCentro.setId(201L);
+        staffMismoCentro.setRol("PROFESIONAL");
+        staffMismoCentro.setCentroSaludId(1L);
+
+        Usuario staffOtroCentro = new Usuario();
+        staffOtroCentro.setId(202L);
+        staffOtroCentro.setRol("RECEPCIONISTA");
+        staffOtroCentro.setCentroSaludId(2L);
+
+        Usuario adminMismoCentro = new Usuario();
+        adminMismoCentro.setId(203L);
+        adminMismoCentro.setRol("ADMIN");
+        adminMismoCentro.setCentroSaludId(1L);
+
+        Usuario pacienteMismoCentro = new Usuario();
+        pacienteMismoCentro.setId(204L);
+        pacienteMismoCentro.setRol("PACIENTE");
+        pacienteMismoCentro.setCentroSaludId(1L);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recepCentro1));
+        when(usuarioRepositorio.findById(201L)).thenReturn(Optional.of(staffMismoCentro));
+        when(usuarioRepositorio.findById(202L)).thenReturn(Optional.of(staffOtroCentro));
+        when(usuarioRepositorio.findById(203L)).thenReturn(Optional.of(adminMismoCentro));
+        when(usuarioRepositorio.findById(204L)).thenReturn(Optional.of(pacienteMismoCentro));
+
+        assertTrue(evaluator.isReceptionistOfUser(201L));
+        assertFalse(evaluator.isReceptionistOfUser(202L));
+        assertFalse(evaluator.isReceptionistOfUser(203L));
+        assertFalse(evaluator.isReceptionistOfUser(204L));
+        assertFalse(evaluator.isReceptionistOfUser(null));
+
+        Usuario recepSinCentro = new Usuario();
+        recepSinCentro.setId(102L);
+        recepSinCentro.setEmail("recep.sincentro@esu.test");
+        recepSinCentro.setRol("RECEPCIONISTA");
+        recepSinCentro.setCentroSaludId(null);
+
+        authenticate("recep.sincentro@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.sincentro@esu.test")).thenReturn(Optional.of(recepSinCentro));
+        assertFalse(evaluator.isReceptionistOfUser(201L));
     }
 }

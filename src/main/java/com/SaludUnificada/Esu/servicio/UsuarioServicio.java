@@ -91,6 +91,17 @@ public class UsuarioServicio implements IUsuarioServicio {
     }
 
     @Override
+    public List<UsuarioDtoResponse> listarPorCentro(Long centroSaludId) {
+        if (centroSaludId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return usuarioRepositorio.findByCentroSaludId(centroSaludId).stream()
+                .filter(u -> u.getRol() != null && !"ADMIN".equalsIgnoreCase(u.getRol()) && !"PACIENTE".equalsIgnoreCase(u.getRol()))
+                .map(usuarioMapper::paraDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public void eliminarUsuario(Long id) {
         Usuario usuario = usuarioRepositorio.findById(id)
@@ -222,7 +233,9 @@ public class UsuarioServicio implements IUsuarioServicio {
             return permisoRepositorio.findByCodigoIn(Set.of(
                     "TURNOS_VER", "TURNOS_CREAR", "TURNOS_CANCELAR", "TURNOS_REAGENDAR",
                     "SOBRETURNOS_CREAR", "SALA_ESPERA_GESTIONAR", "PACIENTES_VER",
-                    "PACIENTES_REGISTRAR", "CONSULTORIOS_VER", "MEDICOS_VER", "MEDICOS_ASIGNAR_CONSULTORIO"
+                    "PACIENTES_REGISTRAR", "CONSULTORIOS_VER", "CONSULTORIOS_ADMINISTRAR",
+                    "MEDICOS_VER", "MEDICOS_ASIGNAR_CONSULTORIO", "REPORTES_VER",
+                    "USUARIOS_ADMINISTRAR"
             ));
         } else if ("MEDICO".equals(rolNorm) || "PROFESIONAL".equals(rolNorm)) {
             return permisoRepositorio.findByCodigoIn(Set.of(

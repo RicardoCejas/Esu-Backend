@@ -10,6 +10,7 @@ public interface IUsuarioServicio {
     UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuario);
     UsuarioDtoResponse obtenerUsuarioPorId(Long id);
     List<UsuarioDtoResponse> listarTodos();
+    List<UsuarioDtoResponse> listarPorCentro(Long centroSaludId);
     void eliminarUsuario(Long id);
     UsuarioDtoResponse findByUsername(String username);
     List<UsuarioDtoResponse> findByActivo(boolean estado);

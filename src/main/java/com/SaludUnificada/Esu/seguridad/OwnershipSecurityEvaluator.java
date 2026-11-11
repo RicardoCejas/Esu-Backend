@@ -5,6 +5,7 @@ import com.SaludUnificada.Esu.repositorio.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,9 @@ public class OwnershipSecurityEvaluator {
 
     @Autowired(required = false)
     private java.time.ZoneId turnosZoneId;
+
+    @Autowired(required = false)
+    private ConsultorioFisicoRepositorio consultorioFisicoRepositorio;
 
     private boolean esProduccion() {
         if (environment == null) return false;
@@ -423,5 +427,58 @@ public class OwnershipSecurityEvaluator {
             return canAccessPatient(v.getTitular().getId());
         }
         return false;
+    }
+
+    public boolean isCurrentUserAdmin() {
+        return isAdmin(getAuthentication());
+    }
+
+    public Optional<Long> getAuthenticatedCentroSaludId() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getCentroSaludId);
+    }
+
+    public Optional<String> getAuthenticatedCentroSaludNombre() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getCentroSaludNombre);
+    }
+
+    public Optional<Long> getAuthenticatedUserId() {
+        return getCurrentUser(getAuthentication()).map(Usuario::getId);
+    }
+
+    public Long getAuthenticatedCentroSaludIdOrThrow() {
+        return getAuthenticatedCentroSaludId()
+                .orElseThrow(() -> new AccessDeniedException("La cuenta institucional no posee un centro de salud asignado."));
+    }
+
+    public boolean isReceptionistOfConsultorio(Long consultorioId) {
+        if (consultorioId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth) || consultorioFisicoRepositorio == null) return false;
+        return consultorioFisicoRepositorio.findById(consultorioId)
+                .map(c -> isReceptionistOfCenter(c.getCentroSaludId()))
+                .orElse(false);
+    }
+
+    public boolean isReceptionistOfUser(Long targetUsuarioId) {
+        if (targetUsuarioId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (!isReceptionist(auth)) return false;
+
+        Optional<Usuario> currentOpt = getCurrentUser(auth);
+        if (currentOpt.isEmpty() || currentOpt.get().getCentroSaludId() == null) return false;
+        Long miCentroId = currentOpt.get().getCentroSaludId();
+
+        Optional<Usuario> targetOpt = usuarioRepositorio.findById(targetUsuarioId);
+        if (targetOpt.isEmpty()) return false;
+        Usuario target = targetOpt.get();
+        if (target.getCentroSaludId() == null || !miCentroId.equals(target.getCentroSaludId())) {
+            return false;
+        }
+        String rolNorm = target.getRol() != null ? target.getRol().trim().toUpperCase().replaceFirst("^ROLE_", "") : "";
+        return "RECEPCIONISTA".equals(rolNorm) || "PROFESIONAL".equals(rolNorm) || "MEDICO".equals(rolNorm);
     }
 }

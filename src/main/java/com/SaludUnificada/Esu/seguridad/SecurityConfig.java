@@ -150,6 +150,12 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/disponibilidades/**").hasAnyRole("MEDICO", "PROFESIONAL", "ADMIN");
 
                         auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/preferencias").authenticated();
+                        auth.requestMatchers("/api/usuarios/me/**").authenticated();
+                        auth.requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/obtener/todos", "/api/usuarios/obtener/*").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.POST, "/api/usuarios", "/api/usuarios/crear").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/*/estado").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.PUT, "/api/usuarios/*/asignacion").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.DELETE, "/api/usuarios/eliminar/*").hasAnyRole("ADMIN", "RECEPCIONISTA");
                         auth.requestMatchers("/api/usuarios/**").hasRole("ADMIN");
                         auth.requestMatchers("/api/permisos/**").hasAnyRole("ADMIN", "RECEPCIONISTA");
 

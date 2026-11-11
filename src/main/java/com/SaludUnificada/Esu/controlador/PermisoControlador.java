@@ -3,10 +3,12 @@ package com.SaludUnificada.Esu.controlador;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Permiso;
 import com.SaludUnificada.Esu.repositorio.PermisoRepositorio;
+import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
 import com.SaludUnificada.Esu.servicio.IUsuarioServicio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +24,9 @@ public class PermisoControlador {
     private final PermisoRepositorio permisoRepositorio;
     private final IUsuarioServicio usuarioServicio;
 
+    @Autowired(required = false)
+    private OwnershipSecurityEvaluator securityPolicy;
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
     @Operation(summary = "Listar catalogo de permisos granulares")
@@ -30,18 +35,24 @@ public class PermisoControlador {
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfUser(#usuarioId)")
     @Operation(summary = "Obtener permisos asignados a un usuario")
     public ResponseEntity<List<String>> obtenerPermisosPorUsuario(@PathVariable Long usuarioId) {
         return ResponseEntity.ok(usuarioServicio.obtenerPermisosUsuario(usuarioId));
     }
 
     @PutMapping("/usuario/{usuarioId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfUser(#usuarioId)")
     @Operation(summary = "Actualizar permisos de un usuario")
     public ResponseEntity<UsuarioDtoResponse> actualizarPermisosUsuario(
             @PathVariable Long usuarioId,
             @RequestBody List<String> codigosPermisos) {
-        return ResponseEntity.ok(usuarioServicio.actualizarPermisosUsuario(usuarioId, codigosPermisos));
+        List<String> filtrados = codigosPermisos;
+        if (securityPolicy != null && !securityPolicy.isCurrentUserAdmin() && codigosPermisos != null) {
+            filtrados = codigosPermisos.stream()
+                    .filter(c -> !"PACIENTES_FUSIONAR".equalsIgnoreCase(c))
+                    .toList();
+        }
+        return ResponseEntity.ok(usuarioServicio.actualizarPermisosUsuario(usuarioId, filtrados));
     }
 }

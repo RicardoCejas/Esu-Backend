@@ -3,6 +3,7 @@ package com.SaludUnificada.Esu.servicio;
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Paciente;
+import com.SaludUnificada.Esu.entidad.Permiso;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
@@ -11,6 +12,7 @@ import com.SaludUnificada.Esu.repositorio.EvolucionMedicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.HistoriaClinicaRepositorio;
 import com.SaludUnificada.Esu.repositorio.PacienteRepositorio;
 import com.SaludUnificada.Esu.repositorio.RecetaDigitalRepositorio;
+import com.SaludUnificada.Esu.repositorio.PermisoRepositorio;
 import com.SaludUnificada.Esu.repositorio.UsuarioRepositorio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +21,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -151,5 +156,80 @@ class UsuarioServicioTest {
         assertEquals("Hospital Central", usuario.getCentroSaludNombre());
         assertEquals(2, usuario.getTokenVersion());
         verify(usuarioRepositorio).save(usuario);
+    }
+
+    @Test
+    void testListarPorCentro_ExcluyeAdminYPaciente() {
+        Usuario admin = new Usuario();
+        admin.setId(1L);
+        admin.setRol("ADMIN");
+        admin.setCentroSaludId(10L);
+
+        Usuario paciente = new Usuario();
+        paciente.setId(2L);
+        paciente.setRol("PACIENTE");
+        paciente.setCentroSaludId(10L);
+
+        Usuario recep = new Usuario();
+        recep.setId(3L);
+        recep.setRol("RECEPCIONISTA");
+        recep.setCentroSaludId(10L);
+
+        Usuario medico = new Usuario();
+        medico.setId(4L);
+        medico.setRol("PROFESIONAL");
+        medico.setCentroSaludId(10L);
+
+        UsuarioDtoResponse dtoRecep = new UsuarioDtoResponse();
+        dtoRecep.setId(3L);
+        dtoRecep.setRol("RECEPCIONISTA");
+
+        UsuarioDtoResponse dtoMedico = new UsuarioDtoResponse();
+        dtoMedico.setId(4L);
+        dtoMedico.setRol("PROFESIONAL");
+
+        when(usuarioRepositorio.findByCentroSaludId(10L)).thenReturn(List.of(admin, paciente, recep, medico));
+        when(usuarioMapper.paraDto(recep)).thenReturn(dtoRecep);
+        when(usuarioMapper.paraDto(medico)).thenReturn(dtoMedico);
+
+        List<UsuarioDtoResponse> result = usuarioServicio.listarPorCentro(10L);
+
+        assertEquals(2, result.size());
+        assertEquals(List.of(3L, 4L), result.stream().map(UsuarioDtoResponse::getId).toList());
+        assertTrue(usuarioServicio.listarPorCentro(null).isEmpty());
+    }
+
+    @Test
+    void testCrearUsuarioRecepcionista_AsignaPermisosCentroYReportesPorDefecto() {
+        PermisoRepositorio permisoRepo = mock(PermisoRepositorio.class);
+        ReflectionTestUtils.setField(usuarioServicio, "permisoRepositorio", permisoRepo);
+
+        UsuarioDtoRequest req = new UsuarioDtoRequest();
+        req.setUsername("recep.centro@esu.gob.ar");
+        req.setPassword("Password123!");
+        req.setRol("RECEPCIONISTA");
+
+        Usuario entidad = new Usuario();
+        entidad.setEmail("recep.centro@esu.gob.ar");
+        entidad.setPassword("Password123!");
+        entidad.setRol("RECEPCIONISTA");
+
+        Permiso permisoReportes = new Permiso();
+        permisoReportes.setCodigo("REPORTES_VER");
+
+        when(usuarioRepositorio.existsByEmail("recep.centro@esu.gob.ar")).thenReturn(false);
+        when(usuarioMapper.paraEntidad(req)).thenReturn(entidad);
+        when(passwordEncoder.encode("Password123!")).thenReturn("encoded");
+        when(permisoRepo.findByCodigoIn(anySet())).thenReturn(Set.of(permisoReportes));
+        when(usuarioRepositorio.save(any(Usuario.class))).thenReturn(entidad);
+        when(usuarioMapper.paraDto(entidad)).thenReturn(new UsuarioDtoResponse());
+
+        usuarioServicio.crearUsuario(req);
+
+        verify(permisoRepo).findByCodigoIn(argThat(codigos ->
+                codigos.contains("CONSULTORIOS_ADMINISTRAR")
+                        && codigos.contains("REPORTES_VER")
+                        && codigos.contains("USUARIOS_ADMINISTRAR")
+        ));
     }
 }
