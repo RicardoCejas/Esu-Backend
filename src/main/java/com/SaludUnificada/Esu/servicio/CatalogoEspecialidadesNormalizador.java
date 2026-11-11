@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.text.Normalizer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class CatalogoEspecialidadesNormalizador {
@@ -168,6 +169,58 @@ public class CatalogoEspecialidadesNormalizador {
         return s.contains("laboratorio") || s.contains("radiograf") || s.contains("rayos") || s.contains("ecograf");
     }
 
+    public List<String> parsearEstudiosHabilitados(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(raw.split("\\|"))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    public String serializarEstudiosHabilitados(List<String> estudios) {
+        if (estudios == null || estudios.isEmpty()) {
+            return "";
+        }
+        return estudios.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .collect(Collectors.joining("|"));
+    }
+
+    public List<String> resolverEstudiosCentro(Long centroId, String nombreCentro, Boolean permiteEstudios, String estudiosHabilitados) {
+        if (Boolean.FALSE.equals(permiteEstudios)) {
+            return Collections.emptyList();
+        }
+        if (estudiosHabilitados != null) {
+            return parsearEstudiosHabilitados(estudiosHabilitados);
+        }
+        return obtenerEstudiosDisponiblesPorCentro(centroId, nombreCentro);
+    }
+
+    public boolean esEstudioPermitidoPorLista(List<String> permitidos, String servicio) {
+        if (servicio == null || servicio.isBlank() || permitidos == null || permitidos.isEmpty()) {
+            return false;
+        }
+        String s = servicio.trim().toLowerCase();
+        for (String p : permitidos) {
+            if (p == null || p.isBlank()) continue;
+            String pLower = p.toLowerCase();
+            if (pLower.contains(s) || s.contains(pLower)) {
+                return true;
+            }
+            if (s.contains("laboratorio") && pLower.contains("laboratorio")) return true;
+            if ((s.contains("radiograf") || s.contains("rayos")) && pLower.contains("radiograf")) return true;
+            if (s.contains("mamaria") && pLower.contains("mamaria")) return true;
+            if (s.contains("ecograf") && !s.contains("mamaria") && pLower.contains("ecografía general")) return true;
+        }
+        return false;
+    }
+
     public List<String> obtenerEstudiosDisponiblesPorCentro(Long centroId, String nombreCentro) {
         String nombre = (nombreCentro != null) ? nombreCentro.toLowerCase() : "";
 
@@ -193,21 +246,6 @@ public class CatalogoEspecialidadesNormalizador {
     }
 
     public boolean esEstudioPermitido(Long centroId, String servicio) {
-        if (servicio == null || servicio.isBlank()) return false;
-        List<String> permitidos = obtenerEstudiosDisponiblesPorCentro(centroId, null);
-        if (permitidos.isEmpty()) return false;
-
-        String s = servicio.trim().toLowerCase();
-        for (String p : permitidos) {
-            String pLower = p.toLowerCase();
-            if (pLower.contains(s) || s.contains(pLower)) {
-                return true;
-            }
-            if (s.contains("laboratorio") && pLower.contains("laboratorio")) return true;
-            if ((s.contains("radiograf") || s.contains("rayos")) && pLower.contains("radiograf")) return true;
-            if (s.contains("mamaria") && pLower.contains("mamaria")) return true;
-            if (s.contains("ecograf") && !s.contains("mamaria") && pLower.contains("ecografía general")) return true;
-        }
-        return false;
+        return esEstudioPermitidoPorLista(obtenerEstudiosDisponiblesPorCentro(centroId, null), servicio);
     }
 }

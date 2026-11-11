@@ -1,6 +1,9 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.config.EsuInitialDataSeeder;
+import com.SaludUnificada.Esu.dto.request.CentroSaludDtoRequest;
+import com.SaludUnificada.Esu.dto.request.ConsultorioFisicoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.ConsultorioFisicoUpdateDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoPublicoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
@@ -415,5 +418,109 @@ public class OrganizacionCentrosServiciosTest {
                 turnoServicio.validarCombinacionCentroYCategoria(dispensarioInactivo.getId(), "CONSULTA", null, espClinicaMedica.getId(), drMulticentro.getId())
         );
         assertTrue(ex.getMessage().contains("inactivo para nuevas reservas"));
+    }
+
+    @Test
+    @DisplayName("Escenario 12: Configuración de plantas físicas restringe la creación y edición de consultorios por piso")
+    void testPlantasFisicasYValidacionConsultorios() {
+        CentroSaludDtoRequest updateSede = CentroSaludDtoRequest.builder()
+                .nombre(clinicaCabrera.getNombre())
+                .tipo(clinicaCabrera.getTipo())
+                .direccion(clinicaCabrera.getDireccion())
+                .cantidadPlantas(2)
+                .build();
+        var sedeActualizada = centroSaludServicio.actualizarCentro(clinicaCabrera.getId(), updateSede);
+        assertEquals(2, sedeActualizada.getCantidadPlantas());
+
+        // 1° Piso es válido para una sede de 2 plantas (Planta Baja + 1° Piso)
+        ConsultorioFisicoDtoRequest consValido = ConsultorioFisicoDtoRequest.builder()
+                .centroSaludId(clinicaCabrera.getId())
+                .numero("201-F1")
+                .planta("1° Piso")
+                .especialidadAsignada("Cardiología")
+                .build();
+        var creado = centroSaludServicio.crearConsultorio(consValido);
+        assertEquals("1° Piso", creado.getPlanta());
+
+        // 2° Piso excede 2 plantas
+        ConsultorioFisicoDtoRequest consExcedido = ConsultorioFisicoDtoRequest.builder()
+                .centroSaludId(clinicaCabrera.getId())
+                .numero("301-F1")
+                .planta("2° Piso")
+                .build();
+        ReglaNegocioException exPiso = assertThrows(ReglaNegocioException.class,
+                () -> centroSaludServicio.crearConsultorio(consExcedido));
+        assertTrue(exPiso.getMessage().contains("excede las 2 plantas"));
+
+        // Impedir reducir cantidadPlantas mientras haya un consultorio en 1° Piso
+        CentroSaludDtoRequest reducirPlantas = CentroSaludDtoRequest.builder()
+                .nombre(clinicaCabrera.getNombre())
+                .tipo(clinicaCabrera.getTipo())
+                .direccion(clinicaCabrera.getDireccion())
+                .cantidadPlantas(1)
+                .build();
+        ReglaNegocioException exReducir = assertThrows(ReglaNegocioException.class,
+                () -> centroSaludServicio.actualizarCentro(clinicaCabrera.getId(), reducirPlantas));
+        assertTrue(exReducir.getMessage().contains("No se puede reducir la sede"));
+    }
+
+    @Test
+    @DisplayName("Escenario 13: Edición integral y pausa/reactivación de consultorio físico")
+    void testEditarYPausarConsultorio() {
+        var consA = centroSaludServicio.crearConsultorio(ConsultorioFisicoDtoRequest.builder()
+                .centroSaludId(hospitalCrespo.getId())
+                .numero("F1-A")
+                .planta("Planta Baja")
+                .especialidadAsignada("Clínica Médica")
+                .build());
+        centroSaludServicio.crearConsultorio(ConsultorioFisicoDtoRequest.builder()
+                .centroSaludId(hospitalCrespo.getId())
+                .numero("F1-B")
+                .planta("Planta Baja")
+                .build());
+
+        var editado = centroSaludServicio.actualizarConsultorio(consA.getId(), ConsultorioFisicoUpdateDtoRequest.builder()
+                .numero("F1-A-REN")
+                .planta("Planta Baja")
+                .especialidadAsignada("Pediatría")
+                .activo(true)
+                .build());
+        assertEquals("F1-A-REN", editado.getNumero());
+        assertEquals("Pediatría", editado.getEspecialidadAsignada());
+
+        var pausado = centroSaludServicio.cambiarEstadoConsultorio(consA.getId(), false);
+        assertFalse(pausado.getActivo());
+
+        var reactivado = centroSaludServicio.cambiarEstadoConsultorio(consA.getId(), true);
+        assertTrue(reactivado.getActivo());
+
+        ReglaNegocioException exDuplicado = assertThrows(ReglaNegocioException.class,
+                () -> centroSaludServicio.actualizarConsultorio(consA.getId(), ConsultorioFisicoUpdateDtoRequest.builder()
+                        .numero("F1-B")
+                        .planta("Planta Baja")
+                        .build()));
+        assertTrue(exDuplicado.getMessage().contains("Ya existe otro consultorio"));
+    }
+
+    @Test
+    @DisplayName("Escenario 14: Los estudios diagnósticos habilitados se persisten por sede y gobiernan el turnero")
+    void testEstudiosPersistenciaYValidacionTurnero() {
+        CentroSaludDtoRequest configEstudios = CentroSaludDtoRequest.builder()
+                .nombre(hospitalCrespo.getNombre())
+                .tipo(hospitalCrespo.getTipo())
+                .direccion(hospitalCrespo.getDireccion())
+                .permiteEstudios(true)
+                .estudiosDisponibles(List.of("Radiografía Digital", "Ecografía General"))
+                .build();
+
+        var actualizado = centroSaludServicio.actualizarCentro(hospitalCrespo.getId(), configEstudios);
+        assertEquals(List.of("Radiografía Digital", "Ecografía General"), actualizado.getEstudiosDisponibles());
+
+        assertDoesNotThrow(() ->
+                turnoServicio.validarCombinacionCentroYCategoria(hospitalCrespo.getId(), "ESTUDIO", "Radiografía Digital", null, null));
+
+        ReglaNegocioException exNoHabilitado = assertThrows(ReglaNegocioException.class, () ->
+                turnoServicio.validarCombinacionCentroYCategoria(hospitalCrespo.getId(), "ESTUDIO", "Laboratorio de Análisis Clínicos", null, null));
+        assertTrue(exNoHabilitado.getMessage().contains("no se encuentra disponible"));
     }
 }

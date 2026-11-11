@@ -25,5 +25,6 @@ public class CentroSaludDtoResponse {
     private Boolean activo;
     private Boolean permiteConsultas;
     private Boolean permiteEstudios;
+    private Integer cantidadPlantas;
     private List<String> estudiosDisponibles;
 }

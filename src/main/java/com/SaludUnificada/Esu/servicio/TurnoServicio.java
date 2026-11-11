@@ -1410,6 +1410,20 @@ public class TurnoServicio implements ITurnoServicio {
                 .collect(Collectors.toList());
     }
 
+    private boolean esEstudioPermitidoParaCentro(com.SaludUnificada.Esu.entidad.CentroSalud centro, Long centroId, String servicio) {
+        if (catalogoNormalizador == null) {
+            return true;
+        }
+        List<String> permitidos = (centro != null)
+                ? catalogoNormalizador.resolverEstudiosCentro(
+                        centro.getId(),
+                        centro.getNombre(),
+                        centro.getPermiteEstudios(),
+                        centro.getEstudiosHabilitados())
+                : catalogoNormalizador.obtenerEstudiosDisponiblesPorCentro(centroId, null);
+        return catalogoNormalizador.esEstudioPermitidoPorLista(permitidos, servicio);
+    }
+
     public void validarCombinacionCentroYCategoria(Long centroId, String tipoAtencion, String servicio, Long especialidadId, Long profesionalId) {
         if (centroId == null) {
             throw new ReglaNegocioException("El centro de salud es obligatorio para registrar un turno.");
@@ -1433,7 +1447,7 @@ public class TurnoServicio implements ITurnoServicio {
             if (servicio == null || servicio.isBlank()) {
                 throw new ReglaNegocioException("Debe especificar el estudio o práctica diagnóstica a solicitar.");
             }
-            if (catalogoNormalizador != null && !catalogoNormalizador.esEstudioPermitido(centroId, servicio)) {
+            if (!esEstudioPermitidoParaCentro(centro, centroId, servicio)) {
                 throw new ReglaNegocioException("El estudio o práctica '" + servicio + "' no se encuentra disponible en este centro de salud.");
             }
         } else { // "CONSULTA"

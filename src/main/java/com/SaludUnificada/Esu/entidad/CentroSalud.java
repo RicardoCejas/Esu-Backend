@@ -56,6 +56,13 @@ public class CentroSalud {
     @Builder.Default
     private Boolean permiteEstudios = true;
 
+    @Column(name = "cantidad_plantas", nullable = false)
+    @Builder.Default
+    private Integer cantidadPlantas = 1;
+
+    @Column(name = "estudios_habilitados", length = 1000)
+    private String estudiosHabilitados;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean activo = true;
