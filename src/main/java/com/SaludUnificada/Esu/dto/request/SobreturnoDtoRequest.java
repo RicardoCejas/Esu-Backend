@@ -46,6 +46,13 @@ public class SobreturnoDtoRequest {
     @Schema(description = "Motivo de la urgencia menor o demanda espontánea", example = "Demanda espontánea en sala por cuadro febril")
     private String motivoSobreturno;
 
+    @com.fasterxml.jackson.annotation.JsonSetter("motivo")
+    public void setMotivoFallback(String motivo) {
+        if (this.motivoSobreturno == null || this.motivoSobreturno.isBlank()) {
+            this.motivoSobreturno = motivo;
+        }
+    }
+
     @Size(max = 64, message = "La clave de idempotencia no puede superar los 64 caracteres")
     @Schema(description = "Clave opcional de idempotencia para evitar duplicados ante reintentos de red")
     private String idempotencyKey;

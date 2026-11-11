@@ -31,10 +31,13 @@ public class RecetaDigitalMapper {
                 ? "Dr./Dra. " + entidad.getProfesional().getNombre() + " " + entidad.getProfesional().getApellido()
                 : "";
         String profMat = entidad.getProfesional() != null ? entidad.getProfesional().getMatricula() : "";
-        String profEsp = (entidad.getProfesional() != null && entidad.getProfesional().getEspecialidades() != null
-                && !entidad.getProfesional().getEspecialidades().isEmpty())
-                ? entidad.getProfesional().getEspecialidades().iterator().next().getNombre()
-                : "Medicina General";
+        String profEsp = "Medicina General";
+        try {
+            if (entidad.getProfesional() != null && org.hibernate.Hibernate.isInitialized(entidad.getProfesional().getEspecialidades())
+                    && entidad.getProfesional().getEspecialidades() != null && !entidad.getProfesional().getEspecialidades().isEmpty()) {
+                profEsp = entidad.getProfesional().getEspecialidades().iterator().next().getNombre();
+            }
+        } catch (Exception ignored) {}
 
         return RecetaDigitalDtoResponse.builder()
                 .id(entidad.getId())

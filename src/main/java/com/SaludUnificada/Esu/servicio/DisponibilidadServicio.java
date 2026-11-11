@@ -130,19 +130,19 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public int generarSlotsProximos30Dias(Long profesionalId) {
         Profesional profesional = profesionalRepositorio.findById(profesionalId)
                 .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId));
 
         LocalDate hoy = LocalDate.now();
-        List<Turno> nuevosSlots = new ArrayList<>();
+        int totalSlots = 0;
 
         for (int i = 1; i <= 30; i++) {
             LocalDate fecha = hoy.plusDays(i);
 
-            if (feriadoServicio.esFeriado(fecha)) {
-                log.debug("Omitiendo generación de slots para la fecha feriado: {}", fecha);
+            if (feriadoServicio != null && feriadoServicio.esFeriado(fecha)) {
+                log.debug("Omitiendo cálculo de slots para la fecha feriado: {}", fecha);
                 continue;
             }
 
@@ -156,30 +156,11 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
                 while (horaActual.plusMinutes(intervalo).compareTo(disp.getHoraFin()) <= 0) {
                     LocalDateTime fechaHoraSlot = LocalDateTime.of(fecha, horaActual);
 
-                    boolean estaBloqueado = !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesionalId, fechaHoraSlot).isEmpty();
+                    boolean estaBloqueado = bloqueoAgendaRepositorio != null
+                            && !bloqueoAgendaRepositorio.findBloqueosParaFechaHora(profesionalId, fechaHoraSlot).isEmpty();
 
-                    boolean existeSlot = turnoRepositorio.existsByProfesionalIdAndFechaHora(profesionalId, fechaHoraSlot);
-
-                    if (!estaBloqueado && !existeSlot) {
-                        Turno slot = new Turno();
-                        slot.setFechaHora(fechaHoraSlot);
-                        slot.setEstado("DISPONIBLE");
-                        slot.setProfesional(profesional);
-                        slot.setPaciente(null);
-                        slot.setCentroSaludId(disp.getCentroSaludId());
-                        slot.setCentroSaludNombre(resolverNombreCentro(disp.getCentroSaludId()));
-                        String cNumero = "Consultorio " + (disp.getCentroSaludId() != null ? disp.getCentroSaludId() : "1");
-                        String planta = "Planta Baja";
-                        if (disp.getConsultorioId() != null && consultorioFisicoRepositorio != null) {
-                            var cOpt = consultorioFisicoRepositorio.findById(disp.getConsultorioId());
-                            if (cOpt.isPresent()) {
-                                if (cOpt.get().getNumero() != null) cNumero = cOpt.get().getNumero();
-                                if (cOpt.get().getPlanta() != null) planta = cOpt.get().getPlanta();
-                            }
-                        }
-                        slot.setConsultorioNumero(cNumero);
-                        slot.setPlanta(planta);
-                        nuevosSlots.add(slot);
+                    if (!estaBloqueado) {
+                        totalSlots++;
                     }
 
                     horaActual = horaActual.plusMinutes(intervalo);
@@ -187,11 +168,7 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
             }
         }
 
-        if (!nuevosSlots.isEmpty()) {
-            turnoRepositorio.saveAll(nuevosSlots);
-        }
-
-        return nuevosSlots.size();
+        return totalSlots;
     }
     @Override
     @Transactional

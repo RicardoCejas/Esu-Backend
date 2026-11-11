@@ -24,6 +24,7 @@ public interface ITurnoServicio {
     List<TurnoDtoResponse> listarTodos();
     Page<TurnoDtoResponse> listarPaginados(Pageable pageable);
     void eliminarTurno(Long id);
+    int purgarTurnosCancelados(Long profesionalId);
     List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora);
     List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId);
     List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId);

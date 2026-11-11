@@ -46,6 +46,10 @@ public class TurnoControlador {
     private final RecordatorioTurnoServicio recordatorioTurnoServicio;
     @Autowired(required = false)
     private com.SaludUnificada.Esu.seguridad.PublicBookingRateLimiter publicBookingRateLimiter;
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.UsuarioRepositorio usuarioRepositorio;
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio profesionalRepositorio;
 
     @Operation(summary = "Registrar sobreturno medico de urgencia en sala")
     @ApiResponses({
@@ -167,10 +171,32 @@ public class TurnoControlador {
     }
 
     @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL', 'RECEPCIONISTA') and @securityPolicy.canAccessTurno(#id))")
     public ResponseEntity<Void> eliminarTurno(@PathVariable Long id) {
         turnoServicio.eliminarTurno(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/purgar-cancelados")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
+    public ResponseEntity<Map<String, Object>> purgarCancelados(
+            @RequestParam(required = false) Long profesionalId,
+            Principal principal) {
+        Long targetProfesionalId = profesionalId;
+        if (principal != null && usuarioRepositorio != null && profesionalRepositorio != null) {
+            com.SaludUnificada.Esu.entidad.Usuario u = usuarioRepositorio.findByEmail(principal.getName()).orElse(null);
+            if (u != null && ("MEDICO".equalsIgnoreCase(u.getRol()) || "PROFESIONAL".equalsIgnoreCase(u.getRol()))) {
+                com.SaludUnificada.Esu.entidad.Profesional p = profesionalRepositorio.findByUsuarioEmail(u.getEmail()).orElse(null);
+                if (p != null) {
+                    targetProfesionalId = p.getId();
+                }
+            }
+        }
+        int eliminados = turnoServicio.purgarTurnosCancelados(targetProfesionalId);
+        return ResponseEntity.ok(Map.of(
+                "eliminados", eliminados,
+                "mensaje", "Se eliminaron " + eliminados + " turnos cancelados."
+        ));
     }
 
     @DeleteMapping("/{id}")

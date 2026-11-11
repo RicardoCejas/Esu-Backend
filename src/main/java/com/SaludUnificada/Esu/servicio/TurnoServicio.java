@@ -100,6 +100,9 @@ public class TurnoServicio implements ITurnoServicio {
     @Autowired(required = false)
     private CatalogoEspecialidadesNormalizador catalogoNormalizador;
 
+    @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.EncuestaSatisfaccionRepositorio encuestaSatisfaccionRepositorio;
+
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -195,7 +198,15 @@ public class TurnoServicio implements ITurnoServicio {
                 }
             }
 
-            if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+            List<Turno> existentes = turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora);
+            boolean ocupado = (existentes != null && !existentes.isEmpty())
+                    ? existentes.stream().anyMatch(t -> 
+                            t.getPaciente() != null && 
+                            !CANCELADO.equalsIgnoreCase(t.getEstado()) && 
+                            !"CANCELADO_POR_MEDICO".equalsIgnoreCase(t.getEstado()) && 
+                            !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                    : turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO);
+            if (ocupado) {
                 throw new IllegalStateException("El horario solicitado ya no está disponible.");
             }
         } else {
@@ -236,7 +247,12 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("El paciente ya cuenta con un turno registrado en el mismo día y horario.");
         }
 
-        Turno turno = new Turno();
+        Optional<Turno> slotPrevio = (profesional != null)
+                ? turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora).stream()
+                    .filter(t -> "DISPONIBLE".equalsIgnoreCase(t.getEstado()) || t.getPaciente() == null)
+                    .findFirst()
+                : Optional.empty();
+        Turno turno = slotPrevio.orElseGet(Turno::new);
         if (turnoDto.getIdempotencyKey() != null && !turnoDto.getIdempotencyKey().isBlank()) {
             turno.setIdempotencyKey(turnoDto.getIdempotencyKey().trim());
         }
@@ -420,7 +436,15 @@ public class TurnoServicio implements ITurnoServicio {
                 }
             }
 
-            if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+            List<Turno> existentes = turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora);
+            boolean ocupado = (existentes != null && !existentes.isEmpty())
+                    ? existentes.stream().anyMatch(t -> 
+                            t.getPaciente() != null && 
+                            !CANCELADO.equalsIgnoreCase(t.getEstado()) && 
+                            !"CANCELADO_POR_MEDICO".equalsIgnoreCase(t.getEstado()) && 
+                            !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                    : turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO);
+            if (ocupado) {
                 throw new IllegalStateException("El horario solicitado ya no está disponible.");
             }
         } else {
@@ -496,7 +520,12 @@ public class TurnoServicio implements ITurnoServicio {
             throw new ReglaNegocioException("Ya posee una consulta médica programada para la misma fecha y hora.");
         }
 
-        Turno turno = new Turno();
+        Optional<Turno> slotPrevio = (profesional != null)
+                ? turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora).stream()
+                    .filter(t -> "DISPONIBLE".equalsIgnoreCase(t.getEstado()) || t.getPaciente() == null)
+                    .findFirst()
+                : Optional.empty();
+        Turno turno = slotPrevio.orElseGet(Turno::new);
         turno.setFechaHora(fechaHora);
         turno.setProfesional(profesional);
         turno.setPaciente(paciente);
@@ -728,11 +757,24 @@ public class TurnoServicio implements ITurnoServicio {
         }
         fechaHora = fechaHora.withSecond(0).withNano(0);
 
-        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO)) {
+        List<Turno> existentesMostrador = turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora);
+        boolean ocupadoMostrador = (existentesMostrador != null && !existentesMostrador.isEmpty())
+                ? existentesMostrador.stream().anyMatch(t -> 
+                        t.getPaciente() != null && 
+                        !CANCELADO.equalsIgnoreCase(t.getEstado()) && 
+                        !"CANCELADO_POR_MEDICO".equalsIgnoreCase(t.getEstado()) && 
+                        !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                : turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(profesional.getId(), fechaHora, CANCELADO);
+        if (ocupadoMostrador) {
             throw new IllegalStateException("El profesional ya posee un turno asignado en ese horario.");
         }
 
-        Turno turno = new Turno();
+        Optional<Turno> slotPrevio = (profesional != null)
+                ? turnoRepositorio.findByProfesionalIdAndFechaHora(profesional.getId(), fechaHora).stream()
+                    .filter(t -> "DISPONIBLE".equalsIgnoreCase(t.getEstado()) || t.getPaciente() == null)
+                    .findFirst()
+                : Optional.empty();
+        Turno turno = slotPrevio.orElseGet(Turno::new);
         turno.setFechaHora(fechaHora);
         turno.setEstado("CONFIRMADO");
         turno.setMotivoTurno(request.getMotivoTurno() != null && !request.getMotivoTurno().isBlank()
@@ -944,10 +986,44 @@ public class TurnoServicio implements ITurnoServicio {
     @Transactional
     public void eliminarTurno(Long id) {
         if (turnoRepositorio.existsById(id)) {
+            if (encuestaSatisfaccionRepositorio != null) {
+                try {
+                    encuestaSatisfaccionRepositorio.findByTurnoId(id).ifPresent(encuestaSatisfaccionRepositorio::delete);
+                } catch (Exception ex) {
+                    log.warn("Fallo al eliminar encuesta de satisfaccion del turno ID={}: {}", id, ex.getMessage());
+                }
+            }
+            if (recordatorioRepositorio != null) {
+                try {
+                    recordatorioRepositorio.deleteByTurnoId(id);
+                } catch (Exception ex) {
+                    log.warn("Fallo al eliminar recordatorio al eliminar turno ID={}: {}", id, ex.getMessage());
+                }
+            }
             turnoRepositorio.deleteById(id);
         } else {
             throw new NoEncontradoExcepcion("Turno no encontrado con ID: " + id);
         }
+    }
+
+    @Override
+    @Transactional
+    public int purgarTurnosCancelados(Long profesionalId) {
+        List<Turno> turnos;
+        if (profesionalId != null) {
+            turnos = turnoRepositorio.findByProfesionalId(profesionalId);
+        } else {
+            turnos = turnoRepositorio.findAll();
+        }
+        List<Turno> cancelados = turnos.stream()
+                .filter(t -> "CANCELADO".equalsIgnoreCase(t.getEstado()) || "CANCELADO_POR_MEDICO".equalsIgnoreCase(t.getEstado()))
+                .collect(Collectors.toList());
+        int count = 0;
+        for (Turno t : cancelados) {
+            eliminarTurno(t.getId());
+            count++;
+        }
+        return count;
     }
 
     @Override
@@ -1164,7 +1240,16 @@ public class TurnoServicio implements ITurnoServicio {
             }
         }
 
-        if (turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO)) {
+        List<Turno> existentesReprogramar = turnoRepositorio.findByProfesionalIdAndFechaHora(turno.getProfesional().getId(), nuevaFechaHora);
+        boolean ocupadoReprogramar = (existentesReprogramar != null && !existentesReprogramar.isEmpty())
+                ? existentesReprogramar.stream().anyMatch(t -> 
+                        !t.getId().equals(turno.getId()) &&
+                        t.getPaciente() != null && 
+                        !CANCELADO.equalsIgnoreCase(t.getEstado()) && 
+                        !"CANCELADO_POR_MEDICO".equalsIgnoreCase(t.getEstado()) && 
+                        !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
+                : turnoRepositorio.existsByProfesionalIdAndFechaHoraAndEstadoNot(turno.getProfesional().getId(), nuevaFechaHora, CANCELADO);
+        if (ocupadoReprogramar) {
             throw new IllegalStateException("El nuevo horario solicitado ya no está disponible.");
         }
 
@@ -1415,6 +1500,7 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fin = hoy.atTime(LocalTime.MAX);
         return turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(profesionalId, inicio, fin)
                 .stream()
+                .filter(t -> t.getPaciente() != null && !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }
@@ -1554,6 +1640,7 @@ public class TurnoServicio implements ITurnoServicio {
         LocalDateTime fin = fecha != null ? fecha.atTime(LocalTime.MAX) : null;
         return turnoRepositorio.findAgendaProfesional(profesionalId, centroSaludId, inicio, fin)
                 .stream()
+                .filter(t -> t.getPaciente() != null && !"DISPONIBLE".equalsIgnoreCase(t.getEstado()))
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
     }

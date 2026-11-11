@@ -41,7 +41,7 @@ public class PacienteControlador {
     }
 
     @PostMapping({"", "/crear"})
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCIONISTA', 'MEDICO', 'PROFESIONAL')")
     @Operation(summary = "Dar de alta nuevo paciente en el padrón")
     public ResponseEntity<PacienteDtoResponse> crearPaciente(@Valid @RequestBody PacienteDtoRequest pacienteDto) {
         PacienteDtoResponse nuevoPaciente = pacienteServicio.crearPaciente(pacienteDto);

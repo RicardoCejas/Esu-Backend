@@ -100,6 +100,11 @@ public class RecetaDigitalServicio {
         RecetaDigital receta = new RecetaDigital();
         receta.setPaciente(paciente);
         receta.setProfesional(profesional);
+        if (profesional.getEspecialidades() != null) {
+            try {
+                profesional.getEspecialidades().size();
+            } catch (Exception ignored) {}
+        }
         receta.setFechaEmision(LocalDate.now());
         receta.setFechaVencimiento(LocalDate.now().plusDays(30));
         receta.setEstadoReceta("PENDIENTE");
@@ -122,7 +127,9 @@ public class RecetaDigitalServicio {
                 m.setPosologia(item.getPosologia());
                 m.setViaAdministracion(item.getViaAdministracion());
                 m.setDuracion(item.getDuracion());
-                m.setCantidad(item.getCantidad() != null ? String.valueOf(item.getCantidad()) : "1");
+                m.setCantidad(item.getTextoCantidad() != null && !item.getTextoCantidad().isBlank()
+                        ? item.getTextoCantidad()
+                        : (item.getCantidad() != null ? String.valueOf(item.getCantidad()) : "1"));
                 meds.add(m);
             }
         }
