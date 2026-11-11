@@ -62,6 +62,13 @@ public class CentroSaludControlador {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{centroId}/especialidades")
+    @Operation(summary = "Listar especialidades habilitadas en una sede específica")
+    public ResponseEntity<List<com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse>> listarEspecialidadesPorCentro(
+            @PathVariable Long centroId) {
+        return ResponseEntity.ok(centroSaludServicio.listarEspecialidadesPorCentro(centroId));
+    }
+
     @GetMapping("/{centroId}/consultorios")
     @Operation(summary = "Listar consultorios físicos de una sede específica")
     public ResponseEntity<List<ConsultorioFisicoDtoResponse>> listarConsultoriosPorCentro(

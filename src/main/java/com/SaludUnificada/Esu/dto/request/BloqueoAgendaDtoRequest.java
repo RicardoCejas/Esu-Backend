@@ -17,6 +17,9 @@ import java.time.LocalDateTime;
 @Schema(description = "Solicitud para registrar un bloqueo preventivo de agenda por licencia, feriado o vacaciones")
 public class BloqueoAgendaDtoRequest {
 
+    @Schema(description = "ID del profesional a bloquear", example = "1")
+    private Long profesionalId;
+
     @NotNull(message = "La fecha y hora de inicio del bloqueo son obligatorias")
     @FutureOrPresent(message = "La fecha de inicio no puede ser anterior al momento actual")
     @Schema(description = "Inicio del período de bloqueo (ISO DateTime)", example = "2026-11-01T08:00:00")

@@ -47,6 +47,9 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
     private final DisponibilidadMapper disponibilidadMapper;
     private final FeriadoServicio feriadoServicio;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.ConsultorioFisicoRepositorio consultorioFisicoRepositorio;
+
     @Override
     @Transactional
     public DisponibilidadDtoResponse configurarDisponibilidad(DisponibilidadDtoRequest request) {
@@ -165,7 +168,17 @@ public class DisponibilidadServicio implements IDisponibilidadServicio {
                         slot.setPaciente(null);
                         slot.setCentroSaludId(disp.getCentroSaludId());
                         slot.setCentroSaludNombre(resolverNombreCentro(disp.getCentroSaludId()));
-                        slot.setConsultorioNumero("Consultorio " + (disp.getCentroSaludId() != null ? disp.getCentroSaludId() : "1"));
+                        String cNumero = "Consultorio " + (disp.getCentroSaludId() != null ? disp.getCentroSaludId() : "1");
+                        String planta = "Planta Baja";
+                        if (disp.getConsultorioId() != null && consultorioFisicoRepositorio != null) {
+                            var cOpt = consultorioFisicoRepositorio.findById(disp.getConsultorioId());
+                            if (cOpt.isPresent()) {
+                                if (cOpt.get().getNumero() != null) cNumero = cOpt.get().getNumero();
+                                if (cOpt.get().getPlanta() != null) planta = cOpt.get().getPlanta();
+                            }
+                        }
+                        slot.setConsultorioNumero(cNumero);
+                        slot.setPlanta(planta);
                         nuevosSlots.add(slot);
                     }
 

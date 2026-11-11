@@ -6,6 +6,8 @@ import com.SaludUnificada.Esu.dto.request.ConsultorioFisicoUpdateDtoRequest;
 import com.SaludUnificada.Esu.dto.response.CentroSaludDtoResponse;
 import com.SaludUnificada.Esu.dto.response.ConsultorioFisicoDtoResponse;
 import com.SaludUnificada.Esu.entidad.CentroSalud;
+import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.entidad.Especialidad;
 import com.SaludUnificada.Esu.entidad.ConsultorioFisico;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 public class CentroSaludServicio {
 
     private final CentroSaludRepositorio centroSaludRepositorio;
+    private final com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio profesionalRepositorio;
     private final ConsultorioFisicoRepositorio consultorioRepositorio;
     private final CatalogoEspecialidadesNormalizador normalizador;
 
@@ -137,6 +140,35 @@ public class CentroSaludServicio {
             throw new NoEncontradoExcepcion("Centro de salud no encontrado con ID: " + id);
         }
         centroSaludRepositorio.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse> listarEspecialidadesPorCentro(Long centroId) {
+        if (centroId == null) return List.of();
+
+        List<Profesional> profesionales = profesionalRepositorio.findAll().stream()
+                .filter(p -> Boolean.TRUE.equals(p.getEstadoActivo()))
+                .filter(p -> (p.getCentrosSaludIds() != null && p.getCentrosSaludIds().contains(centroId)) ||
+                             (p.getUsuario() != null && centroId.equals(p.getUsuario().getCentroSaludId())))
+                .toList();
+
+        java.util.Map<Long, com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse> mapa = new java.util.LinkedHashMap<>();
+        for (Profesional p : profesionales) {
+            if (p.getEspecialidades() != null) {
+                for (Especialidad esp : p.getEspecialidades()) {
+                    if (esp != null && !mapa.containsKey(esp.getId())) {
+                        mapa.put(esp.getId(), new com.SaludUnificada.Esu.dto.response.EspecialidadDtoResponse(
+                                esp.getId(),
+                                esp.getNombre(),
+                                esp.getDescripcion() != null ? esp.getDescripcion() : "Atención médica especializada en " + esp.getNombre() + ".",
+                                esp.getCategoria() != null ? esp.getCategoria() : "CONSULTA",
+                                esp.getNombreCanonico() != null ? esp.getNombreCanonico() : esp.getNombre()
+                        ));
+                    }
+                }
+            }
+        }
+        return new java.util.ArrayList<>(mapa.values());
     }
 
     @Transactional(readOnly = true)

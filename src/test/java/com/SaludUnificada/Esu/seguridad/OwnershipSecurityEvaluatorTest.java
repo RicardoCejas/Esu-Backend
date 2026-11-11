@@ -30,6 +30,10 @@ class OwnershipSecurityEvaluatorTest {
     @Mock
     private PacienteRepositorio pacienteRepositorio;
     @Mock
+    private DisponibilidadProfesionalRepositorio disponibilidadRepositorio;
+    @Mock
+    private BloqueoAgendaRepositorio bloqueoAgendaRepositorio;
+    @Mock
     private ProfesionalRepositorio profesionalRepositorio;
     @Mock
     private TurnoRepositorio turnoRepositorio;
@@ -88,6 +92,7 @@ class OwnershipSecurityEvaluatorTest {
         profesional.setUsuario(doctorUser);
         profesional.setEstadoActivo(true);
         ReflectionTestUtils.setField(evaluator, "consultorioFisicoRepositorio", consultorioFisicoRepositorio);
+        ReflectionTestUtils.setField(evaluator, "bloqueoAgendaRepositorio", bloqueoAgendaRepositorio);
     }
 
     @AfterEach
@@ -501,5 +506,79 @@ class OwnershipSecurityEvaluatorTest {
         authenticate("recep.sincentro@esu.test", "RECEPCIONISTA");
         when(usuarioRepositorio.findByEmail("recep.sincentro@esu.test")).thenReturn(Optional.of(recepSinCentro));
         assertFalse(evaluator.isReceptionistOfUser(201L));
+    }
+
+    @Test
+    void isReceptionistOfDoctor_validatesDoctorCenterMembership() {
+        Usuario recep = new Usuario();
+        recep.setId(101L);
+        recep.setEmail("recep.crespo@esu.test");
+        recep.setRol("RECEPCIONISTA");
+        recep.setCentroSaludId(1L);
+
+        Profesional doctorCentro1 = new Profesional();
+        doctorCentro1.setId(301L);
+        doctorCentro1.setCentrosSaludIds(new java.util.HashSet<>(java.util.Set.of(1L)));
+
+        Profesional doctorOtroCentro = new Profesional();
+        doctorOtroCentro.setId(302L);
+        doctorOtroCentro.setCentrosSaludIds(new java.util.HashSet<>(java.util.Set.of(2L)));
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recep));
+        when(profesionalRepositorio.findById(301L)).thenReturn(Optional.of(doctorCentro1));
+        when(profesionalRepositorio.findById(302L)).thenReturn(Optional.of(doctorOtroCentro));
+
+        assertTrue(evaluator.isReceptionistOfDoctor(301L));
+        assertFalse(evaluator.isReceptionistOfDoctor(302L));
+        assertFalse(evaluator.isReceptionistOfDoctor(null));
+    }
+
+    @Test
+    void canAccessDisponibilidad_allowsReceptionistOfDoctor() {
+        Usuario recep = new Usuario();
+        recep.setId(101L);
+        recep.setEmail("recep.crespo@esu.test");
+        recep.setRol("RECEPCIONISTA");
+        recep.setCentroSaludId(1L);
+
+        Profesional doctor = new Profesional();
+        doctor.setId(301L);
+        doctor.setCentrosSaludIds(new java.util.HashSet<>(java.util.Set.of(1L)));
+
+        DisponibilidadProfesional disp = new DisponibilidadProfesional();
+        disp.setId(501L);
+        disp.setProfesional(doctor);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recep));
+        when(disponibilidadRepositorio.findById(501L)).thenReturn(Optional.of(disp));
+        when(profesionalRepositorio.findById(301L)).thenReturn(Optional.of(doctor));
+
+        assertTrue(evaluator.canAccessDisponibilidad(501L));
+    }
+
+    @Test
+    void canAccessBloqueo_allowsReceptionistOfDoctor() {
+        Usuario recep = new Usuario();
+        recep.setId(101L);
+        recep.setEmail("recep.crespo@esu.test");
+        recep.setRol("RECEPCIONISTA");
+        recep.setCentroSaludId(1L);
+
+        Profesional doctor = new Profesional();
+        doctor.setId(301L);
+        doctor.setCentrosSaludIds(new java.util.HashSet<>(java.util.Set.of(1L)));
+
+        BloqueoAgenda bloqueo = new BloqueoAgenda();
+        bloqueo.setId(601L);
+        bloqueo.setProfesional(doctor);
+
+        authenticate("recep.crespo@esu.test", "RECEPCIONISTA");
+        when(usuarioRepositorio.findByEmail("recep.crespo@esu.test")).thenReturn(Optional.of(recep));
+        when(bloqueoAgendaRepositorio.findById(601L)).thenReturn(Optional.of(bloqueo));
+        when(profesionalRepositorio.findById(301L)).thenReturn(Optional.of(doctor));
+
+        assertTrue(evaluator.canAccessBloqueo(601L));
     }
 }
