@@ -76,6 +76,11 @@ public class ProfesionalServicio implements IProfesionalServicio {
             }
             Usuario usuario = new Usuario();
             usuario.setEmail(emailNormalizado);
+            usuario.setNombre(profesional.getNombre());
+            usuario.setApellido(profesional.getApellido());
+            if (profesionalDto.getCentrosSaludIds() != null && !profesionalDto.getCentrosSaludIds().isEmpty()) {
+                usuario.setCentroSaludId(profesionalDto.getCentrosSaludIds().iterator().next());
+            }
             String rawPass = (profesionalDto.getPassword() != null && !profesionalDto.getPassword().isBlank())
                     ? profesionalDto.getPassword()
                     : matriculaLimpia;
@@ -118,6 +123,10 @@ public class ProfesionalServicio implements IProfesionalServicio {
         }
         if (profesionalDto.getCentrosSaludIds() != null && !profesionalDto.getCentrosSaludIds().isEmpty()) {
             profesional.setCentrosSaludIds(new HashSet<>(profesionalDto.getCentrosSaludIds()));
+        }
+        if (profesional.getUsuario() != null) {
+            profesional.getUsuario().setNombre(profesional.getNombre());
+            profesional.getUsuario().setApellido(profesional.getApellido());
         }
 
         Profesional guardado = profesionalRepositorio.save(profesional);

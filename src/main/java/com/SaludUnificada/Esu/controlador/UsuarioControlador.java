@@ -2,9 +2,11 @@ package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.request.PreferenciasUsuarioDtoRequest;
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
+import com.SaludUnificada.Esu.seguridad.PermisoGobernanzaPolicy;
 import com.SaludUnificada.Esu.servicio.CarnetYFamiliarServicio;
 import com.SaludUnificada.Esu.servicio.IUsuarioServicio;
 import jakarta.validation.Valid;
@@ -54,14 +56,13 @@ public class UsuarioControlador {
     public ResponseEntity<UsuarioDtoResponse> crearUsuario(@Valid @RequestBody UsuarioDtoRequest usuarioDto) {
         if (!esAdministrador()) {
             Long miCentroId = securityPolicy.getAuthenticatedCentroSaludIdOrThrow();
-            usuarioDto.setRol(normalizarRolPermitidoCentro(usuarioDto.getRol()));
+            String rolNormalizado = normalizarRolPermitidoCentro(usuarioDto.getRol());
+            usuarioDto.setRol(rolNormalizado);
             usuarioDto.setCentroSaludId(miCentroId);
             securityPolicy.getAuthenticatedCentroSaludNombre().ifPresent(usuarioDto::setCentroSaludNombre);
-            if (usuarioDto.getPermisos() != null) {
-                usuarioDto.setPermisos(usuarioDto.getPermisos().stream()
-                        .filter(p -> !"PACIENTES_FUSIONAR".equalsIgnoreCase(p))
-                        .toList());
-            }
+            usuarioDto.setPermisos(
+                    PermisoGobernanzaPolicy.resolveCenterCreatePermissions(rolNormalizado, usuarioDto.getPermisos())
+            );
         }
         UsuarioDtoResponse nuevoUsuario = usuarioServicio.crearUsuario(usuarioDto);
         return new ResponseEntity<>(nuevoUsuario, HttpStatus.CREATED);
@@ -164,6 +165,14 @@ public class UsuarioControlador {
         }
         String centroNombre = body != null && body.get("centroSaludNombre") instanceof String cn ? cn : null;
         if (!esAdministrador()) {
+            securityPolicy.getAuthenticatedUserId().ifPresent(myId -> {
+                if (myId.equals(id)) {
+                    throw new ReglaNegocioException(
+                            "No podés modificar tu propio rol ni sede desde esta sesión.",
+                            HttpStatus.FORBIDDEN
+                    );
+                }
+            });
             if (rol != null && !rol.isBlank()) {
                 rol = normalizarRolPermitidoCentro(rol);
             }
@@ -173,8 +182,16 @@ public class UsuarioControlador {
         return ResponseEntity.ok(usuarioServicio.actualizarRolYCentro(id, rol, centroId, centroNombre));
     }
 
+    @PutMapping("/{id}/perfil-operativo")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfUser(#id)")
+    public ResponseEntity<UsuarioDtoResponse> actualizarPerfilOperativo(
+            @PathVariable Long id,
+            @Valid @RequestBody UsuarioPerfilOperativoDtoRequest request) {
+        return ResponseEntity.ok(usuarioServicio.actualizarPerfilOperativo(id, request));
+    }
+
     @PostMapping("/{id}/revocar-sesiones")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfUser(#id)")
     public ResponseEntity<Void> revocarSesionesUsuario(@PathVariable Long id) {
         usuarioServicio.revocarSesiones(id);
         return ResponseEntity.noContent().build();

@@ -2,9 +2,12 @@ package com.SaludUnificada.Esu.controlador;
 
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Permiso;
+import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.repositorio.PermisoRepositorio;
 import com.SaludUnificada.Esu.seguridad.OwnershipSecurityEvaluator;
+import com.SaludUnificada.Esu.seguridad.PermisoGobernanzaPolicy;
 import com.SaludUnificada.Esu.servicio.IUsuarioServicio;
+import org.springframework.http.HttpStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -48,10 +51,18 @@ public class PermisoControlador {
             @PathVariable Long usuarioId,
             @RequestBody List<String> codigosPermisos) {
         List<String> filtrados = codigosPermisos;
-        if (securityPolicy != null && !securityPolicy.isCurrentUserAdmin() && codigosPermisos != null) {
-            filtrados = codigosPermisos.stream()
-                    .filter(c -> !"PACIENTES_FUSIONAR".equalsIgnoreCase(c))
-                    .toList();
+        if (securityPolicy != null && !securityPolicy.isCurrentUserAdmin()) {
+            securityPolicy.getAuthenticatedUserId().ifPresent(myId -> {
+                if (myId.equals(usuarioId)) {
+                    throw new ReglaNegocioException(
+                            "No podés modificar tus propios permisos desde esta sesión.",
+                            HttpStatus.FORBIDDEN
+                    );
+                }
+            });
+            if (codigosPermisos != null) {
+                filtrados = PermisoGobernanzaPolicy.filterCenterPermissions(codigosPermisos);
+            }
         }
         return ResponseEntity.ok(usuarioServicio.actualizarPermisosUsuario(usuarioId, filtrados));
     }

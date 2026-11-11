@@ -31,6 +31,15 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(length = 100)
+    private String nombre;
+
+    @Column(length = 100)
+    private String apellido;
+
+    @Column(length = 20)
+    private String dni;
+
     @Column(nullable = false)
     private String password;
 

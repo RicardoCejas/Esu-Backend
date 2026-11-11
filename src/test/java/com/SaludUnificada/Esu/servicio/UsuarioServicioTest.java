@@ -1,7 +1,10 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
+import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Permiso;
 import com.SaludUnificada.Esu.entidad.Usuario;
@@ -231,5 +234,43 @@ class UsuarioServicioTest {
                         && codigos.contains("REPORTES_VER")
                         && codigos.contains("USUARIOS_ADMINISTRAR")
         ));
+    }
+
+    @Test
+    void testActualizarPerfilOperativo_ActualizaUsuarioYSincronizaProfesionalVinculado() {
+        ProfesionalRepositorio profesionalRepo = mock(ProfesionalRepositorio.class);
+        ReflectionTestUtils.setField(usuarioServicio, "profesionalRepositorio", profesionalRepo);
+
+        Usuario entidad = new Usuario();
+        entidad.setId(44L);
+        entidad.setEmail("medico.centro@esu.gob.ar");
+        entidad.setRol("PROFESIONAL");
+
+        Profesional prof = new Profesional();
+        prof.setId(9L);
+        prof.setUsuario(entidad);
+
+        UsuarioPerfilOperativoDtoRequest perfilReq = new UsuarioPerfilOperativoDtoRequest("  Ana  ", "  Morales  ", " 33444555 ");
+
+        when(usuarioRepositorio.findById(44L)).thenReturn(Optional.of(entidad));
+        when(profesionalRepo.findByUsuarioEmail("medico.centro@esu.gob.ar")).thenReturn(Optional.of(prof));
+        when(usuarioRepositorio.save(entidad)).thenReturn(entidad);
+        UsuarioDtoResponse esperado = new UsuarioDtoResponse();
+        esperado.setId(44L);
+        esperado.setNombre("Ana");
+        esperado.setApellido("Morales");
+        esperado.setDni("33444555");
+        when(usuarioMapper.paraDto(entidad)).thenReturn(esperado);
+
+        UsuarioDtoResponse res = usuarioServicio.actualizarPerfilOperativo(44L, perfilReq);
+
+        assertEquals("Ana", entidad.getNombre());
+        assertEquals("Morales", entidad.getApellido());
+        assertEquals("33444555", entidad.getDni());
+        assertEquals("Ana", prof.getNombre());
+        assertEquals("Morales", prof.getApellido());
+        assertEquals("33444555", res.getDni());
+        verify(profesionalRepo).save(prof);
+        verify(usuarioRepositorio).save(entidad);
     }
 }

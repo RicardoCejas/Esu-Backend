@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Usuario;
 
@@ -21,4 +22,5 @@ public interface IUsuarioServicio {
     List<String> obtenerPermisosUsuario(Long id);
     UsuarioDtoResponse actualizarPermisosUsuario(Long id, List<String> codigosPermisos);
     UsuarioDtoResponse actualizarRolYCentro(Long id, String nuevoRol, Long nuevoCentroSaludId, String nuevoCentroSaludNombre);
+    UsuarioDtoResponse actualizarPerfilOperativo(Long id, UsuarioPerfilOperativoDtoRequest perfilDto);
 }

@@ -1,7 +1,9 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
+import com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.error.NoEncontradoExcepcion;
 import com.SaludUnificada.Esu.mapper.UsuarioMapper;
@@ -57,6 +59,9 @@ public class UsuarioServicio implements IUsuarioServicio {
 
     @Autowired(required = false)
     private PermisoRepositorio permisoRepositorio;
+
+    @Autowired(required = false)
+    private ProfesionalRepositorio profesionalRepositorio;
 
     @Override
     public UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuarioDto) {
@@ -210,6 +215,7 @@ public class UsuarioServicio implements IUsuarioServicio {
     }
 
     @Override
+    @Transactional
     public UsuarioDtoResponse actualizarRolYCentro(Long id, String nuevoRol, Long nuevoCentroSaludId, String nuevoCentroSaludNombre) {
         Usuario usuario = obtenerEntidadUsuarioPorId(id);
         if (nuevoRol != null && !nuevoRol.isBlank()) {
@@ -222,6 +228,30 @@ public class UsuarioServicio implements IUsuarioServicio {
         usuario.revocarSesiones();
         Usuario actualizado = usuarioRepositorio.save(usuario);
         return usuarioMapper.paraDto(actualizado);
+    }
+
+    @Override
+    @Transactional
+    public UsuarioDtoResponse actualizarPerfilOperativo(Long id, UsuarioPerfilOperativoDtoRequest perfilDto) {
+        Usuario usuario = obtenerEntidadUsuarioPorId(id);
+        String nombreTrim = perfilDto.getNombre().trim();
+        String apellidoTrim = perfilDto.getApellido().trim();
+        String dniRaw = perfilDto.getDni() != null ? perfilDto.getDni().trim() : "";
+
+        usuario.setNombre(nombreTrim);
+        usuario.setApellido(apellidoTrim);
+        usuario.setDni(dniRaw.isEmpty() ? null : dniRaw);
+
+        if (profesionalRepositorio != null && usuario.getEmail() != null) {
+            profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).ifPresent(profesional -> {
+                profesional.setNombre(nombreTrim);
+                profesional.setApellido(apellidoTrim);
+                profesionalRepositorio.save(profesional);
+            });
+        }
+
+        Usuario guardado = usuarioRepositorio.save(usuario);
+        return usuarioMapper.paraDto(guardado);
     }
 
     private Set<Permiso> obtenerPermisosDefectoPorRol(String rol) {

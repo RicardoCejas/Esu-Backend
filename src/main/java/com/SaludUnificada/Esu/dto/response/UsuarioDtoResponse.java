@@ -15,6 +15,9 @@ public class UsuarioDtoResponse {
     private Long id;
     private String username;
     private String email;
+    private String nombre;
+    private String apellido;
+    private String dni;
     private String rol;
     private Boolean activo;
     private LocalDate fechaDeAlta;
