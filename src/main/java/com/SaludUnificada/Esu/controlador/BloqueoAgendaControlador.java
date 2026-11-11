@@ -49,6 +49,18 @@ public class BloqueoAgendaControlador {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    @PostMapping("/api/bloqueos-agenda")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#request.profesionalId))")
+    public ResponseEntity<BloqueoAgendaDtoResponse> crearBloqueoAgenda(
+            @Valid @RequestBody BloqueoAgendaDtoRequest request) {
+        Long profesionalId = request.getProfesionalId();
+        if (profesionalId == null) {
+            throw new IllegalArgumentException("El ID del profesional es obligatorio.");
+        }
+        BloqueoAgendaDtoResponse response = bloqueoAgendaServicio.registrarBloqueo(profesionalId, request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
     @Operation(
             summary = "Listar bloqueos de agenda de un profesional",
             description = "Devuelve el historial de indisponibilidades y licencias programadas para el medico solicitado."
@@ -57,7 +69,7 @@ public class BloqueoAgendaControlador {
             @ApiResponse(responseCode = "200", description = "Listado de bloqueos obtenido"),
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado")
     })
-    @GetMapping("/api/profesionales/{id}/bloqueos")
+    @GetMapping({"/api/profesionales/{id}/bloqueos", "/api/bloqueos-agenda/profesional/{id}"})
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<BloqueoAgendaDtoResponse>> listarBloqueosPorProfesional(
             @Parameter(description = "ID del profesional", example = "1")
@@ -70,10 +82,10 @@ public class BloqueoAgendaControlador {
             summary = "Obtener detalle de un bloqueo especifico",
             description = "Devuelve los datos detallados de un bloqueo de agenda por ID."
     )
-    @GetMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
+    @GetMapping({"/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}", "/api/bloqueos-agenda/{bloqueoId}"})
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BloqueoAgendaDtoResponse> obtenerBloqueoPorId(
-            @PathVariable Long profesionalId,
+            @PathVariable(required = false) Long profesionalId,
             @PathVariable Long bloqueoId) {
         return ResponseEntity.ok(bloqueoAgendaServicio.obtenerBloqueoPorId(bloqueoId));
     }
@@ -81,6 +93,13 @@ public class BloqueoAgendaControlador {
     @DeleteMapping("/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}")
     @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId))")
     public ResponseEntity<Void> eliminarBloqueo(@PathVariable Long profesionalId, @PathVariable Long bloqueoId) {
+        bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/api/bloqueos-agenda/{bloqueoId}")
+    @PreAuthorize("hasRole('ADMIN') or hasAnyRole('MEDICO', 'PROFESIONAL')")
+    public ResponseEntity<Void> eliminarBloqueoDirecto(@PathVariable Long bloqueoId) {
         bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
         return ResponseEntity.noContent().build();
     }

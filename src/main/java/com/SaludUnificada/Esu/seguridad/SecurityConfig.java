@@ -148,6 +148,7 @@ public class SecurityConfig {
 
                         auth.requestMatchers(HttpMethod.GET, "/api/disponibilidades/**").permitAll();
                         auth.requestMatchers("/api/disponibilidades/**").hasAnyRole("MEDICO", "PROFESIONAL", "ADMIN");
+                        auth.requestMatchers("/api/bloqueos-agenda/**").hasAnyRole("ADMIN", "PROFESIONAL", "MEDICO", "RECEPCIONISTA");
 
                         auth.requestMatchers(HttpMethod.PATCH, "/api/usuarios/preferencias").authenticated();
                         auth.requestMatchers("/api/usuarios/**").hasRole("ADMIN");
@@ -158,8 +159,8 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/medicos/asignar-consultorio").hasAnyRole("PROFESIONAL", "ADMIN");
                         auth.requestMatchers(HttpMethod.GET, "/api/medicos/**").permitAll();
 
-                        auth.requestMatchers(HttpMethod.POST, "/api/pacientes/recepcion").hasAnyRole("ADMIN", "RECEPCIONISTA");
-                        auth.requestMatchers(HttpMethod.GET, "/api/pacientes", "/api/pacientes/obtener/todos", "/api/pacientes/paginado").hasAnyRole("ADMIN", "RECEPCIONISTA");
+                        auth.requestMatchers(HttpMethod.POST, "/api/pacientes", "/api/pacientes/crear", "/api/pacientes/recepcion").hasAnyRole("ADMIN", "RECEPCIONISTA", "MEDICO", "PROFESIONAL");
+                        auth.requestMatchers(HttpMethod.GET, "/api/pacientes", "/api/pacientes/obtener/todos", "/api/pacientes/paginado").hasAnyRole("ADMIN", "RECEPCIONISTA", "MEDICO", "PROFESIONAL");
                         auth.requestMatchers(HttpMethod.DELETE, "/api/pacientes/**").hasRole("ADMIN");
                         auth.requestMatchers("/api/pacientes/fusionar").hasRole("ADMIN");
                         auth.requestMatchers("/api/pacientes/**").hasAnyRole("PACIENTE", "PROFESIONAL", "MEDICO", "ADMIN", "RECEPCIONISTA");

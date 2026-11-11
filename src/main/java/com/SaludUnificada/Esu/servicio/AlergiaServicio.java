@@ -111,13 +111,18 @@ public class AlergiaServicio {
 
         for (AlergiaPaciente alergia : alergiasActivas) {
             String alergenoNormalizado = normalizarTexto(alergia.getSustanciaAlergeno());
+            if (alergenoNormalizado == null || alergenoNormalizado.isBlank()) {
+                continue;
+            }
 
             for (MedicamentoItemDto med : medicamentos) {
                 String drogaNormalizada = normalizarTexto(med.getDroga());
                 String nombreComercialNormalizado = normalizarTexto(med.getNombreComercial());
 
-                boolean coincideDroga = drogaNormalizada != null && (drogaNormalizada.contains(alergenoNormalizado) || alergenoNormalizado.contains(drogaNormalizada));
-                boolean coincideNombre = nombreComercialNormalizado != null && (nombreComercialNormalizado.contains(alergenoNormalizado) || alergenoNormalizado.contains(nombreComercialNormalizado));
+                boolean coincideDroga = drogaNormalizada != null && !drogaNormalizada.isBlank()
+                        && (drogaNormalizada.contains(alergenoNormalizado) || alergenoNormalizado.contains(drogaNormalizada));
+                boolean coincideNombre = nombreComercialNormalizado != null && !nombreComercialNormalizado.isBlank()
+                        && (nombreComercialNormalizado.contains(alergenoNormalizado) || alergenoNormalizado.contains(nombreComercialNormalizado));
 
                 if (coincideDroga || coincideNombre) {
                     if ("GRAVE".equalsIgnoreCase(alergia.getSeveridad())) {
@@ -134,9 +139,10 @@ public class AlergiaServicio {
     }
 
     private String normalizarTexto(String input) {
-        if (input == null) return null;
+        if (input == null || input.isBlank()) return null;
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
-        return normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase(Locale.ROOT).trim();
+        String cleaned = normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase(Locale.ROOT).trim();
+        return cleaned.isBlank() ? null : cleaned;
     }
 
     private AlergiaDtoResponse mapearADto(AlergiaPaciente entidad) {

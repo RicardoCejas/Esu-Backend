@@ -116,6 +116,9 @@ public class AuthControlador {
     }
 
     @Autowired(required = false)
+    private com.SaludUnificada.Esu.repositorio.ProfesionalRepositorio profesionalRepositorio;
+
+    @Autowired(required = false)
     private com.SaludUnificada.Esu.seguridad.TwoFactorRateLimiter twoFactorRateLimiter;
 
     @Autowired(required = false)
@@ -667,7 +670,7 @@ public class AuthControlador {
 
     private JwtAuthDtoResponse construirRespuesta(Usuario usuario, String token) {
         Paciente paciente = pacienteDe(usuario);
-        Profesional profesional = usuario.getProfesional();
+        Profesional profesional = profesionalDe(usuario);
 
         return JwtAuthDtoResponse.builder()
                 .accessToken(token)
@@ -692,6 +695,14 @@ public class AuthControlador {
             paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
         }
         return paciente;
+    }
+
+    private Profesional profesionalDe(Usuario usuario) {
+        Profesional profesional = usuario.getProfesional();
+        if (profesional == null && usuario.getEmail() != null && profesionalRepositorio != null) {
+            profesional = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
+        return profesional;
     }
 
     private Usuario usuarioAutenticado(Principal principal) {
@@ -937,6 +948,9 @@ public class AuthControlador {
             paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
         }
         Profesional profesional = usuario.getProfesional();
+        if (profesional == null && profesionalRepositorio != null && usuario.getEmail() != null) {
+            profesional = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        }
 
         Map<String, Object> response = new java.util.LinkedHashMap<>();
         response.put("id", usuario.getId());

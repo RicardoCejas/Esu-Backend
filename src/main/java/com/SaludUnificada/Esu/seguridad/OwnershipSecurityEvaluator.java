@@ -119,7 +119,10 @@ public class OwnershipSecurityEvaluator {
             boolean hasPrescription = recetaRepositorio.existsByProfesionalIdAndPacienteId(prof.getId(), pacienteId);
             if (hasPrescription) return true;
 
-            // 3. Acceso de emergencia auditado activo en las últimas 24 horas
+            // 3. Demanda espontánea / atención clínica asistencial: profesional habilitado y paciente en padrón
+            if (pacienteRepositorio.existsById(pacienteId)) return true;
+
+            // 4. Acceso de emergencia auditado activo en las últimas 24 horas
             LocalDateTime ventanaEmergencia = ahora().minusHours(24);
             return logAccesoHcRepositorio.existsByUsuarioIdAndPacienteIdAndAccionAndFechaHoraGreaterThanEqual(
                     usuario.getId(), pacienteId, "ACCESO_EMERGENCIA", ventanaEmergencia
