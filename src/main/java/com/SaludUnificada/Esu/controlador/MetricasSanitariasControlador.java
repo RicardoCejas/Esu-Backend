@@ -61,7 +61,7 @@ public class MetricasSanitariasControlador {
     }
 
     @GetMapping("/ausentismo/profesional/{profesionalId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RECEPCIONISTA') and @securityPolicy.isReceptionistOfDoctor(#profesionalId))")
     public ResponseEntity<MetricasAusentismoDtoResponse> obtenerMetricasAusentismoPorProfesional(
             @PathVariable Long profesionalId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
@@ -75,10 +75,14 @@ public class MetricasSanitariasControlador {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             @RequestParam(required = false) Long centroId,
-            @RequestParam(required = false) String especialidad
+            @RequestParam(required = false) String especialidad,
+            @RequestParam(required = false) Long profesionalId,
+            @RequestParam(required = false) String consultorio
     ) {
         return ResponseEntity.ok(
-                metricasServicio.obtenerDashboardMetricas(desde, hasta, resolverCentroEfectivo(centroId), especialidad)
+                metricasServicio.obtenerDashboardMetricas(
+                        desde, hasta, resolverCentroEfectivo(centroId), especialidad, profesionalId, consultorio
+                )
         );
     }
 }

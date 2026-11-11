@@ -96,4 +96,51 @@ class ReporteTurnosServicioTest {
         assertTrue(csvContent.contains("Juan Perez"));
         assertTrue(csvContent.contains("BONO-4455"));
     }
+
+    @Test
+    void exportarTurnosPdfGeneraBytesDeArchivoValido() {
+        Turno turno = crearTurnoDummy();
+        when(turnoRepositorio.findReporteTurnosEntre(any(), any())).thenReturn(List.of(turno));
+
+        byte[] pdfBytes = reporteTurnosServicio.exportarTurnosPdf(null, null);
+
+        assertNotNull(pdfBytes);
+        assertTrue(pdfBytes.length > 0);
+        // PDF magic bytes: %PDF- (0x25, 0x50, 0x44, 0x46)
+        assertEquals((byte) 0x25, pdfBytes[0]);
+        assertEquals((byte) 0x50, pdfBytes[1]);
+        assertEquals((byte) 0x44, pdfBytes[2]);
+        assertEquals((byte) 0x46, pdfBytes[3]);
+    }
+
+    @Test
+    void exportarTurnosPdfConCentroIdFiltraCorrectamente() {
+        Turno turno = crearTurnoDummy();
+        turno.setCentroSaludId(5L);
+        when(turnoRepositorio.findReporteTurnosEntre(any(), any(), org.mockito.ArgumentMatchers.eq(5L))).thenReturn(List.of(turno));
+
+        byte[] pdfBytes = reporteTurnosServicio.exportarTurnosPdf(null, null, 5L);
+
+        assertNotNull(pdfBytes);
+        assertTrue(pdfBytes.length > 0);
+        assertEquals((byte) 0x25, pdfBytes[0]);
+        assertEquals((byte) 0x50, pdfBytes[1]);
+        assertEquals((byte) 0x44, pdfBytes[2]);
+        assertEquals((byte) 0x46, pdfBytes[3]);
+    }
+
+    @Test
+    void exportarTurnosExcelConCentroIdFiltraCorrectamente() {
+        Turno turno = crearTurnoDummy();
+        turno.setCentroSaludId(5L);
+        when(turnoRepositorio.findReporteTurnosEntre(any(), any(), org.mockito.ArgumentMatchers.eq(5L))).thenReturn(List.of(turno));
+
+        byte[] excelBytes = reporteTurnosServicio.exportarTurnosExcel(null, null, 5L);
+
+        assertNotNull(excelBytes);
+        assertTrue(excelBytes.length > 0);
+        assertEquals((byte) 0x50, excelBytes[0]);
+        assertEquals((byte) 0x4B, excelBytes[1]);
+    }
 }
+

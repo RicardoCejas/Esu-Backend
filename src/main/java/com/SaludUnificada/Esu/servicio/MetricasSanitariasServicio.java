@@ -190,6 +190,14 @@ public class MetricasSanitariasServicio {
 
     @Transactional(readOnly = true)
     public DashboardMetricasDtoResponse obtenerDashboardMetricas(LocalDate desde, LocalDate hasta, Long centroId, String especialidad) {
+        return obtenerDashboardMetricas(desde, hasta, centroId, especialidad, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardMetricasDtoResponse obtenerDashboardMetricas(
+            LocalDate desde, LocalDate hasta, Long centroId, String especialidad,
+            Long profesionalId, String consultorio
+    ) {
         LocalDate fDesde = (desde != null) ? desde : LocalDate.now().minusDays(30);
         LocalDate fHasta = (hasta != null) ? hasta : LocalDate.now();
 
@@ -201,7 +209,21 @@ public class MetricasSanitariasServicio {
         LocalDateTime fin = fHasta.atTime(LocalTime.MAX);
 
         String espFiltro = (especialidad != null && !especialidad.isBlank() && !"TODOS".equalsIgnoreCase(especialidad)) ? especialidad.trim() : null;
-        List<Turno> turnos = turnoRepositorio.findTurnosParaMetricas(inicio, fin, centroId, espFiltro);
+        String consFiltro = (consultorio != null && !consultorio.isBlank() && !"TODOS".equalsIgnoreCase(consultorio)) ? consultorio.trim() : null;
+
+        List<Turno> turnos;
+        if (profesionalId != null || consFiltro != null) {
+            turnos = turnoRepositorio.findTurnosParaMetricasConFiltros(inicio, fin, centroId, espFiltro, profesionalId, consFiltro);
+        } else {
+            turnos = turnoRepositorio.findTurnosParaMetricas(inicio, fin, centroId, espFiltro);
+        }
+
+        String profesionalNombre = null;
+        if (profesionalId != null && profesionalRepositorio != null) {
+            profesionalNombre = profesionalRepositorio.findById(profesionalId)
+                    .map(p -> ((p.getNombre() != null ? p.getNombre() : "") + " " + (p.getApellido() != null ? p.getApellido() : "")).trim())
+                    .orElse(null);
+        }
 
         long total = turnos.size();
         long atendidos = 0;
@@ -272,6 +294,21 @@ public class MetricasSanitariasServicio {
                 if (isAu) mesArr[2]++;
             }
         }
+
+        long sumaMinutos = 0;
+        long turnosConDuracion = 0;
+        for (Turno t : turnos) {
+            if (t.getFechaCheckIn() != null && t.getFechaAtencion() != null) {
+                long diff = java.time.Duration.between(t.getFechaCheckIn(), t.getFechaAtencion()).toMinutes();
+                if (diff >= 0 && diff <= 300) {
+                    sumaMinutos += diff;
+                    turnosConDuracion++;
+                }
+            }
+        }
+        Double tiempoPromedio = (turnosConDuracion > 0)
+                ? Math.round(((double) sumaMinutos / turnosConDuracion) * 10.0) / 10.0
+                : null;
 
         long concretados = atendidos + ausentes;
         double tasaAsistencia = concretados > 0 ? Math.round(((double) atendidos / concretados) * 1000.0) / 10.0 : 0.0;
@@ -368,7 +405,10 @@ public class MetricasSanitariasServicio {
                 .tasaAsistencia(tasaAsistencia)
                 .tasaAusentismo(tasaAusentismo)
                 .tasaCancelacion(tasaCancelacion)
-                .tiempoPromedioConsultaMinutos(20.0)
+                .profesionalId(profesionalId)
+                .profesionalNombre(profesionalNombre)
+                .consultorio(consFiltro)
+                .tiempoPromedioConsultaMinutos(tiempoPromedio)
                 .especialidadMasDemandada(topEsp)
                 .totalEspecialidadMasDemandada(topEspCount)
                 .demandaSemanal(demandaSemanalDto)

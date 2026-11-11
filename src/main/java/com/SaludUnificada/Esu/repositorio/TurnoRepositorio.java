@@ -67,6 +67,18 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
     @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH p.usuario LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.usuario WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta ORDER BY t.fechaHora ASC")
     List<Turno> findReporteTurnosEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
 
+    @Query("SELECT t FROM Turno t LEFT JOIN FETCH t.paciente p LEFT JOIN FETCH p.usuario LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.usuario " +
+           "WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND (:centroId IS NULL OR t.centroSaludId = :centroId) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findReporteTurnosEntre(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("centroId") Long centroId);
+
+    @Query("SELECT DISTINCT t.paciente.id FROM Turno t WHERE t.centroSaludId = :centroId AND t.paciente IS NOT NULL")
+    List<Long> findDistinctPacienteIdsByCentroSaludId(@Param("centroId") Long centroId);
+
     List<Turno> findByPacienteIdAndFechaHoraGreaterThanEqualOrderByFechaHoraAsc(Long pacienteId, LocalDateTime desde);
 
     boolean existsByProfesionalIdAndPacienteId(Long profesionalId, Long pacienteId);
@@ -136,5 +148,20 @@ public interface TurnoRepositorio extends JpaRepository<Turno, Long> {
             @Param("hasta") LocalDateTime hasta,
             @Param("centroId") Long centroId,
             @Param("especialidad") String especialidad);
+
+    @Query("SELECT DISTINCT t FROM Turno t LEFT JOIN FETCH t.profesional prof LEFT JOIN FETCH prof.especialidades esp " +
+           "WHERE t.fechaHora >= :desde AND t.fechaHora <= :hasta " +
+           "AND (:centroId IS NULL OR t.centroSaludId = :centroId) " +
+           "AND (:profesionalId IS NULL OR prof.id = :profesionalId) " +
+           "AND (:consultorio IS NULL OR LOWER(t.consultorioNumero) LIKE LOWER(CONCAT('%', :consultorio, '%'))) " +
+           "AND (:especialidad IS NULL OR LOWER(esp.nombre) LIKE LOWER(CONCAT('%', :especialidad, '%'))) " +
+           "ORDER BY t.fechaHora ASC")
+    List<Turno> findTurnosParaMetricasConFiltros(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            @Param("centroId") Long centroId,
+            @Param("especialidad") String especialidad,
+            @Param("profesionalId") Long profesionalId,
+            @Param("consultorio") String consultorio);
 
 }
