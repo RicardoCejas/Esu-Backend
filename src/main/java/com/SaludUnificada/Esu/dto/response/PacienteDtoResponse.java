@@ -24,6 +24,7 @@ public class PacienteDtoResponse {
     private LocalDate fechaNacimiento;
     private Long centroSaludReferenciaId;
     private String centroSaludReferenciaNombre;
+    private Boolean activo = true;
 
     public PacienteDtoResponse(Long id, String nombre, String apellido, String dni, String telefono, String email,
                                Long centroSaludReferenciaId, String centroSaludReferenciaNombre) {
@@ -35,5 +36,6 @@ public class PacienteDtoResponse {
         this.email = email;
         this.centroSaludReferenciaId = centroSaludReferenciaId;
         this.centroSaludReferenciaNombre = centroSaludReferenciaNombre;
+        this.activo = true;
     }
 }
