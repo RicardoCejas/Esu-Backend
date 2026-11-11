@@ -59,17 +59,6 @@ public class BloqueoAgendaControlador {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    @PostMapping("/api/bloqueos-agenda")
-    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#request.profesionalId))")
-    public ResponseEntity<BloqueoAgendaDtoResponse> crearBloqueoAgenda(
-            @Valid @RequestBody BloqueoAgendaDtoRequest request) {
-        Long profesionalId = request.getProfesionalId();
-        if (profesionalId == null) {
-            throw new IllegalArgumentException("El ID del profesional es obligatorio.");
-        }
-        BloqueoAgendaDtoResponse response = bloqueoAgendaServicio.registrarBloqueo(profesionalId, request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
-    }
 
     @Operation(
             summary = "Listar bloqueos de agenda de un profesional",
