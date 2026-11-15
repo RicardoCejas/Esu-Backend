@@ -20,6 +20,7 @@ public interface ITurnoServicio {
     TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request);
     TurnoDtoResponse crearTurnoMostrador(TurnoMostradorDtoRequest request, String emailRecepcionista);
     List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
+    List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha, Long centroSaludId);
     TurnoDtoResponse obtenerTurnoPorId(Long id);
     List<TurnoDtoResponse> listarTodos();
     Page<TurnoDtoResponse> listarPaginados(Pageable pageable);

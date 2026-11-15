@@ -380,6 +380,12 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     private Profesional crearOActualizarProfesional(String nombre, String apellido, String matricula, String email, String password, Set<Especialidad> especialidades, Set<Long> centrosIds) {
         try {
             Usuario u = crearUsuarioSiNoExiste(email, password, "PROFESIONAL");
+            u.setNombre(nombre);
+            u.setApellido(apellido);
+            if (u.getCentroSaludId() == null && centrosIds != null && !centrosIds.isEmpty()) {
+                u.setCentroSaludId(centrosIds.iterator().next());
+            }
+            u = usuarioRepositorio.save(u);
             Optional<Profesional> opt = profesionalRepositorio.findByMatricula(matricula)
                     .or(() -> profesionalRepositorio.findByUsuarioEmail(email));
 

@@ -101,12 +101,20 @@ public class TurnoControlador {
         return new ResponseEntity<>(nuevoTurno, HttpStatus.CREATED);
     }
 
+    public ResponseEntity<List<LocalDateTime>> obtenerDisponibilidad(Long profesionalId, LocalDate fecha) {
+        return obtenerDisponibilidad(profesionalId, fecha, null);
+    }
+
     @GetMapping("/disponibles")
     @Operation(summary = "Consultar horarios disponibles reales para un profesional y fecha")
     public ResponseEntity<List<LocalDateTime>> obtenerDisponibilidad(
             @RequestParam Long profesionalId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        return ResponseEntity.ok(turnoServicio.obtenerHorariosDisponibles(profesionalId, fecha));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            @RequestParam(required = false) Long centroSaludId) {
+        List<LocalDateTime> slots = (centroSaludId != null)
+                ? turnoServicio.obtenerHorariosDisponibles(profesionalId, fecha, centroSaludId)
+                : turnoServicio.obtenerHorariosDisponibles(profesionalId, fecha);
+        return ResponseEntity.ok(slots);
     }
 
     @GetMapping("/recordatorios")
