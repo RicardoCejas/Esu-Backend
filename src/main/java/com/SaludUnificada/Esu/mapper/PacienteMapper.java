@@ -68,10 +68,14 @@ public class PacienteMapper {
         dto.setFechaNacimiento(paciente.getFechaNacimiento());
         dto.setCentroSaludReferenciaId(paciente.getCentroSaludReferenciaId());
         dto.setCentroSaludReferenciaNombre(paciente.getCentroSaludReferenciaNombre());
-        if (paciente.getUsuario() != null) {
-            dto.setEmail(paciente.getUsuario().getEmail());
-            dto.setActivo(paciente.getUsuario().getEstadoActivo() != null ? paciente.getUsuario().getEstadoActivo() : true);
-        } else {
+        try {
+            if (paciente.getUsuario() != null) {
+                dto.setEmail(paciente.getUsuario().getEmail());
+                dto.setActivo(paciente.getUsuario().getEstadoActivo() != null ? paciente.getUsuario().getEstadoActivo() : true);
+            } else {
+                dto.setActivo(true);
+            }
+        } catch (Exception e) {
             dto.setActivo(true);
         }
         return dto;

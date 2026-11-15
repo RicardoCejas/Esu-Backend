@@ -25,6 +25,9 @@ public class JwtAuthDtoResponse {
     private String nombre;
     private String apellido;
     private String dni;
+    private String matricula;
+    private String especialidad;
+    private String telefono;
     private Boolean emailVerificado;
     private Boolean twoFactorEnabled;
     private Boolean requires2FA;

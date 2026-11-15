@@ -53,6 +53,6 @@ public class Paciente {
     private String centroSaludReferenciaNombre;
 
     @OneToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "fk_usuario", referencedColumnName = "id", nullable = false, unique = true)
+    @JoinColumn(name = "fk_usuario", referencedColumnName = "id", nullable = true, unique = true)
     private Usuario usuario;
 }

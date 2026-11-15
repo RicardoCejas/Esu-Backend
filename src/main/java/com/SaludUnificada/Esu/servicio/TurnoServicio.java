@@ -871,6 +871,11 @@ public class TurnoServicio implements ITurnoServicio {
     @Override
     @Transactional(readOnly = true)
     public List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha) {
+        return obtenerHorariosDisponibles(profesionalId, fecha, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha, Long centroSaludId) {
         if (!profesionalRepositorio.existsById(profesionalId)) {
             throw new NoEncontradoExcepcion("Profesional no encontrado con ID: " + profesionalId);
         }
@@ -903,6 +908,11 @@ public class TurnoServicio implements ITurnoServicio {
         List<DisponibilidadProfesional> disponibilidades = (disponibilidadRepositorio != null)
                 ? disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesionalId, fecha.getDayOfWeek())
                 : List.of();
+        if (centroSaludId != null && !disponibilidades.isEmpty()) {
+            disponibilidades = disponibilidades.stream()
+                    .filter(d -> d.getCentroSaludId() == null || centroSaludId.equals(d.getCentroSaludId()))
+                    .collect(Collectors.toList());
+        }
 
         if (disponibilidadRepositorio != null) {
             if (disponibilidades.isEmpty()) {
