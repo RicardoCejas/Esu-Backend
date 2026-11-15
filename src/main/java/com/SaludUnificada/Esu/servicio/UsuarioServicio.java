@@ -254,7 +254,7 @@ public class UsuarioServicio implements IUsuarioServicio {
         return usuarioMapper.paraDto(guardado);
     }
 
-    private Set<Permiso> obtenerPermisosDefectoPorRol(String rol) {
+    public Set<Permiso> obtenerPermisosDefectoPorRol(String rol) {
         if (permisoRepositorio == null || rol == null) return new HashSet<>();
         String rolNorm = rol.toUpperCase().trim();
         if ("ADMIN".equals(rolNorm)) {
