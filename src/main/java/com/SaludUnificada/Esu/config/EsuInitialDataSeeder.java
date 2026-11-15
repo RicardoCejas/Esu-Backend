@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.config;
 
 import com.SaludUnificada.Esu.entidad.*;
 import com.SaludUnificada.Esu.repositorio.*;
+import com.SaludUnificada.Esu.servicio.UsuarioServicio;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,12 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     @Autowired(required = false)
     private EstudioAdjuntoRepositorio estudioAdjuntoRepositorio;
 
+    @Autowired(required = false)
+    private UsuarioServicio usuarioServicio;
+
+    @Autowired(required = false)
+    private PermisoRepositorio permisoRepositorio;
+
     @Value("${app.demo.seed-accounts:false}")
     private boolean seedDemoAccounts;
 
@@ -63,6 +70,7 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
     };
 
     @Override
+    @Transactional
     public void run(String... args) {
         List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());
         boolean isLocalOrDev = activeProfiles.contains("local") || activeProfiles.contains("dev");
@@ -73,8 +81,13 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         }
 
         if (usuarioRepositorio.existsByEmail("crespo.institucional@esu.salud.gob.ar")) {
-            log.info("Cuentas de demostración ya sincronizadas en la base de datos. Omitiendo seeder para acelerar arranque.");
-            return;
+            sincronizarPermisosCuentasSinPermisos();
+            boolean faltanVinculos = profesionalRepositorio.count() < 18 || !todosLosCentrosTienenProfesionales();
+            if (!faltanVinculos) {
+                log.info("Cuentas de demostración ya sincronizadas en la base de datos. Omitiendo seeder para acelerar arranque.");
+                return;
+            }
+            log.info("Detectados centros o profesionales sin vincular. Ejecutando sincronización completa del seeder...");
         }
 
         try {
@@ -90,6 +103,7 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
 
         // 1. Sincronizar los 4 centros de salud activos (y desactivar antiguos)
         sincronizarCentrosSalud();
+        sincronizarCatalogoPermisosSiFaltan();
 
         // 2. Administrador general y cuentas institucionales de los centros
         crearUsuarioSiNoExiste("admin@esu.salud.gob.ar", "Admin123!", "ADMIN");
@@ -101,12 +115,14 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
         crearUsuarioSiNoExiste("recepcion@esu.gob.ar", "Recepcion123!", "RECEPCIONISTA", 1L, "Hospital Provincial Dr. Aurelio Crespo");
         crearUsuarioSiNoExiste("farmacia@esu.gob.ar", "Farmacia123!", "FARMACIA");
 
-        // 3. Catálogo canónico de 28 especialidades de consultorio
+        // 3. Catálogo canónico de 28 especialidades de consultorio + Diagnóstico por Imágenes
         Map<String, Especialidad> mapaEspecialidades = new HashMap<>();
         for (String nombreEsp : ESPECIALIDADES_CANONICAS) {
             Especialidad esp = sincronizarEspecialidad(nombreEsp, "CONSULTA");
             mapaEspecialidades.put(nombreEsp, esp);
         }
+        Especialidad espImagenes = sincronizarEspecialidad("Diagnóstico por Imágenes", "SERVICIO");
+        mapaEspecialidades.put("Diagnóstico por Imágenes", espImagenes);
 
         // 4. Profesionales médicos multi-centro con agendas no solapadas
         sincronizarProfesionalesYAgendas(mapaEspecialidades);
@@ -340,13 +356,27 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
                         Set.of(1L, 2L, 5L),
                         List.of(new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
                                 new DispSeed(2L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
-                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0))))
+                                new DispSeed(5L, DayOfWeek.FRIDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+
+                // 19. Diagnóstico por Imágenes (Centro 3 + 1 y 2)
+                new DocSeed("Ricardo", "Sánchez", "MP 30.115", "ricardo.sanchez.img@esu.salud.gob.ar", "Diagnóstico por Imágenes",
+                        Set.of(1L, 2L, 3L),
+                        List.of(new DispSeed(3L, DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(3L, DayOfWeek.WEDNESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                                new DispSeed(1L, DayOfWeek.TUESDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                                new DispSeed(2L, DayOfWeek.THURSDAY, LocalTime.of(14, 0), LocalTime.of(18, 0)))),
+
+                new DocSeed("Verónica", "Méndez", "MP 32.440", "veronica.mendez.img@esu.salud.gob.ar", "Diagnóstico por Imágenes",
+                        Set.of(1L, 3L),
+                        List.of(new DispSeed(3L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(13, 0)),
+                                new DispSeed(3L, DayOfWeek.THURSDAY, LocalTime.of(8, 0), LocalTime.of(13, 0)),
+                                new DispSeed(1L, DayOfWeek.FRIDAY, LocalTime.of(9, 0), LocalTime.of(13, 0))))
         );
 
         for (DocSeed ds : doctores) {
             try {
                 Especialidad esp = esps.get(ds.especialidad);
-                Set<Especialidad> espSet = esp != null ? Set.of(esp) : Set.of();
+                Set<Especialidad> espSet = esp != null ? new HashSet<>(Set.of(esp)) : new HashSet<>();
                 Profesional prof = crearOActualizarProfesional(ds.nombre, ds.apellido, ds.matricula, ds.email, "Medico123!", espSet, ds.centrosIds);
 
                 if (disponibilidadRepositorio != null && prof != null) {
@@ -356,6 +386,29 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
                 }
             } catch (Exception ex) {
                 log.warn("Aviso no fatal sincronizando agenda de doctor {}: {}", ds.matricula, ex.getMessage());
+            }
+        }
+
+        // Asegurar que profesionales previos en BD sin centros vinculados queden asignados al menos al Hospital Crespo (1L)
+        vincularProfesionalesHuerfanos();
+    }
+
+    private boolean todosLosCentrosTienenProfesionales() {
+        List<Profesional> todos = profesionalRepositorio.findAll();
+        for (Long cid : List.of(1L, 2L, 3L, 5L)) {
+            long count = todos.stream()
+                    .filter(p -> p.getCentrosSaludIds() != null && p.getCentrosSaludIds().contains(cid))
+                    .count();
+            if (count == 0) return false;
+        }
+        return true;
+    }
+
+    private void vincularProfesionalesHuerfanos() {
+        for (Profesional p : profesionalRepositorio.findAll()) {
+            if (p.getCentrosSaludIds() == null || p.getCentrosSaludIds().isEmpty()) {
+                p.setCentrosSaludIds(new HashSet<>(Set.of(1L)));
+                profesionalRepositorio.save(p);
             }
         }
     }
@@ -396,8 +449,10 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             p.setTelefono("3549-420000");
             p.setEstadoActivo(true);
             p.setUsuario(u);
-            p.setEspecialidades(especialidades);
-            p.setCentrosSaludIds(centrosIds);
+            p.setEspecialidades(new HashSet<>(especialidades));
+            Set<Long> centros = new HashSet<>(p.getCentrosSaludIds() != null ? p.getCentrosSaludIds() : Set.of());
+            if (centrosIds != null) centros.addAll(centrosIds);
+            p.setCentrosSaludIds(centros);
             return profesionalRepositorio.save(p);
         } catch (Exception ex) {
             log.warn("Aviso seeder no fatal para profesional {} ({}): {}", matricula, email, ex.getMessage());
@@ -426,7 +481,72 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             u.setCentroSaludId(centroSaludId);
             u.setCentroSaludNombre(centroSaludNombre);
         }
+        asignarPermisosDefectoSiVacios(u);
         return usuarioRepositorio.save(u);
+    }
+
+    private void asignarPermisosDefectoSiVacios(Usuario usuario) {
+        if (usuarioServicio == null || usuario == null) return;
+        if (usuario.getPermisos() != null && !usuario.getPermisos().isEmpty()) return;
+        Set<Permiso> defecto = usuarioServicio.obtenerPermisosDefectoPorRol(usuario.getRol());
+        if (defecto != null && !defecto.isEmpty()) {
+            usuario.setPermisos(defecto);
+        }
+    }
+
+    private void sincronizarCatalogoPermisosSiFaltan() {
+        if (permisoRepositorio == null) return;
+        Object[][] catalogo = {
+                {"TURNOS_VER", "Ver agenda y listados de turnos", "TURNOS", "Permite consultar turnos del dia y filtros por profesional o centro"},
+                {"TURNOS_CREAR", "Otorgar turnos regulares", "TURNOS", "Permite agendar turnos estandar de mostrador"},
+                {"TURNOS_CANCELAR", "Cancelar turnos con motivo", "TURNOS", "Permite dar de baja un turno con motivo estructurado"},
+                {"TURNOS_REAGENDAR", "Reagendar turnos", "TURNOS", "Permite modificar horario y fecha de un turno asignado"},
+                {"SOBRETURNOS_CREAR", "Crear sobreturnos con consultorio", "TURNOS", "Permite emitir sobreturnos validando cupo maximo diario"},
+                {"SALA_ESPERA_GESTIONAR", "Gestionar sala de espera", "SALA_ESPERA", "Permite mover pacientes en Kanban y llamar por audio/pantalla"},
+                {"PACIENTES_VER", "Consultar ficha de pacientes", "PACIENTES", "Permite buscar por DNI y ver antecedentes demograficos"},
+                {"PACIENTES_REGISTRAR", "Alta rapida de pacientes", "PACIENTES", "Permite registrar un nuevo paciente desde mostrador"},
+                {"PACIENTES_FUSIONAR", "Fusionar fichas duplicadas", "PACIENTES", "Permite resolver homonimos y unificar historias clinicas"},
+                {"CONSULTORIOS_VER", "Ver consultorios fisicos", "CONSULTORIOS", "Permite visualizar salas y ocupacion fisica"},
+                {"CONSULTORIOS_ADMINISTRAR", "Administrar consultorios fisicos", "CONSULTORIOS", "Permite crear, editar y dar de baja salas y consultorios"},
+                {"MEDICOS_VER", "Ver nomina de medicos", "MEDICOS", "Permite consultar el listado de profesionales y especialidades"},
+                {"MEDICOS_ASIGNAR_CONSULTORIO", "Asignar consultorio a medicos", "MEDICOS", "Permite vincular fisicamente un profesional a una sala"},
+                {"REPORTES_VER", "Ver metricas y telemetria", "REPORTES", "Permite acceder a estadisticas de ausentismo y tiempos de espera"},
+                {"USUARIOS_ADMINISTRAR", "Gestionar usuarios y permisos", "USUARIOS", "Permite dar de alta usuarios y editar sus roles y permisos"}
+        };
+        for (Object[] row : catalogo) {
+            String codigo = (String) row[0];
+            if (permisoRepositorio.findByCodigo(codigo).isEmpty()) {
+                permisoRepositorio.save(Permiso.builder()
+                        .codigo(codigo)
+                        .nombre((String) row[1])
+                        .modulo((String) row[2])
+                        .descripcion((String) row[3])
+                        .build());
+            }
+        }
+    }
+
+    private void sincronizarPermisosCuentasSinPermisos() {
+        if (usuarioServicio == null) return;
+        try {
+            sincronizarCatalogoPermisosSiFaltan();
+            List<Usuario> usuarios = usuarioRepositorio.findAll();
+            for (Usuario u : usuarios) {
+                if ((u.getPermisos() == null || u.getPermisos().isEmpty())
+                        && ("ADMIN".equalsIgnoreCase(u.getRol())
+                        || "RECEPCIONISTA".equalsIgnoreCase(u.getRol())
+                        || "MEDICO".equalsIgnoreCase(u.getRol())
+                        || "PROFESIONAL".equalsIgnoreCase(u.getRol()))) {
+                    Set<Permiso> defecto = usuarioServicio.obtenerPermisosDefectoPorRol(u.getRol());
+                    if (defecto != null && !defecto.isEmpty()) {
+                        u.setPermisos(defecto);
+                        usuarioRepositorio.save(u);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("No se pudieron sincronizar permisos por defecto en cuentas existentes: {}", ex.getMessage());
+        }
     }
 
     private Paciente crearPacienteSiNoExiste(String nombre, String apellido, String dni, String nroAfiliado, String obraSocial,
