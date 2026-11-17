@@ -17,7 +17,6 @@ public class EvolucionMedicaDtoRequest {
     @NotNull(message = "El ID del paciente es obligatorio")
     private Long pacienteId;
 
-    @NotNull(message = "El ID del profesional es obligatorio")
     private Long profesionalId;
 
     private Long turnoId;
@@ -28,8 +27,21 @@ public class EvolucionMedicaDtoRequest {
     private String anamnesis;
     private String examenFisico;
 
-    @NotBlank(message = "El diagnóstico es obligatorio")
     private String diagnostico;
+
+    public String getDiagnostico() {
+        return diagnostico;
+    }
+
+    public void setDiagnostico(String diagnostico) {
+        this.diagnostico = diagnostico;
+    }
+
+    public void setDiagnosticoTexto(String diagnosticoTexto) {
+        if (this.diagnostico == null || this.diagnostico.isBlank()) {
+            this.diagnostico = diagnosticoTexto;
+        }
+    }
 
     private String codigoCie10;
     private String descripcionCie10;

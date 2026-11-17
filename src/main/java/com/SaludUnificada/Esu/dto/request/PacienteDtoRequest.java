@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,4 +29,25 @@ public class PacienteDtoRequest {
     private String email;
 
     private String password;
+
+    private String obraSocial;
+
+    private String nroAfiliado;
+
+    private String grupoSanguineo;
+
+    private LocalDate fechaNacimiento;
+
+    private Long centroSaludReferenciaId;
+
+    private String centroSaludReferenciaNombre;
+
+    public PacienteDtoRequest(String nombre, String apellido, String dni, String telefono, String email, String password) {
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.dni = dni;
+        this.telefono = telefono;
+        this.email = email;
+        this.password = password;
+    }
 }

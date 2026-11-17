@@ -12,4 +12,5 @@ public interface IDisponibilidadServicio {
     List<DisponibilidadDtoResponse> obtenerDisponibilidadPorProfesional(Long profesionalId);
 
     int generarSlotsProximos30Dias(Long profesionalId);
+    void eliminarDisponibilidad(Long id);
 }

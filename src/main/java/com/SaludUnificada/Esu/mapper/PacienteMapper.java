@@ -22,15 +22,31 @@ public class PacienteMapper {
         paciente.setApellido(dto.getApellido());
         paciente.setDni(dto.getDni());
         paciente.setTelefono(dto.getTelefono());
-        paciente.setNroAfiliado(dto.getDni()); // Asumiendo que el nro de afiliado es el DNI
+        paciente.setNroAfiliado(dto.getNroAfiliado() != null && !dto.getNroAfiliado().isBlank()
+                ? dto.getNroAfiliado().trim()
+                : dto.getDni());
+        paciente.setObraSocial(dto.getObraSocial() != null && !dto.getObraSocial().isBlank()
+                ? dto.getObraSocial().trim()
+                : "Particular");
+        paciente.setGrupoSanguineo(dto.getGrupoSanguineo());
+        paciente.setFechaNacimiento(dto.getFechaNacimiento());
+        paciente.setCentroSaludReferenciaId(dto.getCentroSaludReferenciaId() != null ? dto.getCentroSaludReferenciaId() : 1L);
+        paciente.setCentroSaludReferenciaNombre(dto.getCentroSaludReferenciaNombre() != null && !dto.getCentroSaludReferenciaNombre().isBlank()
+                ? dto.getCentroSaludReferenciaNombre().trim()
+                : "Hospital Regional Aurelio Crespo");
 
         Usuario usuario = new Usuario();
-        usuario.setEmail(dto.getEmail() != null && !dto.getEmail().isBlank() ? dto.getEmail() : dto.getDni() + "@esu.com");
-        
-        String clavePlana = (dto.getPassword() != null && !dto.getPassword().isBlank()) 
-                ? dto.getPassword() 
-                : dto.getDni(); // Si no se provee clave, se inicializa de forma segura con el DNI encriptado
-        usuario.setPassword(passwordEncoder.encode(clavePlana));
+        usuario.setEmail(dto.getEmail() != null && !dto.getEmail().isBlank() ? dto.getEmail().trim().toLowerCase() : dto.getDni() + "@esu.com");
+
+        boolean tienePasswordExplicita = dto.getPassword() != null && !dto.getPassword().isBlank();
+        if (tienePasswordExplicita) {
+            usuario.setPassword(passwordEncoder.encode(dto.getPassword()));
+            usuario.setEmailVerificado(false);
+        } else {
+            String claveInusable = java.util.UUID.randomUUID().toString() + "-NO-LOGIN";
+            usuario.setPassword(passwordEncoder.encode(claveInusable));
+            usuario.setEmailVerificado(false);
+        }
         usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
         usuario.setFechaDeAlta(LocalDate.now());
@@ -46,8 +62,21 @@ public class PacienteMapper {
         dto.setApellido(paciente.getApellido());
         dto.setDni(paciente.getDni());
         dto.setTelefono(paciente.getTelefono());
-        if (paciente.getUsuario() != null) {
-            dto.setEmail(paciente.getUsuario().getEmail());
+        dto.setObraSocial(paciente.getObraSocial());
+        dto.setNroAfiliado(paciente.getNroAfiliado());
+        dto.setGrupoSanguineo(paciente.getGrupoSanguineo());
+        dto.setFechaNacimiento(paciente.getFechaNacimiento());
+        dto.setCentroSaludReferenciaId(paciente.getCentroSaludReferenciaId());
+        dto.setCentroSaludReferenciaNombre(paciente.getCentroSaludReferenciaNombre());
+        try {
+            if (paciente.getUsuario() != null) {
+                dto.setEmail(paciente.getUsuario().getEmail());
+                dto.setActivo(paciente.getUsuario().getEstadoActivo() != null ? paciente.getUsuario().getEstadoActivo() : true);
+            } else {
+                dto.setActivo(true);
+            }
+        } catch (Exception e) {
+            dto.setActivo(true);
         }
         return dto;
     }

@@ -195,4 +195,19 @@ class BloqueoAgendaServicioTest {
         assertThrows(NoEncontradoExcepcion.class, () ->
                 bloqueoAgendaServicio.registrarBloqueo(999L, request));
     }
+
+    @Test
+    @DisplayName("Debe lanzar IllegalArgumentException si el bloqueo se intenta registrar en el pasado")
+    void testRegistrarBloqueo_EnElPasado_LanzaIllegalArgumentException() {
+        BloqueoAgendaDtoRequest request = BloqueoAgendaDtoRequest.builder()
+                .fechaInicio(LocalDateTime.now().minusDays(2))
+                .fechaFin(LocalDateTime.now().minusDays(1))
+                .motivo("Bloqueo retroactivo inválido")
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () ->
+                bloqueoAgendaServicio.registrarBloqueo(1L, request));
+
+        verify(bloqueoAgendaRepositorio, never()).save(any());
+    }
 }

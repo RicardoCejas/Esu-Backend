@@ -1,18 +1,57 @@
 package com.SaludUnificada.Esu.servicio;
 
+import com.SaludUnificada.Esu.dto.request.AtencionTurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.CopagoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.SobreturnoDtoRequest;
 import com.SaludUnificada.Esu.dto.request.TurnoDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoMostradorDtoRequest;
+import com.SaludUnificada.Esu.dto.request.TurnoPublicoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ITurnoServicio {
-    TurnoDtoResponse crearTurno(TurnoDtoRequest turno);
+    TurnoDtoResponse crearTurno(TurnoDtoRequest turno, String emailAutenticado);
+    TurnoDtoResponse reservarTurnoPublico(TurnoPublicoDtoRequest request, String emailAutenticado);
     TurnoDtoResponse crearSobreturno(SobreturnoDtoRequest request);
+    TurnoDtoResponse crearTurnoMostrador(TurnoMostradorDtoRequest request, String emailRecepcionista);
+    List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha);
+    List<LocalDateTime> obtenerHorariosDisponibles(Long profesionalId, LocalDate fecha, Long centroSaludId);
     TurnoDtoResponse obtenerTurnoPorId(Long id);
     List<TurnoDtoResponse> listarTodos();
+    Page<TurnoDtoResponse> listarPaginados(Pageable pageable);
     void eliminarTurno(Long id);
+    int purgarTurnosCancelados(Long profesionalId);
     List<TurnoDtoResponse> filtrarTurnos(Long profesionalId, LocalDateTime fechaHora);
     List<TurnoDtoResponse> obtenerTurnosPorPaciente(Long pacienteId);
+    List<TurnoDtoResponse> obtenerTurnosProximosPaciente(Long pacienteId);
+    List<TurnoDtoResponse> obtenerHistorialTurnosPaciente(Long pacienteId);
+    TurnoDtoResponse cancelarTurno(Long id, String emailAutenticado);
+    TurnoDtoResponse cancelarTurnoMostrador(Long id, String justificativo, String emailRecepcionista);
+    TurnoDtoResponse confirmarTurno(Long id, String emailAutenticado);
+    TurnoDtoResponse reprogramarTurno(Long id, LocalDateTime nuevaFechaHora, String emailAutenticado);
+
+    TurnoDtoResponse realizarCheckIn(Long turnoId, String emailRecepcionista);
+    TurnoDtoResponse llamarPaciente(Long turnoId, String consultorio, String emailPersonal);
+    TurnoDtoResponse actualizarEstadoTurno(Long turnoId, String nuevoEstado, String emailPersonal);
+    TurnoDtoResponse registrarCopago(Long turnoId, CopagoDtoRequest copagoDto);
+    TurnoDtoResponse atenderTurno(Long turnoId, AtencionTurnoDtoRequest atencionDto, String emailProfesional);
+
+    byte[] generarCertificadoAsistencia(Long turnoId, String emailAutenticado);
+    TurnoDtoResponse marcarAusente(Long turnoId, String emailPersonal);
+    List<TurnoDtoResponse> obtenerTurnosHoyProfesional(Long profesionalId);
+
+    List<TurnoDtoResponse> obtenerAgendaProfesional(Long profesionalId, Long centroSaludId, java.time.LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerMiAgenda(String emailProfesional, Long centroSaludId, java.time.LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerTurnosHoyCentro(Long centroId, LocalDate fecha);
+
+    List<TurnoDtoResponse> obtenerTurnosCentro(Long centroId, LocalDate desde, LocalDate hasta, String estado);
+
+    List<TurnoDtoResponse> obtenerTurnosKanbanCentro(Long centroId, LocalDate fecha);
 }

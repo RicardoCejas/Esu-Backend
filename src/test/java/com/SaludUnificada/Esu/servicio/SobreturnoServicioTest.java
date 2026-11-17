@@ -19,7 +19,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,6 +32,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SobreturnoServicioTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Argentina/Cordoba");
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-14T13:00:00Z"), ZONE);
 
     @Mock
     private TurnoRepositorio turnoRepositorio;
@@ -42,7 +48,9 @@ class SobreturnoServicioTest {
     @Mock
     private TurnoMapper turnoMapper;
 
-    @InjectMocks
+    @Mock
+    private com.SaludUnificada.Esu.repositorio.RecordatorioTurnoRepositorio recordatorioRepositorio;
+
     private TurnoServicio turnoServicio;
 
     private Profesional profesional;
@@ -51,6 +59,11 @@ class SobreturnoServicioTest {
 
     @BeforeEach
     void setUp() {
+        turnoServicio = new TurnoServicio(
+                turnoRepositorio, turnoMapper, pacienteRepositorio, profesionalRepositorio,
+                recordatorioRepositorio, CLOCK, ZONE,
+                java.time.LocalTime.of(8, 0), java.time.LocalTime.of(17, 0), 30
+        );
         profesional = new Profesional();
         profesional.setId(1L);
         profesional.setNombre("Carlos");
@@ -65,7 +78,8 @@ class SobreturnoServicioTest {
         request = SobreturnoDtoRequest.builder()
                 .profesionalId(1L)
                 .pacienteId(10L)
-                .fechaHora(LocalDateTime.now().plusDays(1).withHour(11).withMinute(30))
+                .centroSaludId(1L)
+                .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
                 .motivoSobreturno("Urgencia menor por crisis hipertensiva leve")
                 .build();
     }
@@ -105,6 +119,40 @@ class SobreturnoServicioTest {
     }
 
     @Test
+    @DisplayName("Debe persistir consultorio y planta asignados al sobreturno")
+    void testCrearSobreturno_ConConsultorioYPlanta() {
+        request.setConsultorioNumero("Box 4");
+        request.setPlanta("Planta Alta");
+
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+        when(turnoRepositorio.contarSobreturnosEnDia(eq(1L), any(), any())).thenReturn(0L);
+        when(turnoRepositorio.save(any(Turno.class))).thenAnswer(invocation -> {
+            Turno t = invocation.getArgument(0);
+            t.setId(101L);
+            return t;
+        });
+
+        TurnoDtoResponse esperado = TurnoDtoResponse.builder()
+                .id(101L)
+                .consultorioNumero("Box 4")
+                .planta("Planta Alta")
+                .esSobreturno(true)
+                .build();
+        when(turnoMapper.paraDto(any(Turno.class))).thenReturn(esperado);
+
+        TurnoDtoResponse response = turnoServicio.crearSobreturno(request);
+
+        assertNotNull(response);
+        assertEquals("Box 4", response.getConsultorioNumero());
+        assertEquals("Planta Alta", response.getPlanta());
+
+        verify(turnoRepositorio).save(argThat(t ->
+                "Box 4".equals(t.getConsultorioNumero()) && "Planta Alta".equals(t.getPlanta())
+        ));
+    }
+
+    @Test
     @DisplayName("Debe lanzar ReglaNegocioException cuando se alcanza el cupo máximo diario de sobreturnos")
     void testCrearSobreturno_SuperaLimite_LanzaReglaNegocioException() {
         when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
@@ -139,4 +187,20 @@ class SobreturnoServicioTest {
         assertThrows(NoEncontradoExcepcion.class, () ->
                 turnoServicio.crearSobreturno(request));
     }
+    @Test
+    @DisplayName("Debe lanzar ReglaNegocioException si centroSaludId es nulo")
+    void testCrearSobreturno_FallaSiCentroSaludEsNulo() {
+        SobreturnoDtoRequest reqSinCentro = SobreturnoDtoRequest.builder()
+                .profesionalId(1L)
+                .pacienteId(10L)
+                .fechaHora(LocalDateTime.of(2026, 10, 15, 11, 30))
+                .motivoSobreturno("Urgencia menor")
+                .build();
+
+        when(profesionalRepositorio.findById(1L)).thenReturn(Optional.of(profesional));
+        when(pacienteRepositorio.findById(10L)).thenReturn(Optional.of(paciente));
+
+        assertThrows(ReglaNegocioException.class, () -> turnoServicio.crearSobreturno(reqSinCentro));
+    }
+
 }

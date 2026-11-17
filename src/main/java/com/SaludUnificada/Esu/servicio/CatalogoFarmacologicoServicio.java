@@ -1,18 +1,13 @@
 package com.SaludUnificada.Esu.servicio;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Catálogo Farmacológico de Monodrogas Oficiales de Cruz del Eje
- * Ley de Prescripción por Nombre Genérico (Ley Nacional 25.649 y Ley 27.553)
- */
 @Service
 public class CatalogoFarmacologicoServicio {
 
@@ -55,6 +50,7 @@ public class CatalogoFarmacologicoServicio {
                MONODROGAS_AUTORIZADAS.stream().anyMatch(normalizada::contains);
     }
 
+    @Cacheable("catalogoMonodrogas")
     public List<String> getCatalogoOficial() {
         return MONODROGAS_AUTORIZADAS.stream()
                 .sorted()
@@ -66,5 +62,16 @@ public class CatalogoFarmacologicoServicio {
         if (texto == null) return "";
         String s = Normalizer.normalize(texto.trim().toLowerCase(), Normalizer.Form.NFD);
         return s.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+    }
+
+    public List<String> buscarMonodrogas(String query) {
+        if (query == null || query.isBlank()) {
+            return getCatalogoOficial();
+        }
+        String qNorm = normalizar(query);
+        return MONODROGAS_AUTORIZADAS.stream()
+                .filter(d -> d.contains(qNorm))
+                .sorted()
+                .collect(Collectors.toList());
     }
 }

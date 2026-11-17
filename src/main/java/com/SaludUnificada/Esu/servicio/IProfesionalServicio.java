@@ -8,10 +8,19 @@ import java.util.List;
 
 public interface IProfesionalServicio {
     ProfesionalDtoResponse crearProfesional(ProfesionalDtoRequest profesional);
+    ProfesionalDtoResponse actualizarProfesional(Long id, ProfesionalDtoRequest profesional);
     ProfesionalDtoResponse obtenerProfesionalPorId(Long id);
     List<ProfesionalDtoResponse> listarTodos();
     void eliminarProfesional(Long id);
     List<ProfesionalDtoResponse> filtrarPorEspecialidad(Long especialidadId);
+    List<ProfesionalDtoResponse> filtrarPorCentro(Long centroId);
     List<ProfesionalDtoResponse> buscarDisponibles(Long especialidadId, Long centroSaludId, Boolean soloConDisponibilidad);
     Profesional obtenerEntidadProfesionalPorId(Long id);
+    ProfesionalDtoResponse cambiarEstadoActivo(Long id, boolean activo);
+
+    java.util.Set<Long> obtenerCentrosDelProfesional(Long id);
+
+    java.util.Set<Long> vincularCentro(Long id, Long centroId);
+
+    java.util.Set<Long> desvincularCentro(Long id, Long centroId);
 }

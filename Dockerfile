@@ -1,47 +1,27 @@
-# =============================================================================
-# ESU: Ecosistema de Salud Unificado (Cruz del Eje)
-# HU-86: Dockerfile Multietapa (Multi-Stage Build)
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Etapa 1: Compilación y empaquetado (Builder)
-# -----------------------------------------------------------------------------
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
+# Multi-stage build for Spring Boot
+FROM eclipse-temurin:17-jdk-jammy AS build
 WORKDIR /app
-
-# Optimización de caché de dependencias Maven
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# Compilación del código fuente excluyendo pruebas en el build de contenedor
+COPY .mvn/ .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+ARG SKIP_TESTS=true
+RUN ./mvnw clean package -DskipTests=true -B
 
-# -----------------------------------------------------------------------------
-# Etapa 2: Imagen de ejecución ligera y segura (Runner)
-# -----------------------------------------------------------------------------
-FROM eclipse-temurin:17-jre-jammy AS runner
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Instalar curl para el healthcheck y crear usuario no-root
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r esugroup && useradd -r -g esugroup esuuser
+# Run as non-privileged system user
+RUN groupadd -r esugroup && useradd -r -g esugroup -d /app -s /sbin/nologin esuuser \
+    && mkdir -p /app/uploads/estudios /app/logs \
+    && chown -R esuuser:esugroup /app
 
-# Copiar el artefacto ejecutable generado en la etapa 1
-COPY --from=builder /app/target/*.jar app.jar
-RUN chown -R esuuser:esugroup /app
+COPY --from=build --chown=esuuser:esugroup /app/target/Esu-0.0.1-SNAPSHOT.jar app.jar
 
-# Ejecución como usuario sin privilegios
 USER esuuser
+EXPOSE 10000 8080
+ENV PORT=10000
+ENV SERVER_PORT=10000
+ENV SPRING_PROFILES_ACTIVE=prod
 
-# Variables de entorno JVM recomendadas para contenedores
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
-ENV SERVER_PORT=8080
-
-EXPOSE 8080
-
-# Verificación de salud del contenedor
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
-
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=65.0", "-XX:+UseParallelGC", "-Xss256k", "-jar", "app.jar"]

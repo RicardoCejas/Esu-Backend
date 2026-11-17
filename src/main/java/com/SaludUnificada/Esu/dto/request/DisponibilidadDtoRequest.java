@@ -41,4 +41,7 @@ public class DisponibilidadDtoRequest {
 
     @Schema(description = "ID del centro médico o sede donde presta servicios", example = "1")
     private Long centroSaludId;
+
+    @Schema(description = "ID del consultorio físico habitual", example = "10")
+    private Long consultorioId;
 }

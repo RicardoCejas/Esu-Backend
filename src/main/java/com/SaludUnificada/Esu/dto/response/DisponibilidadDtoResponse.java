@@ -38,6 +38,15 @@ public class DisponibilidadDtoResponse {
     @Schema(description = "ID del centro de salud", example = "1")
     private Long centroSaludId;
 
+    @Schema(description = "ID del consultorio físico", example = "10")
+    private Long consultorioId;
+
+    @Schema(description = "Número o identificador del consultorio", example = "101")
+    private String consultorioNumero;
+
+    @Schema(description = "Piso o planta del consultorio", example = "Planta Baja")
+    private String planta;
+
     @Schema(description = "Indica si la grilla se encuentra activa", example = "true")
     private Boolean activo;
 

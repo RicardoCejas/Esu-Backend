@@ -36,6 +36,16 @@ public class PlantillaEvolucionServicio {
         return lista.stream().map(this::mapearADto).collect(Collectors.toList());
     }
 
+    public List<PlantillaEvolucionDtoResponse> buscarPorTermino(String termino) {
+        if (termino == null || termino.isBlank()) {
+            return listarPlantillas(null);
+        }
+        return plantillaRepositorio.findByActivoTrueAndTituloContainingIgnoreCase(termino.trim())
+                .stream()
+                .map(this::mapearADto)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public PlantillaEvolucionDtoResponse crearPlantilla(PlantillaEvolucionDtoRequest request) {
         PlantillaEvolucion p = new PlantillaEvolucion();
@@ -51,20 +61,66 @@ public class PlantillaEvolucionServicio {
             Especialidad esp = especialidadRepositorio.findById(request.getEspecialidadId())
                 .orElseThrow(() -> new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + request.getEspecialidadId()));
             p.setEspecialidad(esp);
+        } else if (request.getEspecialidad() != null && !request.getEspecialidad().isBlank()) {
+            p.setEspecialidad(obtenerOCrearEspecialidad(request.getEspecialidad().trim()));
         }
 
         PlantillaEvolucion guardada = plantillaRepositorio.save(p);
         return mapearADto(guardada);
     }
 
+    @Transactional
+    public PlantillaEvolucionDtoResponse actualizarPlantilla(Long id, PlantillaEvolucionDtoRequest request) {
+        PlantillaEvolucion p = plantillaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Plantilla no encontrada con ID: " + id));
+
+        p.setTitulo(request.getTitulo());
+        p.setEstructuraAnamnesis(request.getEstructuraAnamnesis());
+        p.setEstructuraExamenFisico(request.getEstructuraExamenFisico());
+        p.setTratamientoSugerido(request.getTratamientoSugerido());
+        if (request.getEsPublica() != null) {
+            p.setEsPublica(request.getEsPublica());
+        }
+
+        if (request.getEspecialidadId() != null) {
+            Especialidad esp = especialidadRepositorio.findById(request.getEspecialidadId())
+                .orElseThrow(() -> new NoEncontradoExcepcion("Especialidad no encontrada con ID: " + request.getEspecialidadId()));
+            p.setEspecialidad(esp);
+        } else if (request.getEspecialidad() != null && !request.getEspecialidad().isBlank()) {
+            p.setEspecialidad(obtenerOCrearEspecialidad(request.getEspecialidad().trim()));
+        }
+
+        PlantillaEvolucion guardada = plantillaRepositorio.save(p);
+        return mapearADto(guardada);
+    }
+
+    public PlantillaEvolucionDtoResponse obtenerPorId(Long id) {
+        PlantillaEvolucion p = plantillaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Plantilla no encontrada con ID: " + id));
+        return mapearADto(p);
+    }
+
+    @Transactional
+    public void cambiarEstadoPlantilla(Long id, boolean activo) {
+        PlantillaEvolucion p = plantillaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Plantilla no encontrada con ID: " + id));
+        p.setActivo(activo);
+        plantillaRepositorio.save(p);
+    }
+
     private PlantillaEvolucionDtoResponse mapearADto(PlantillaEvolucion p) {
+        String espNombre = p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : "Medicina General";
         return PlantillaEvolucionDtoResponse.builder()
             .id(p.getId())
             .titulo(p.getTitulo())
             .especialidadId(p.getEspecialidad() != null ? p.getEspecialidad().getId() : null)
-            .especialidadNombre(p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : "General")
+            .especialidadNombre(espNombre)
+            .especialidad(espNombre)
+            .motivo(p.getTitulo())
             .estructuraAnamnesis(p.getEstructuraAnamnesis())
+            .anamnesis(p.getEstructuraAnamnesis())
             .estructuraExamenFisico(p.getEstructuraExamenFisico())
+            .examenFisico(p.getEstructuraExamenFisico())
             .tratamientoSugerido(p.getTratamientoSugerido())
             .esPublica(p.getEsPublica())
             .activo(p.getActivo())
@@ -72,56 +128,48 @@ public class PlantillaEvolucionServicio {
             .build();
     }
 
-    /**
-     * Precarga de datos: al menos tres plantillas iniciales (Pediatría, Clínica Médica, Cardiología)
-     */
     @PostConstruct
     public void precargarPlantillasIniciales() {
         try {
             if (plantillaRepositorio.count() == 0) {
-                // Buscar o crear especialidades si hiciera falta
-                Especialidad pediatria = obtenerOCrearEspecialidad("Pediatría");
-                Especialidad clinica = obtenerOCrearEspecialidad("Clínica Médica");
-                Especialidad cardiologia = obtenerOCrearEspecialidad("Cardiología");
+                Especialidad pediatria = obtenerOCrearEspecialidad("Pediatria");
+                Especialidad clinica = obtenerOCrearEspecialidad("Clinica Medica");
+                Especialidad cardiologia = obtenerOCrearEspecialidad("Cardiologia");
 
-                // 1. Pediatría
                 PlantillaEvolucion p1 = new PlantillaEvolucion();
                 p1.setTitulo("Control de Crecimiento y Desarrollo Infantil");
                 p1.setEspecialidad(pediatria);
-                p1.setEstructuraAnamnesis("Paciente en seguimiento de puericultura y desarrollo psicomotor. Alimentación actual: seno materno / fórmula. Sueño continuo. Inmunizaciones completas para la edad según calendario nacional.");
-                p1.setEstructuraExamenFisico("Vigil, reactivo, tono muscular conservado. Fontanela anterior normotensa. Auscultación cardiopulmonar s/r agregados. Abdomen blando, depresible, no visceromegalias. Percentiles peso/edad y talla/edad en rango.");
-                p1.setTratamientoSugerido("Continuar lactancia/alimentación complementaria. Pautas de alarma respiratoria y digestiva. Próximo control mensual.");
+                p1.setEstructuraAnamnesis("Paciente en seguimiento de puericultura y desarrollo psicomotor. Alimentacion actual: seno materno / formula. Sueno continuo. Inmunizaciones completas para la edad segun calendario nacional.");
+                p1.setEstructuraExamenFisico("Vigil, reactivo, tono muscular conservado. Fontanela anterior normotensa. Auscultacion cardiopulmonar s/r agregados. Abdomen blando, depresible, no visceromegalias. Percentiles peso/edad y talla/edad en rango.");
+                p1.setTratamientoSugerido("Continuar lactancia/alimentacion complementaria. Pautas de alarma respiratoria y digestiva. Proximo control mensual.");
                 p1.setEsPublica(true);
                 p1.setActivo(true);
                 p1.setFechaCreacion(LocalDateTime.now());
                 plantillaRepositorio.save(p1);
 
-                // 2. Clínica Médica
                 PlantillaEvolucion p2 = new PlantillaEvolucion();
                 p2.setTitulo("Consulta General del Adulto - Seguimiento");
                 p2.setEspecialidad(clinica);
-                p2.setEstructuraAnamnesis("Paciente adulto concurre a consulta de control clínico de rutina. No refiere disnea ni dolor precordial. Hábitos fisiológicos conservados.");
-                p2.setEstructuraExamenFisico("Buen estado general, orientado témporo-espacialmente. Normohidratado. Murmullo vesicular conservado bilateralmente. R1 y R2 normofonéticos. Abdomen blando, indoloro a la palpación profunda.");
-                p2.setTratamientoSugerido("Solicitud de laboratorio de rutina y orina completa. Mantener dieta hiposódica y actividad física regular aeróbica.");
+                p2.setEstructuraAnamnesis("Paciente adulto concurre a consulta de control clinico de rutina. No refiere disnea ni dolor precordial. Habitos fisiologicos conservados.");
+                p2.setEstructuraExamenFisico("Buen estado general, orientado temporo-espacialmente. Normohidratado. Murmullo vesicular conservado bilateralmente. R1 y R2 normofonicos. Abdomen blando, indoloro a la palpacion profunda.");
+                p2.setTratamientoSugerido("Solicitud de laboratorio de rutina y orina completa. Mantener dieta hiposodica y actividad fisica regular aerobica.");
                 p2.setEsPublica(true);
                 p2.setActivo(true);
                 p2.setFechaCreacion(LocalDateTime.now());
                 plantillaRepositorio.save(p2);
 
-                // 3. Cardiología
                 PlantillaEvolucion p3 = new PlantillaEvolucion();
-                p3.setTitulo("Evaluación Cardiovascular e Hipertensión Arterial");
+                p3.setTitulo("Evaluacion Cardiovascular e Hipertension Arterial");
                 p3.setEspecialidad(cardiologia);
-                p3.setEstructuraAnamnesis("Paciente con antecedentes de HTA de larga data. Registro ambulatorio con cifras tensionales limítrofes. Niega palpitaciones, mareos ortostáticos o dolor torácico anginoso.");
-                p3.setEstructuraExamenFisico("Ruidos cardíacos rítmicos y regulares. Silencios libres, sin soplos agregados. Pulsos periféricos presentes y simétricos. Sin edemas periféricos en miembros inferiores ni ingurgitación yugular.");
-                p3.setTratamientoSugerido("Ajuste posológico de antihipertensivo (Enalapril / Losartán). Indicación de ECG basal y ecocardiograma Doppler color. Control tensional bisemanal.");
+                p3.setEstructuraAnamnesis("Paciente con antecedentes de HTA de larga data. Registro ambulatorio con cifras tensionales limitrofes. Niega palpitaciones, mareos ortostaticos o dolor toracico anginoso.");
+                p3.setEstructuraExamenFisico("Ruidos cardiacos ritmicos y regulares. Silencios libres, sin soplos agregados. Pulsos perifericos presentes y simetricos. Sin edemas perifericos en miembros inferiores ni ingurgitacion yugular.");
+                p3.setTratamientoSugerido("Ajuste posologico de antihipertensivo (Enalapril / Losartan). Indicacion de ECG basal y ecocardiograma Doppler color. Control tensional bisemanal.");
                 p3.setEsPublica(true);
                 p3.setActivo(true);
                 p3.setFechaCreacion(LocalDateTime.now());
                 plantillaRepositorio.save(p3);
             }
         } catch (Exception ignored) {
-            // Silencioso en caso de inicializaciones en contextos donde la tabla aún se está creando
         }
     }
 

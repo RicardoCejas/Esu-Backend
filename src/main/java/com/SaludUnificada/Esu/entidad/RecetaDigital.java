@@ -61,11 +61,29 @@ public class RecetaDigital {
     @Column(name = "matricula_farmacia_dispensadora", length = 50)
     private String matriculaFarmaciaDispensadora;
 
+    @Column(name = "centro_salud_emisor_id")
+    private Long centroSaludEmisorId;
+
+    @Column(name = "centro_salud_emisor_nombre")
+    private String centroSaludEmisorNombre;
+
+    @Column(name = "farmacia_dispensadora_nombre")
+    private String farmaciaDispensadoraNombre;
+
+    @Column(name = "lugar_retiro_sugerido")
+    private String lugarRetiroSugerido;
+
     @Column(name = "hash_integridad", length = 64)
     private String hashIntegridad;
 
     @Column(name = "codigo_qr_url", length = 500)
     private String codigoQrUrl;
+
+    @Column(name = "motivo_anulacion", length = 300)
+    private String motivoAnulacion;
+
+    @Column(name = "fecha_anulacion")
+    private LocalDateTime fechaAnulacion;
 
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;

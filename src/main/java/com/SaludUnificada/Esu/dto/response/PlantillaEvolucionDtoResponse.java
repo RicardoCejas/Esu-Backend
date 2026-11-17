@@ -18,8 +18,12 @@ public class PlantillaEvolucionDtoResponse {
     private String titulo;
     private Long especialidadId;
     private String especialidadNombre;
+    private String especialidad;
+    private String motivo;
     private String estructuraAnamnesis;
+    private String anamnesis;
     private String estructuraExamenFisico;
+    private String examenFisico;
     private String tratamientoSugerido;
     private Boolean esPublica;
     private Boolean activo;

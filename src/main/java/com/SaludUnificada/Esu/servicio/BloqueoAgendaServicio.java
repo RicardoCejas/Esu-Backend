@@ -30,12 +30,29 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
     private final ProfesionalRepositorio profesionalRepositorio;
     private final TurnoRepositorio turnoRepositorio;
     private final BloqueoAgendaMapper bloqueoAgendaMapper;
+    private final NotificacionUsuarioServicio notificacionUsuarioServicio;
+    private final EmailNotificacionServicio emailNotificacionServicio;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.Clock clock;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.ZoneId turnosZoneId;
+
+    private java.time.LocalDateTime ahora() {
+        java.time.ZoneId zone = turnosZoneId != null ? turnosZoneId : java.time.ZoneId.of("America/Argentina/Cordoba");
+        java.time.Clock c = clock != null ? clock.withZone(zone) : java.time.Clock.system(zone);
+        return java.time.LocalDateTime.now(c);
+    }
 
     @Override
     @Transactional
     public BloqueoAgendaDtoResponse registrarBloqueo(Long profesionalId, BloqueoAgendaDtoRequest request) {
         if (!request.getFechaInicio().isBefore(request.getFechaFin())) {
             throw new IllegalArgumentException("La fecha y hora de inicio debe ser anterior a la fecha y hora de fin del bloqueo.");
+        }
+        if (request.getFechaFin().isBefore(ahora())) {
+            throw new IllegalArgumentException("No se pueden registrar bloqueos en fechas u horarios pasados.");
         }
 
         Profesional profesional = profesionalRepositorio.findById(profesionalId)
@@ -44,7 +61,6 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
         BloqueoAgenda entidad = bloqueoAgendaMapper.paraEntidad(request, profesional);
         BloqueoAgenda guardado = bloqueoAgendaRepositorio.save(entidad);
 
-        // Cancelación preventiva en lote de todos los turnos comprendidos en el rango
         List<Turno> turnosSolapados = turnoRepositorio.findByProfesionalIdAndFechaHoraBetween(
                 profesionalId,
                 request.getFechaInicio(),
@@ -75,9 +91,31 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
 
         if (!turnosSolapados.isEmpty()) {
             turnoRepositorio.saveAll(turnosSolapados);
+            for (Turno tCancelado : turnosSolapados) {
+                if (tCancelado.getPaciente() != null && tCancelado.getPaciente().getUsuario() != null) {
+                    if (notificacionUsuarioServicio != null) {
+                        try {
+                            notificacionUsuarioServicio.crearNotificacion(
+                                    tCancelado.getPaciente().getUsuario(),
+                                    "Turno Cancelado por Indisponibilidad Medica",
+                                    "Su turno del " + (tCancelado.getFechaHora() != null ? tCancelado.getFechaHora().toString() : "") + " fue cancelado por bloqueo de agenda del profesional.",
+                                    "TURNO",
+                                    "/mis-turnos"
+                            );
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    if (emailNotificacionServicio != null) {
+                        try {
+                            emailNotificacionServicio.enviarCancelacionTurno(tCancelado, "Cancelacion por bloqueo de agenda del profesional: " + request.getMotivo());
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
         }
 
-        log.info("Bloqueo de agenda registrado para profesional {}. Período: {} a {}. Turnos afectados: {}",
+        log.info("Bloqueo de agenda registrado para profesional {}. Periodo: {} a {}. Turnos afectados: {}",
                 profesionalId, request.getFechaInicio(), request.getFechaFin(), turnosCancelados.size());
 
         return bloqueoAgendaMapper.paraDto(guardado, turnosCancelados);
@@ -94,5 +132,22 @@ public class BloqueoAgendaServicio implements IBloqueoAgendaServicio {
                 .stream()
                 .map(bloqueoAgendaMapper::paraDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BloqueoAgendaDtoResponse obtenerBloqueoPorId(Long id) {
+        BloqueoAgenda bloqueo = bloqueoAgendaRepositorio.findById(id)
+                .orElseThrow(() -> new NoEncontradoExcepcion("Bloqueo de agenda no encontrado con ID: " + id));
+        return bloqueoAgendaMapper.paraDto(bloqueo);
+    }
+
+    @Override
+    @Transactional
+    public void eliminarBloqueo(Long bloqueoId) {
+        if (!bloqueoAgendaRepositorio.existsById(bloqueoId)) {
+            throw new NoEncontradoExcepcion("Bloqueo de agenda no encontrado con ID: " + bloqueoId);
+        }
+        bloqueoAgendaRepositorio.deleteById(bloqueoId);
     }
 }

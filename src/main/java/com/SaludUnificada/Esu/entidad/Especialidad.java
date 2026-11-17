@@ -24,7 +24,22 @@ public class Especialidad {
     @Column(nullable = false, unique = true)
     private String nombre;
 
+    @Column(length = 500)
+    private String descripcion;
+
+    @Column(length = 50)
+    private String categoria; // CONSULTA, ESTUDIO, SERVICIO
+
+    @Column(name = "nombre_canonico", length = 180)
+    private String nombreCanonico;
+
     @ManyToMany(mappedBy = "especialidades")
     @JsonIgnore
     private Set<Profesional> profesionales = new HashSet<>();
+
+    public Especialidad(Long id, String nombre, Set<Profesional> profesionales) {
+        this.id = id;
+        this.nombre = nombre;
+        this.profesionales = profesionales != null ? profesionales : new HashSet<>();
+    }
 }

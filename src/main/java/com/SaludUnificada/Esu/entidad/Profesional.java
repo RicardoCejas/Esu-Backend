@@ -49,4 +49,12 @@ public class Profesional {
         inverseJoinColumns = { @JoinColumn(name = "especialidad_id") }
     )
     private Set<Especialidad> especialidades = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+        name = "profesional_centro_salud",
+        joinColumns = @JoinColumn(name = "profesional_id")
+    )
+    @Column(name = "centro_salud_id")
+    private Set<Long> centrosSaludIds = new HashSet<>();
 }

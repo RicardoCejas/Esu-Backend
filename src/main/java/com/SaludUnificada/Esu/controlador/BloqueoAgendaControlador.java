@@ -22,25 +22,35 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Bloqueos de Agenda", description = "Endpoints para suspender temporalmente la atención médica por licencias, feriados o vacaciones y reprogramar pacientes")
+@Tag(name = "Bloqueos de Agenda", description = "Endpoints para suspender temporalmente la atencion medica por licencias, feriados o vacaciones y reprogramar pacientes")
 public class BloqueoAgendaControlador {
 
     private final IBloqueoAgendaServicio bloqueoAgendaServicio;
 
     @Operation(
-            summary = "Bloquear agenda médica y cancelar preventivamente turnos solapados (HU-BE-90 / HU-FE-62)",
-            description = "Registra una indisponibilidad temporal para un profesional y actualiza automáticamente a CANCELADO_POR_MEDICO todos los turnos del rango, retornando la lista de pacientes a reprogramar."
+            summary = "Bloquear agenda medica y cancelar preventivamente turnos solapados",
+            description = "Registra una indisponibilidad temporal para un profesional y actualiza a CANCELADO_POR_MEDICO todos los turnos del rango, retornando la lista de pacientes a reprogramar."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Bloqueo registrado y turnos cancelados preventivamente",
                     content = @Content(schema = @Schema(implementation = BloqueoAgendaDtoResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Fechas inválidas o datos de solicitud incompletos",
+            @ApiResponse(responseCode = "400", description = "Fechas invalidas o datos de solicitud incompletos",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
+    @PostMapping("/api/bloqueos-agenda")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#request.profesionalId)) or @securityPolicy.isReceptionistOfDoctor(#request.profesionalId)")
+    public ResponseEntity<BloqueoAgendaDtoResponse> registrarBloqueoGenerico(@Valid @RequestBody BloqueoAgendaDtoRequest request) {
+        if (request.getProfesionalId() == null) {
+            throw new IllegalArgumentException("El ID del profesional es obligatorio para registrar un bloqueo de agenda.");
+        }
+        BloqueoAgendaDtoResponse response = bloqueoAgendaServicio.registrarBloqueo(request.getProfesionalId(), request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
     @PostMapping("/api/profesionales/{id}/bloquear-agenda")
-    @PreAuthorize("hasAnyRole('MEDICO', 'PROFESIONAL', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#id)) or @securityPolicy.isReceptionistOfDoctor(#id)")
     public ResponseEntity<BloqueoAgendaDtoResponse> bloquearAgenda(
             @Parameter(description = "ID del profesional", example = "1")
             @PathVariable Long id,
@@ -49,19 +59,47 @@ public class BloqueoAgendaControlador {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+
     @Operation(
             summary = "Listar bloqueos de agenda de un profesional",
-            description = "Devuelve el historial de indisponibilidades y licencias programadas para el médico solicitado."
+            description = "Devuelve el historial de indisponibilidades y licencias programadas para el medico solicitado."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Listado de bloqueos obtenido"),
             @ApiResponse(responseCode = "404", description = "Profesional no encontrado")
     })
-    @GetMapping("/api/profesionales/{id}/bloqueos")
+    @GetMapping({"/api/profesionales/{id}/bloqueos", "/api/bloqueos-agenda/profesional/{id}"})
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<BloqueoAgendaDtoResponse>> listarBloqueosPorProfesional(
             @Parameter(description = "ID del profesional", example = "1")
             @PathVariable Long id) {
         List<BloqueoAgendaDtoResponse> bloqueos = bloqueoAgendaServicio.listarBloqueosPorProfesional(id);
         return ResponseEntity.ok(bloqueos);
+    }
+
+    @Operation(
+            summary = "Obtener detalle de un bloqueo especifico",
+            description = "Devuelve los datos detallados de un bloqueo de agenda por ID."
+    )
+    @GetMapping({"/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}", "/api/bloqueos-agenda/{bloqueoId}"})
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<BloqueoAgendaDtoResponse> obtenerBloqueoPorId(
+            @PathVariable(required = false) Long profesionalId,
+            @PathVariable Long bloqueoId) {
+        return ResponseEntity.ok(bloqueoAgendaServicio.obtenerBloqueoPorId(bloqueoId));
+    }
+
+    @DeleteMapping({"/api/profesionales/{profesionalId}/bloqueos/{bloqueoId}", "/api/bloqueos-agenda/{bloqueoId}"})
+    @PreAuthorize("hasRole('ADMIN') or (hasAnyRole('MEDICO', 'PROFESIONAL') and @securityPolicy.isDoctorAuthor(#profesionalId)) or @securityPolicy.canAccessBloqueo(#bloqueoId)")
+    public ResponseEntity<Void> eliminarBloqueo(@PathVariable(required = false) Long profesionalId, @PathVariable Long bloqueoId) {
+        bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/api/bloqueos-agenda/{bloqueoId}")
+    @PreAuthorize("hasRole('ADMIN') or hasAnyRole('MEDICO', 'PROFESIONAL')")
+    public ResponseEntity<Void> eliminarBloqueoDirecto(@PathVariable Long bloqueoId) {
+        bloqueoAgendaServicio.eliminarBloqueo(bloqueoId);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -1,59 +1,64 @@
-# =============================================================================
-# ESU: Ecosistema de Salud Unificado (Cruz del Eje)
-# HU-86: Orquestación de Contenedores con Docker Compose
-# =============================================================================
-
-version: '3.8'
-
 services:
-  # Base de Datos MySQL
-  esu-mysql:
+  mysql:
     image: mysql:8.0
     container_name: esu-mysql
-    restart: unless-stopped
+    restart: always
     environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: db_esu
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root}
-      TZ: America/Argentina/Cordoba
-    ports:
-      - "3306:3306"
+      MYSQL_USER: ${MYSQL_USER:-esu_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD es obligatoria en produccion}
+    networks:
+      - esu-internal
     volumes:
       - esu_mysql_data:/var/lib/mysql
-    networks:
-      - esu-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD:-root}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-esu_app}", "-p${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
 
-  # Backend de Spring Boot (ESU)
-  esu-backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  backend:
+    build: .
     container_name: esu-backend
-    restart: unless-stopped
+    restart: always
     depends_on:
-      esu-mysql:
+      mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://esu-mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba&useSSL=false&allowPublicKeyRetrieval=true
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-root}
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_esu?createDatabaseIfNotExist=true&serverTimezone=America/Argentina/Cordoba
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-esu_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD es obligatoria en produccion}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET es obligatorio en produccion}
+      APP_DOCUMENTOS_FIRMA_SECRET: ${APP_DOCUMENTOS_FIRMA_SECRET:-${APP_JWT_SECRET}}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS es requerido en produccion}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL es requerido en produccion}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-notificaciones@cruzdeleje.gob.ar}
+      ESU_UPLOADS_ESTUDIOS_DIR: /app/uploads/estudios
       SERVER_PORT: 8080
-      TZ: America/Argentina/Cordoba
     ports:
       - "8080:8080"
+    volumes:
+      - esu_uploads_estudios:/app/uploads/estudios
     networks:
-      - esu-network
+      - esu-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  esu-internal:
+    driver: bridge
 
 volumes:
   esu_mysql_data:
-    name: esu_mysql_data
-
-networks:
-  esu-network:
-    name: esu-network
-    driver: bridge
+  esu_uploads_estudios:

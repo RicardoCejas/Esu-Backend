@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate; // Importación agregada
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -13,8 +13,35 @@ import java.time.LocalDate; // Importación agregada
 @AllArgsConstructor
 public class UsuarioDtoResponse {
     private Long id;
-    private String username; // Corresponde al email de la entidad Usuario
-    private String rol; // Agregado
+    private String username;
+    private String email;
+    private String nombre;
+    private String apellido;
+    private String dni;
+    private String rol;
     private Boolean activo;
-    private LocalDate fechaDeAlta; // Agregado
+    private LocalDate fechaDeAlta;
+    private Long centroSaludId;
+    private String centroSaludNombre;
+    private java.util.List<String> permisos;
+
+    public UsuarioDtoResponse(Long id, String username, String rol, Boolean activo, LocalDate fechaDeAlta) {
+        this.id = id;
+        this.username = username;
+        this.email = username;
+        this.rol = rol;
+        this.activo = activo;
+        this.fechaDeAlta = fechaDeAlta;
+    }
+
+    public UsuarioDtoResponse(Long id, String username, String rol, Boolean activo, LocalDate fechaDeAlta, Long centroSaludId, String centroSaludNombre) {
+        this.id = id;
+        this.username = username;
+        this.email = username;
+        this.rol = rol;
+        this.activo = activo;
+        this.fechaDeAlta = fechaDeAlta;
+        this.centroSaludId = centroSaludId;
+        this.centroSaludNombre = centroSaludNombre;
+    }
 }

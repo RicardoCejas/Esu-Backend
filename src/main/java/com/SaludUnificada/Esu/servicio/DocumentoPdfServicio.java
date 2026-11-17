@@ -6,14 +6,18 @@ import com.SaludUnificada.Esu.entidad.HistoriaClinica;
 import com.SaludUnificada.Esu.entidad.MedicamentoReceta;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.RecetaDigital;
+import com.SaludUnificada.Esu.entidad.Turno;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +30,9 @@ public class DocumentoPdfServicio {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DateTimeFormatter DATE_ONLY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    @Value("${app.documentos.firma-secret:${app.jwt.secret:}}")
+    private String firmaSecret;
 
     public String calcularHashSha256(String contenido) {
         try {
@@ -43,6 +50,37 @@ public class DocumentoPdfServicio {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Error al calcular SHA-256", e);
         }
+    }
+
+    public String calcularFirmaHmacSha256(String contenido) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            String secreto = firmaSecret != null ? firmaSecret : "";
+            mac.init(new SecretKeySpec(secreto.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] firma = mac.doFinal(contenido.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : firma) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al calcular la firma HMAC-SHA256", e);
+        }
+    }
+
+    public boolean verificarFirmaHmacSha256(String contenido, String firma) {
+        if (contenido == null || firma == null || firma.isBlank()) {
+            return false;
+        }
+        String calculada = calcularFirmaHmacSha256(contenido);
+        return MessageDigest.isEqual(
+                calculada.getBytes(StandardCharsets.UTF_8),
+                firma.trim().getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     public byte[] generarQrBytes(String texto, int ancho, int alto) {
@@ -168,9 +206,9 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("FIRMA DIGITAL Y SEGURIDAD LEGAL", headerFont));
-            hashCell.addElement(new Paragraph("Documento emitido electrónicamente con validez jurídica conforme a la Ley de Receta Digital.", smallFont));
-            hashCell.addElement(new Paragraph("Código Hash SHA-256 de Integridad:", smallFont));
+            hashCell.addElement(new Paragraph("SELLO DE INTEGRIDAD DOCUMENTAL", headerFont));
+            hashCell.addElement(new Paragraph("Documento emitido electrónicamente con sello criptográfico de integridad verificable.", smallFont));
+            hashCell.addElement(new Paragraph("Código de Integridad HMAC-SHA256:", smallFont));
             hashCell.addElement(new Paragraph(receta.getHashIntegridad() != null ? receta.getHashIntegridad() : "-", smallFont));
             hashCell.addElement(new Paragraph("Escanee el código QR o acceda a: " + urlVerificacion, smallFont));
             footerTable.addCell(hashCell);
@@ -292,8 +330,8 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("FIRMA ELECTRÓNICA INALTERABLE - LEY 26.529", headerFont));
-            hashCell.addElement(new Paragraph("Hash SHA-256 de Integridad Documental:", smallFont));
+            hashCell.addElement(new Paragraph("SELLO DE INTEGRIDAD INALTERABLE - LEY 26.529", headerFont));
+            hashCell.addElement(new Paragraph("Código de Integridad HMAC-SHA256:", smallFont));
             hashCell.addElement(new Paragraph(evolucion.getHashIntegridad() != null ? evolucion.getHashIntegridad() : "-", smallFont));
             hashCell.addElement(new Paragraph("Verifique la autenticidad en: " + urlVerificacion, smallFont));
             footerTable.addCell(hashCell);
@@ -322,7 +360,7 @@ public class DocumentoPdfServicio {
             PdfWriter writer = PdfWriter.getInstance(document, out);
 
             // Hash provisional para el foliado
-            String hashDoc = calcularHashSha256("EXPEDIENTE|" + paciente.getDni() + "|" + System.currentTimeMillis());
+            String hashDoc = calcularFirmaHmacSha256("EXPEDIENTE|" + paciente.getId() + "|" + paciente.getDni() + "|" + (urlVerificacion != null ? urlVerificacion : ""));
             FoliadoPageEventHelper foliadoHelper = new FoliadoPageEventHelper(hashDoc);
             writer.setPageEvent(foliadoHelper);
 
@@ -345,7 +383,7 @@ public class DocumentoPdfServicio {
             subHeader.setAlignment(Element.ALIGN_CENTER);
             document.add(subHeader);
 
-            Paragraph legalNota = new Paragraph("Validez Legal Plena conforme a Ley Nacional 26.529 de Derechos del Paciente e Historia Clínica", smallFont);
+            Paragraph legalNota = new Paragraph("Documento clínico emitido conforme a la Ley Nacional 26.529. Integridad verificable mediante sello criptográfico.", smallFont);
             legalNota.setAlignment(Element.ALIGN_CENTER);
             document.add(legalNota);
 
@@ -438,7 +476,7 @@ public class DocumentoPdfServicio {
                     }
 
                     if (ev.getHashIntegridad() != null) {
-                        evCell.addElement(new Paragraph("Firma Electrónica / Hash Integridad: " + ev.getHashIntegridad(), smallFont));
+                        evCell.addElement(new Paragraph("Sello de Integridad / Hash: " + ev.getHashIntegridad(), smallFont));
                     }
 
                     // Adendas
@@ -508,8 +546,8 @@ public class DocumentoPdfServicio {
 
             PdfPCell hashCell = new PdfPCell();
             hashCell.setBorder(Rectangle.NO_BORDER);
-            hashCell.addElement(new Paragraph("CONSTANCIA DE VALIDEZ Y SEGURIDAD CRIPTOGRÁFICA", headerFont));
-            hashCell.addElement(new Paragraph("Hash SHA-256 de Integridad del Expediente Completo:", smallFont));
+            hashCell.addElement(new Paragraph("CONSTANCIA DE INTEGRIDAD CRIPTOGRÁFICA", headerFont));
+            hashCell.addElement(new Paragraph("Código HMAC-SHA256 de Integridad del Expediente Completo:", smallFont));
             hashCell.addElement(new Paragraph(hashDoc, smallFont));
             hashCell.addElement(new Paragraph("Verifique la autenticidad de este expediente en el portal oficial:", smallFont));
             hashCell.addElement(new Paragraph(urlVerificacion, smallFont));
@@ -527,6 +565,92 @@ public class DocumentoPdfServicio {
     /**
      * Helper de foliado OpenPDF para numeración 'Página X de Y'
      */
+
+    public byte[] generarCertificadoAsistenciaPdf(Turno turno, String urlVerificacion) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4, 40, 40, 50, 50);
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Font.NORMAL);
+            Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Font.NORMAL);
+            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Font.NORMAL);
+            Font textFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Font.NORMAL);
+            Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL);
+
+            Paragraph header = new Paragraph("ESU - ECOSISTEMA DE SALUD UNIFICADO", titleFont);
+            header.setAlignment(Element.ALIGN_CENTER);
+            document.add(header);
+
+            Paragraph subHeader = new Paragraph("CERTIFICADO OFICIAL DE ASISTENCIA MÉDICA", subTitleFont);
+            subHeader.setAlignment(Element.ALIGN_CENTER);
+            document.add(subHeader);
+
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(" "));
+
+            String nombrePaciente = turno.getPaciente() != null ? turno.getPaciente().getNombre() + " " + turno.getPaciente().getApellido() : "PACIENTE";
+            String dniPaciente = turno.getPaciente() != null && turno.getPaciente().getDni() != null ? turno.getPaciente().getDni() : "-";
+            String nombreMedico = turno.getProfesional() != null ? turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido() : "PROFESIONAL ACTUANTE";
+            String matricula = turno.getProfesional() != null && turno.getProfesional().getMatricula() != null ? turno.getProfesional().getMatricula() : "M.P. PROV";
+            String fecha = turno.getFechaHora() != null ? turno.getFechaHora().format(DATE_FORMATTER) : java.time.LocalDate.now().toString();
+
+            String cuerpoTexto = "Por la presente se certifica que el/la paciente " + nombrePaciente + ", DNI Nº " + dniPaciente +
+                    ", concurrió a este centro de salud y fue atendido/a en consulta médica el día " + fecha + ".\n\n" +
+                    "Se extiende el presente certificado a pedido del/de la interesado/a para ser presentado ante las autoridades laborales, escolares o quien corresponda.";
+
+            Paragraph pCuerpo = new Paragraph(cuerpoTexto, textFont);
+            pCuerpo.setLeading(20f);
+            pCuerpo.setAlignment(Element.ALIGN_JUSTIFIED);
+            document.add(pCuerpo);
+
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(" "));
+
+            PdfPTable footerTable = new PdfPTable(2);
+            footerTable.setWidthPercentage(100);
+
+            PdfPCell cellFirma = new PdfPCell();
+            cellFirma.setBorder(Rectangle.NO_BORDER);
+            cellFirma.addElement(new Paragraph("Sello de Integridad:", headerFont));
+            cellFirma.addElement(new Paragraph("Dr./Dra. " + nombreMedico, textFont));
+            cellFirma.addElement(new Paragraph("Matrícula: " + matricula, textFont));
+            cellFirma.addElement(new Paragraph("Estado de Consulta: " + turno.getEstado(), textFont));
+            footerTable.addCell(cellFirma);
+
+            PdfPCell cellQr = new PdfPCell();
+            cellQr.setBorder(Rectangle.NO_BORDER);
+            cellQr.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            if (urlVerificacion != null && !urlVerificacion.isBlank()) {
+                byte[] qrBytes = generarQrBytes(urlVerificacion, 110, 110);
+                if (qrBytes != null) {
+                    Image qrImg = Image.getInstance(qrBytes);
+                    qrImg.setAlignment(Element.ALIGN_RIGHT);
+                    cellQr.addElement(qrImg);
+                }
+            }
+            footerTable.addCell(cellQr);
+
+            document.add(footerTable);
+
+            document.add(new Paragraph(" "));
+            String payloadTurno = "TURNO|" + turno.getId() + "|"
+                    + (turno.getPaciente() != null ? turno.getPaciente().getDni() : "") + "|"
+                    + (turno.getProfesional() != null ? turno.getProfesional().getMatricula() : "") + "|"
+                    + (turno.getFechaHora() != null ? turno.getFechaHora().toString() : "") + "|"
+                    + (turno.getEstado() != null ? turno.getEstado() : "");
+            String hashTurno = calcularFirmaHmacSha256(payloadTurno);
+            Paragraph pAviso = new Paragraph("Documento emitido electrónicamente con sello de integridad verificable. Código de Verificación: TURNO-" + turno.getId() + "-" + hashTurno.substring(0, 16).toUpperCase(), smallFont);
+            pAviso.setAlignment(Element.ALIGN_CENTER);
+            document.add(pAviso);
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al generar el certificado de asistencia en PDF", e);
+        }
+    }
+
     public static class FoliadoPageEventHelper extends PdfPageEventHelper {
         private PdfTemplate totalPagesTemplate;
         private BaseFont baseFont;

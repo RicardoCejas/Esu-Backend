@@ -42,6 +42,9 @@ public class DisponibilidadProfesional {
     @Column(name = "centro_salud_id")
     private Long centroSaludId;
 
+    @Column(name = "consultorio_id")
+    private Long consultorioId;
+
     @Column(name = "activo")
     @Builder.Default
     private Boolean activo = true;

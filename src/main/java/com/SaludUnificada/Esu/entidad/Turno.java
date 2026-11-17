@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
     @Index(name = "idx_turno_estado", columnList = "estado"),
     @Index(name = "idx_turno_paciente_id", columnList = "paciente_id"),
     @Index(name = "idx_turno_profesional_id", columnList = "profesional_id"),
+    @Index(name = "idx_turno_prof_fecha_estado", columnList = "profesional_id, fecha_hora, estado"),
     @Index(name = "idx_turno_sobreturno", columnList = "profesional_id, fecha_hora, es_sobreturno")
 })
 @Getter
@@ -40,6 +42,9 @@ public class Turno {
     @Column(name = "motivo_sobreturno")
     private String motivoSobreturno;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 
@@ -51,6 +56,57 @@ public class Turno {
     @JoinColumn(name = "profesional_id")
     private Profesional profesional;
 
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
+
+    @Column(name = "consultorio_numero", length = 50)
+    private String consultorioNumero;
+
+    @Column(name = "planta", length = 50)
+    private String planta;
+
+    @Column(name = "tipo_atencion", length = 50)
+    private String tipoAtencion; // "CONSULTA" o "ESTUDIO"
+
+    @Column(name = "servicio", length = 150)
+    private String servicio;
+
+    @Column(name = "especialidad_id")
+    private Long especialidadId;
+
+    @Column(name = "fecha_check_in")
+    private LocalDateTime fechaCheckIn;
+
+    @Column(name = "recepcionista_check_in")
+    private String recepcionistaCheckIn;
+
+    @Column(name = "monto_copago", precision = 10, scale = 2)
+    private BigDecimal montoCopago;
+
+    @Column(name = "numero_bono")
+    private String numeroBono;
+
+    @Column(name = "metodo_pago")
+    private String metodoPago;
+
+    @Column(name = "fecha_copago")
+    private LocalDateTime fechaCopago;
+
+    @Column(name = "observaciones_atencion", length = 1000)
+    private String observacionesAtencion;
+
+    @Column(name = "fecha_atencion")
+    private LocalDateTime fechaAtencion;
+
+    @Column(name = "fecha_cancelacion")
+    private LocalDateTime fechaCancelacion;
+
+    @Column(name = "motivo_cancelacion", length = 500)
+    private String motivoCancelacion;
+
     @PrePersist
     protected void onCreate() {
         if (fechaCreacion == null) {
@@ -58,6 +114,9 @@ public class Turno {
         }
         if (esSobreturno == null) {
             esSobreturno = false;
+        }
+        if (tipoAtencion == null || tipoAtencion.isBlank()) {
+            tipoAtencion = "CONSULTA";
         }
     }
 }

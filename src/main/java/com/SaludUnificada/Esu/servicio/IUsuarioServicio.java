@@ -1,6 +1,7 @@
 package com.SaludUnificada.Esu.servicio;
 
 import com.SaludUnificada.Esu.dto.request.UsuarioDtoRequest;
+import com.SaludUnificada.Esu.dto.request.UsuarioPerfilOperativoDtoRequest;
 import com.SaludUnificada.Esu.dto.response.UsuarioDtoResponse;
 import com.SaludUnificada.Esu.entidad.Usuario;
 
@@ -10,8 +11,16 @@ public interface IUsuarioServicio {
     UsuarioDtoResponse crearUsuario(UsuarioDtoRequest usuario);
     UsuarioDtoResponse obtenerUsuarioPorId(Long id);
     List<UsuarioDtoResponse> listarTodos();
+    List<UsuarioDtoResponse> listarPorCentro(Long centroSaludId);
     void eliminarUsuario(Long id);
     UsuarioDtoResponse findByUsername(String username);
     List<UsuarioDtoResponse> findByActivo(boolean estado);
     Usuario obtenerEntidadUsuarioPorId(Long id);
+    UsuarioDtoResponse cambiarEstadoActivo(Long id, boolean activo);
+    void revocarSesiones(Long id);
+    void revocarSesionesPorEmail(String email);
+    List<String> obtenerPermisosUsuario(Long id);
+    UsuarioDtoResponse actualizarPermisosUsuario(Long id, List<String> codigosPermisos);
+    UsuarioDtoResponse actualizarRolYCentro(Long id, String nuevoRol, Long nuevoCentroSaludId, String nuevoCentroSaludNombre);
+    UsuarioDtoResponse actualizarPerfilOperativo(Long id, UsuarioPerfilOperativoDtoRequest perfilDto);
 }

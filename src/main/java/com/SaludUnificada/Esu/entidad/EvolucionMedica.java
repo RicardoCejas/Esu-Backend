@@ -12,7 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "evolucion_medica")
+@Table(name = "evolucion_medica", indexes = {
+    @Index(name = "idx_evolucion_cie10", columnList = "codigo_cie10"),
+    @Index(name = "idx_evolucion_fecha_creacion", columnList = "fecha_creacion"),
+    @Index(name = "idx_evolucion_paciente_id", columnList = "paciente_id"),
+    @Index(name = "idx_evolucion_profesional_id", columnList = "profesional_id")
+})
 @EntityListeners(EvolucionInmutableListener.class)
 @Getter
 @Setter
@@ -36,6 +41,12 @@ public class EvolucionMedica {
     @JoinColumn(name = "turno_id")
     @JsonIgnoreProperties({"paciente", "profesional"})
     private Turno turno;
+
+    @Column(name = "centro_salud_id")
+    private Long centroSaludId;
+
+    @Column(name = "centro_salud_nombre")
+    private String centroSaludNombre;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "historia_clinica_id")

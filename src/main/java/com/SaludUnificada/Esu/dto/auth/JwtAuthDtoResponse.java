@@ -16,6 +16,21 @@ public class JwtAuthDtoResponse {
     @Builder.Default
     private String tokenType = "Bearer";
     private Long usuarioId;
+    private Long pacienteId;
+    private Long profesionalId;
+    private Long centroSaludId;
+    private String centroSaludNombre;
     private String email;
     private String rol;
+    private String nombre;
+    private String apellido;
+    private String dni;
+    private String matricula;
+    private String especialidad;
+    private String telefono;
+    private Boolean emailVerificado;
+    private Boolean twoFactorEnabled;
+    private Boolean requires2FA;
+    private String tempToken;
+    private java.util.List<String> permisos;
 }

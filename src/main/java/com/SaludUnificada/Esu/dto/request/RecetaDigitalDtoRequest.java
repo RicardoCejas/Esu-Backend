@@ -25,6 +25,9 @@ public class RecetaDigitalDtoRequest {
     private String diagnostico;
     private String codigoCie10;
     private String indicacionesGenerales;
+    private Long centroSaludEmisorId;
+    private String centroSaludEmisorNombre;
+    private String lugarRetiroSugerido;
 
     @NotEmpty(message = "Debe incluir al menos un medicamento en la prescripción")
     private List<@Valid MedicamentoItemDto> medicamentos;

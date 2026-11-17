@@ -1,0 +1,92 @@
+package com.SaludUnificada.Esu.seguridad;
+
+/**
+ * Utilidad para el enmascaramiento y anonimización de datos sensibles
+ * en registros de log y trazas operativas (cumplimiento Ley 25.326 de Protección de Datos Personales).
+ */
+public final class MascaraDatosUtil {
+
+    private MascaraDatosUtil() {
+    }
+
+    /**
+     * Enmascara una dirección de correo electrónico protegiendo la identidad del usuario.
+     * Ejemplo: "paciente@hospital.gob.ar" -> "p***e@h***.gob.ar"
+     */
+    public static String enmascararEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "***";
+        }
+        String trimmed = email.trim();
+        int atIndex = trimmed.indexOf('@');
+        if (atIndex <= 0) {
+            return "***";
+        }
+        String local = trimmed.substring(0, atIndex);
+        String domain = trimmed.substring(atIndex + 1);
+
+        String localEnmascarado;
+        if (local.length() <= 2) {
+            localEnmascarado = local.charAt(0) + "***";
+        } else {
+            localEnmascarado = local.charAt(0) + "***" + local.charAt(local.length() - 1);
+        }
+
+        int dotIndex = domain.lastIndexOf('.');
+        String domainEnmascarado;
+        if (dotIndex > 1) {
+            String sub = domain.substring(0, dotIndex);
+            String ext = domain.substring(dotIndex);
+            domainEnmascarado = sub.charAt(0) + "***" + ext;
+        } else {
+            domainEnmascarado = domain;
+        }
+
+        return localEnmascarado + "@" + domainEnmascarado;
+    }
+
+    /**
+     * Enmascara claves de idempotencia o tokens sensibles para evitar fugas en logs y respuestas.
+     * Ejemplo: "idem-key-abc-12345" -> "idem...2345"
+     */
+    public static String enmascararClave(String key) {
+        if (key == null || key.isBlank()) {
+            return "***";
+        }
+        String trimmed = key.trim();
+        if (trimmed.length() <= 8) {
+            return "***";
+        }
+        return trimmed.substring(0, 4) + "..." + trimmed.substring(trimmed.length() - 4);
+    }
+
+    /**
+     * Enmascara números telefónicos en endpoints públicos.
+     * Ejemplo: "3549123456" -> "35***56"
+     */
+    public static String enmascararTelefono(String tel) {
+        if (tel == null || tel.isBlank()) {
+            return "***";
+        }
+        String trimmed = tel.trim();
+        if (trimmed.length() <= 4) {
+            return "***";
+        }
+        return trimmed.substring(0, 2) + "***" + trimmed.substring(trimmed.length() - 2);
+    }
+
+    /**
+     * Enmascara un DNI protegiendo la identidad del paciente.
+     * Ejemplo: "35123456" -> "35***456"
+     */
+    public static String enmascararDni(String dni) {
+        if (dni == null || dni.isBlank()) {
+            return "***";
+        }
+        String trimmed = dni.trim();
+        if (trimmed.length() <= 4) {
+            return "***";
+        }
+        return trimmed.substring(0, 2) + "***" + trimmed.substring(trimmed.length() - 3);
+    }
+}

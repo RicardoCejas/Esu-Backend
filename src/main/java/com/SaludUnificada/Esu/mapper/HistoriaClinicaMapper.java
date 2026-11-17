@@ -38,6 +38,8 @@ public class HistoriaClinicaMapper {
         dto.setMotivoConsulta(historia.getMotivoConsulta());
         dto.setTratamiento(historia.getTratamiento());
         dto.setFechaAtencion(historia.getFechaAtencion());
+        dto.setCentroSaludId(historia.getCentroSaludId() != null ? historia.getCentroSaludId() : 1L);
+        dto.setCentroSaludNombre(historia.getCentroSaludNombre() != null ? historia.getCentroSaludNombre() : "Hospital Regional Aurelio Crespo");
 
         if (historia.getPaciente() != null) {
             dto.setPaciente(pacienteMapper.paraDto(historia.getPaciente())); // Corregido: Usar paraDto

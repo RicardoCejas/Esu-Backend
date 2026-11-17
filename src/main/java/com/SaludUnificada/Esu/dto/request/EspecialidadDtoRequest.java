@@ -13,4 +13,14 @@ import lombok.Setter;
 public class EspecialidadDtoRequest {
     @NotBlank(message = "El nombre de la especialidad es obligatorio")
     private String nombre;
+
+    private String descripcion;
+
+    private String categoria;
+
+    private String nombreCanonico;
+
+    public EspecialidadDtoRequest(String nombre) {
+        this.nombre = nombre;
+    }
 }
