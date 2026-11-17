@@ -93,7 +93,16 @@ public class EvolucionMedicaServicio {
                 if (!Boolean.TRUE.equals(profAutenticado.getEstadoActivo())) {
                     throw new AccessDeniedException("El perfil del profesional autenticado se encuentra inactivo.");
                 }
-                profesional = profAutenticado;
+                if (request.getProfesionalId() != null) {
+                    profesional = profesionalRepositorio.findById(request.getProfesionalId())
+                        .orElseThrow(() -> new NoEncontradoExcepcion("Profesional no encontrado con ID: " + request.getProfesionalId()));
+                    if (!profesional.getId().equals(profAutenticado.getId()) || profesional.getUsuario() == null
+                            || !profesional.getUsuario().getEmail().equalsIgnoreCase(auth.getName())) {
+                        throw new AccessDeniedException("No está autorizado a registrar una evolución a nombre de otro profesional.");
+                    }
+                } else {
+                    profesional = profAutenticado;
+                }
 
                 if (request.getTurnoId() == null) {
                     if (ownershipSecurityEvaluator != null && !ownershipSecurityEvaluator.canAccessPatient(paciente.getId())) {

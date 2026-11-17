@@ -198,11 +198,32 @@ public class RefreshTokenServicio {
             var paciente = usuario.getPaciente();
             var profesional = usuario.getProfesional();
 
-            Long centroId = usuario.getCentroSaludId() != null ? usuario.getCentroSaludId() : (paciente != null ? paciente.getCentroSaludReferenciaId() : null);
+            Long centroId = usuario.getCentroSaludId() != null
+                    ? usuario.getCentroSaludId()
+                    : (paciente != null && paciente.getCentroSaludReferenciaId() != null
+                        ? paciente.getCentroSaludReferenciaId()
+                        : (profesional != null && profesional.getCentrosSaludIds() != null && !profesional.getCentrosSaludIds().isEmpty()
+                            ? profesional.getCentrosSaludIds().iterator().next()
+                            : null));
 
+            String centroNombre = usuario.getCentroSaludNombre() != null
+                    ? usuario.getCentroSaludNombre()
+                    : (paciente != null ? paciente.getCentroSaludReferenciaNombre() : null);
 
-            String centroNombre = usuario.getCentroSaludNombre() != null ? usuario.getCentroSaludNombre() : (paciente != null ? paciente.getCentroSaludReferenciaNombre() : null);
+            String especialidadPrincipal = null;
+            try {
+                if (profesional != null && profesional.getEspecialidades() != null && !profesional.getEspecialidades().isEmpty()) {
+                    especialidadPrincipal = profesional.getEspecialidades().iterator().next().getNombre();
+                }
+            } catch (Exception ignored) {
+            }
 
+            java.util.List<String> codigosPermisos = (usuario.getPermisos() != null)
+                    ? usuario.getPermisos().stream()
+                        .map(com.SaludUnificada.Esu.entidad.Permiso::getCodigo)
+                        .sorted()
+                        .toList()
+                    : java.util.Collections.emptyList();
 
             JwtAuthDtoResponse authResponse = JwtAuthDtoResponse.builder()
                     .accessToken(nuevoAccessToken)
@@ -214,10 +235,16 @@ public class RefreshTokenServicio {
                     .centroSaludNombre(centroNombre)
                     .email(usuario.getEmail())
                     .rol(usuario.getRol())
-                    .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : null)
-                    .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : null)
-                    .dni(paciente != null ? paciente.getDni() : null)
+                    .nombre(paciente != null ? paciente.getNombre() : profesional != null ? profesional.getNombre() : usuario.getNombre())
+                    .apellido(paciente != null ? paciente.getApellido() : profesional != null ? profesional.getApellido() : usuario.getApellido())
+                    .dni(paciente != null ? paciente.getDni() : usuario.getDni())
+                    .matricula(profesional != null ? profesional.getMatricula() : null)
+                    .especialidad(especialidadPrincipal)
+                    .telefono(paciente != null ? paciente.getTelefono() : profesional != null ? profesional.getTelefono() : null)
                     .emailVerificado(usuario.getEmailVerificado())
+                    .twoFactorEnabled(Boolean.TRUE.equals(usuario.getTwoFactorEnabled()))
+                    .requires2FA(false)
+                    .permisos(codigosPermisos)
                     .build();
 
             return new StepOutcome(new RefreshResult(authResponse, nuevoTokenRaw), null, null, null);

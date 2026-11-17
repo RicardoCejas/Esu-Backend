@@ -2,6 +2,7 @@ package com.SaludUnificada.Esu.repositorio;
 
 import com.SaludUnificada.Esu.entidad.Profesional;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +19,7 @@ public interface ProfesionalRepositorio extends JpaRepository<Profesional, Long>
     Optional<Profesional> findByMatricula(String matricula);
     List<Profesional> findByEspecialidadesId(Long especialidadId);
     List<Profesional> findByEspecialidades_Id(Long especialidadId);
+    @EntityGraph(attributePaths = "especialidades")
     Optional<Profesional> findByUsuarioEmail(String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

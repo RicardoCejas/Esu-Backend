@@ -43,23 +43,33 @@ public class AuditoriaHistoriaClinicaAspect {
 
         if (auth != null && auth.isAuthenticated()) {
             if (usuarioRepositorio != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
-                usuarioRepositorio.findByEmail(auth.getName()).ifPresent(u -> {
-                    
-                });
                 var optUser = usuarioRepositorio.findByEmail(auth.getName());
                 if (optUser.isPresent()) {
                     usuarioId = optUser.get().getId();
                 }
             }
-            rol = auth.getAuthorities().stream()
-                .map(Object::toString)
-                .reduce((a, b) -> a + "," + b)
-                .orElse("USER");
-            if (rol != null && rol.length() > 50) {
-                rol = rol.substring(0, 50);
+            List<String> roles = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(a -> a != null && a.startsWith("ROLE_"))
+                    .toList();
+
+            if (!roles.isEmpty()) {
+                rol = String.join(",", roles);
+            } else {
+                rol = auth.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .filter(a -> a != null && !a.isBlank())
+                        .collect(Collectors.joining(","));
+                if (rol.isBlank()) {
+                    rol = "USER";
+                }
             }
 
-            if (rol.contains("RECEPCIONISTA") || (rol.contains("ADMIN") && !rol.contains("PROFESIONAL"))) {
+            boolean esRecepcionista = roles.stream().anyMatch("ROLE_RECEPCIONISTA"::equalsIgnoreCase);
+            boolean esAdminSinRolClinico = roles.stream().anyMatch("ROLE_ADMIN"::equalsIgnoreCase)
+                    && roles.stream().noneMatch(r -> "ROLE_PROFESIONAL".equalsIgnoreCase(r) || "ROLE_MEDICO".equalsIgnoreCase(r));
+
+            if (esRecepcionista || esAdminSinRolClinico) {
                 throw new AccessDeniedException("403 Forbidden: Secreto profesional médico. El perfil actual no tiene autorización para acceder a evoluciones clínicas confidenciales.");
             }
         }

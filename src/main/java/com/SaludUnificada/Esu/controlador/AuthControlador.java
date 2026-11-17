@@ -133,7 +133,12 @@ public class AuthControlador {
     private String activeProfile;
 
     private boolean esProduccion() {
-        return "prod".equalsIgnoreCase(activeProfile) || "production".equalsIgnoreCase(activeProfile);
+        if (activeProfile == null || activeProfile.isBlank()) {
+            return false;
+        }
+        return Arrays.stream(activeProfile.split(","))
+                .map(String::trim)
+                .anyMatch(p -> "prod".equalsIgnoreCase(p) || "production".equalsIgnoreCase(p));
     }
 
     @Value("${app.auth.cookie.same-site:}")
@@ -715,8 +720,10 @@ public class AuthControlador {
 
     private Profesional profesionalDe(Usuario usuario) {
         Profesional profesional = usuario.getProfesional();
-        if (profesional == null && usuario.getEmail() != null && profesionalRepositorio != null) {
-            profesional = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
+        boolean necesitaCarga = profesional == null
+                || !org.hibernate.Hibernate.isInitialized(profesional.getEspecialidades());
+        if (necesitaCarga && usuario.getEmail() != null && profesionalRepositorio != null) {
+            profesional = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(profesional);
         }
         return profesional;
     }
@@ -986,6 +993,7 @@ public class AuthControlador {
     }
 
     @GetMapping("/me")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Principal principal) {
         if (principal == null || principal.getName() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado");
@@ -993,14 +1001,8 @@ public class AuthControlador {
         Usuario usuario = usuarioRepositorio.findByEmail(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
-        Paciente paciente = usuario.getPaciente();
-        if (paciente == null && usuario.getId() != null) {
-            paciente = pacienteRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
-        }
-        Profesional profesional = usuario.getProfesional();
-        if (profesional == null && profesionalRepositorio != null && usuario.getEmail() != null) {
-            profesional = profesionalRepositorio.findByUsuarioEmail(usuario.getEmail()).orElse(null);
-        }
+        Paciente paciente = pacienteDe(usuario);
+        Profesional profesional = profesionalDe(usuario);
 
         Map<String, Object> response = new java.util.LinkedHashMap<>();
         response.put("id", usuario.getId());
