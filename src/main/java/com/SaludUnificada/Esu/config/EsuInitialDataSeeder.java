@@ -477,12 +477,22 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             nuevo.setFechaDeAlta(LocalDate.now());
             return nuevo;
         });
+        // Reparar hashes BCrypt truncados/corruptos provenientes de migraciones semilla (ej. 59 chars en lugar de 60)
+        if (!esHashBcryptValido(u.getPassword()) && (u.getPassword() == null || !u.getPassword().startsWith("$2a$10$LOCKED_PROD_"))) {
+            u.setPassword(passwordEncoder.encode(rawPassword));
+        }
         if (centroSaludId != null) {
             u.setCentroSaludId(centroSaludId);
             u.setCentroSaludNombre(centroSaludNombre);
         }
         asignarPermisosDefectoSiVacios(u);
         return usuarioRepositorio.save(u);
+    }
+
+    private boolean esHashBcryptValido(String hash) {
+        return hash != null
+                && hash.length() == 60
+                && (hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"));
     }
 
     private void asignarPermisosDefectoSiVacios(Usuario usuario) {
