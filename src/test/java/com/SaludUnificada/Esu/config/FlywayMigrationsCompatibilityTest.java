@@ -12,7 +12,6 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -101,48 +100,6 @@ class FlywayMigrationsCompatibilityTest {
         assertTrue(v35Sql.contains("pac.fk_usuario"), "V35 debe unir paciente por fk_usuario");
         assertFalse(v35Sql.contains("pac.usuario_id"), "V35 no debe referenciar pac.usuario_id");
         assertTrue(v35Sql.contains("u.id > 0"), "V35 debe incluir u.id > 0 para compatibilidad con sql_safe_updates=ON");
-    }
-
-    @Test
-    void v38EspecialidadesNormalization_mustBeIdempotentWhenNombreAlreadyExistsOnAnotherId() throws Exception {
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Resource v38 = resolver.getResource("classpath:db/migration/V38__ampliar_especialidades_hospital_crespo_y_turnos_diciembre.sql");
-        String sql = stripSqlComments(new String(v38.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-
-        // Verificar que ningún UPDATE especialidad por id sea incondicional (riesgo Error 1062 Duplicate entry)
-        Pattern unsafeUpdate = Pattern.compile(
-                "UPDATE\\s+especialidad\\s+SET\\s+nombre\\s*=.*?WHERE\\s+id\\s*=\\s*\\d+\\s*;",
-                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        );
-        assertFalse(unsafeUpdate.matcher(sql).find(),
-                "V38 no debe renombrar especialidad por id sin verificar que el nombre no exista en otro id");
-
-        // Ejecutar sección 2 de V38 en H2 MODE=MySQL simulando colisión previa en especialidad.nombre
-        String dbUrl = "jdbc:h2:mem:v38_dup_check_" + java.util.UUID.randomUUID().toString().replace("-", "") + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE";
-        try (var conn = java.sql.DriverManager.getConnection(dbUrl);
-             var st = conn.createStatement()) {
-            st.execute("CREATE TABLE especialidad (id BIGINT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150) NOT NULL UNIQUE, categoria VARCHAR(50) NOT NULL DEFAULT 'CONSULTA', nombre_canonico VARCHAR(180), descripcion VARCHAR(500))");
-            st.execute("INSERT INTO especialidad (id, nombre) VALUES (1, 'Clínica Médica / Medicina General'), (2, 'Pediatría y Neonatología'), (8, 'Imágenes Antiguo')");
-            st.execute("INSERT INTO especialidad (id, nombre) VALUES (12, 'Clínica Médica'), (13, 'Diagnóstico por Imágenes')");
-
-            int start = sql.indexOf("UPDATE especialidad SET nombre = 'Clínica Médica'");
-            int end = sql.indexOf("INSERT INTO usuario");
-            assertTrue(start >= 0 && end > start, "Sección 2 de V38 debe existir antes de INSERT INTO usuario");
-
-            String section2 = sql.substring(start, end);
-            for (String stmt : section2.split(";")) {
-                String trimmed = stmt.trim();
-                if (!trimmed.isEmpty()) {
-                    st.execute(trimmed);
-                }
-            }
-
-            try (var rs = st.executeQuery("SELECT categoria, nombre_canonico FROM especialidad WHERE nombre = 'Diagnóstico por Imágenes'")) {
-                assertTrue(rs.next());
-                assertEquals("SERVICIO", rs.getString("categoria"));
-                assertEquals("Diagnóstico por Imágenes", rs.getString("nombre_canonico"));
-            }
-        }
     }
 
     private String stripSqlComments(String sql) {

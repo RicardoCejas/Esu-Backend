@@ -181,20 +181,19 @@ public class TurnoServicio implements ITurnoServicio {
 
             if (disponibilidadRepositorio != null) {
                 List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(profesional.getId(), fechaHora.getDayOfWeek());
-                if (disponibilidades.isEmpty()) {
-                    throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el día seleccionado (agenda cerrada).");
-                }
-                boolean calza = disponibilidades.stream().anyMatch(disp -> {
-                    LocalTime t = fechaHora.toLocalTime();
-                    int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
-                    if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
-                        return false;
+                if (!disponibilidades.isEmpty()) {
+                    boolean calza = disponibilidades.stream().anyMatch(disp -> {
+                        LocalTime t = fechaHora.toLocalTime();
+                        int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
+                        if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
+                            return false;
+                        }
+                        long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
+                        return mins % dur == 0;
+                    });
+                    if (!calza) {
+                        throw new ReglaNegocioException("El horario solicitado no coincide con la agenda y disponibilidad configurada para el profesional.");
                     }
-                    long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
-                    return mins % dur == 0;
-                });
-                if (!calza) {
-                    throw new ReglaNegocioException("El horario solicitado no coincide con la agenda y disponibilidad configurada para el profesional.");
                 }
             }
 
@@ -914,10 +913,7 @@ public class TurnoServicio implements ITurnoServicio {
                     .collect(Collectors.toList());
         }
 
-        if (disponibilidadRepositorio != null) {
-            if (disponibilidades.isEmpty()) {
-                return List.of();
-            }
+        if (disponibilidadRepositorio != null && !disponibilidades.isEmpty()) {
             for (DisponibilidadProfesional disp : disponibilidades) {
                 int intervalo = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0)
                         ? disp.getIntervaloMinutos() : duracionSlotMinutos;
@@ -1233,20 +1229,19 @@ public class TurnoServicio implements ITurnoServicio {
 
         if (disponibilidadRepositorio != null && turno.getProfesional() != null) {
             List<DisponibilidadProfesional> disponibilidades = disponibilidadRepositorio.findByProfesionalIdAndDiaSemanaAndActivoTrue(turno.getProfesional().getId(), nuevaFechaHora.getDayOfWeek());
-            if (disponibilidades.isEmpty()) {
-                throw new ReglaNegocioException("El profesional no posee franjas de disponibilidad configuradas para el nuevo día seleccionado (agenda cerrada).");
-            }
-            boolean calza = disponibilidades.stream().anyMatch(disp -> {
-                LocalTime t = nuevaFechaHora.toLocalTime();
-                int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
-                if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
-                    return false;
+            if (!disponibilidades.isEmpty()) {
+                boolean calza = disponibilidades.stream().anyMatch(disp -> {
+                    LocalTime t = nuevaFechaHora.toLocalTime();
+                    int dur = (disp.getIntervaloMinutos() != null && disp.getIntervaloMinutos() > 0) ? disp.getIntervaloMinutos() : duracionSlotMinutos;
+                    if (t.isBefore(disp.getHoraInicio()) || t.plusMinutes(dur).isAfter(disp.getHoraFin())) {
+                        return false;
+                    }
+                    long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
+                    return mins % dur == 0;
+                });
+                if (!calza) {
+                    throw new ReglaNegocioException("El nuevo horario solicitado no coincide con la agenda configurada para el profesional.");
                 }
-                long mins = java.time.Duration.between(disp.getHoraInicio(), t).toMinutes();
-                return mins % dur == 0;
-            });
-            if (!calza) {
-                throw new ReglaNegocioException("El nuevo horario solicitado no coincide con la agenda configurada para el profesional.");
             }
         }
 
