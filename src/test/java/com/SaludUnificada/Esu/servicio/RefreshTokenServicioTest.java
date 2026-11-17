@@ -198,4 +198,56 @@ class RefreshTokenServicioTest {
         assertTrue(tokenExpirado.isRevocado());
         verify(refreshTokenRepositorio).save(tokenExpirado);
     }
+
+    @Test
+    @DisplayName("Rotar refresh token de profesional: preserva permisos, matrícula, especialidad y centro")
+    void rotarRefreshToken_profesional_preservaMetadataSesion() {
+        String rawToken = "prof-refresh-token";
+        String tokenHash = RefreshTokenServicio.hashToken(rawToken);
+
+        var permiso = com.SaludUnificada.Esu.entidad.Permiso.builder().codigo("TURNOS_VER").build();
+        var esp = new com.SaludUnificada.Esu.entidad.Especialidad();
+        esp.setNombre("Cardiología");
+        var prof = new com.SaludUnificada.Esu.entidad.Profesional();
+        prof.setId(55L);
+        prof.setNombre("Alejandro");
+        prof.setApellido("Rossi");
+        prof.setMatricula("MP 15.670");
+        prof.setTelefono("03549-422116");
+        prof.setEspecialidades(java.util.Set.of(esp));
+        prof.setCentrosSaludIds(java.util.Set.of(1L));
+
+        Usuario profUser = new Usuario();
+        profUser.setId(77L);
+        profUser.setEmail("alejandro.rossi@esu.salud.gob.ar");
+        profUser.setRol("PROFESIONAL");
+        profUser.setEstadoActivo(true);
+        profUser.setEmailVerificado(true);
+        profUser.setTokenVersion(2);
+        profUser.setProfesional(prof);
+        profUser.setPermisos(java.util.Set.of(permiso));
+
+        RefreshToken tokenExistente = RefreshToken.builder()
+                .id(9L)
+                .usuario(profUser)
+                .tokenFamilyId("fam-prof")
+                .tokenHash(tokenHash)
+                .fechaCreacion(LocalDateTime.now().minusHours(1))
+                .fechaExpiracion(LocalDateTime.now().plusDays(5))
+                .revocado(false)
+                .build();
+
+        when(refreshTokenRepositorio.findByTokenHashForUpdate(tokenHash)).thenReturn(Optional.of(tokenExistente));
+        when(jwtTokenProvider.generarTokenParaUsuario("alejandro.rossi@esu.salud.gob.ar", "PROFESIONAL", 2))
+                .thenReturn("prof.access.token");
+        when(refreshTokenRepositorio.save(any(RefreshToken.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RefreshTokenServicio.RefreshResult result = refreshTokenServicio.rotarRefreshToken(rawToken);
+
+        assertEquals(55L, result.authResponse().getProfesionalId());
+        assertEquals("MP 15.670", result.authResponse().getMatricula());
+        assertEquals("Cardiología", result.authResponse().getEspecialidad());
+        assertEquals(1L, result.authResponse().getCentroSaludId());
+        assertEquals(java.util.List.of("TURNOS_VER"), result.authResponse().getPermisos());
+    }
 }

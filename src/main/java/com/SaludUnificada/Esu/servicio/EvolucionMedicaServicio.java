@@ -279,6 +279,7 @@ public class EvolucionMedicaServicio {
         return registrarEvolucion(evReq);
     }
 
+    @Transactional(readOnly = true)
     public ResumenClinicoDtoResponse obtenerResumenClinico(Long pacienteId) {
         Paciente paciente = pacienteRepositorio.findById(pacienteId)
             .orElseThrow(() -> new NoEncontradoExcepcion("Paciente no encontrado con ID: " + pacienteId));
@@ -361,11 +362,13 @@ public class EvolucionMedicaServicio {
         return dto;
     }
 
+    @Transactional(readOnly = true)
     public List<TimelineItemDto> obtenerTimelinePaciente(Long pacienteId) {
         List<EvolucionMedica> evoluciones = evolucionRepositorio.findByPacienteIdOrderByFechaCreacionDesc(pacienteId);
         return evoluciones.stream().map(this::convertirATimelineItem).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public Page<TimelineItemDto> obtenerTimelineParametrizado(
             Long pacienteId,
             String q,
