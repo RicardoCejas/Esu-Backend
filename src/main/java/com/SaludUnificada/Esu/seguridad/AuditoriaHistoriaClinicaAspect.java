@@ -9,14 +9,22 @@ import org.aspectj.lang.annotation.Aspect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Aspect
 @Component
 public class AuditoriaHistoriaClinicaAspect {
+
+    private static final int MAX_ROL_USUARIO_LEN = 50;
+    private static final int MAX_IP_LEN = 50;
+    private static final int MAX_ACCION_LEN = 100;
 
     @Autowired
     private LogAccesoHcRepositorio logAccesoHcRepositorio;
@@ -33,20 +41,33 @@ public class AuditoriaHistoriaClinicaAspect {
 
         if (auth != null && auth.isAuthenticated()) {
             if (usuarioRepositorio != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
-                usuarioRepositorio.findByEmail(auth.getName()).ifPresent(u -> {
-                    
-                });
                 var optUser = usuarioRepositorio.findByEmail(auth.getName());
                 if (optUser.isPresent()) {
                     usuarioId = optUser.get().getId();
                 }
             }
-            rol = auth.getAuthorities().stream()
-                .map(Object::toString)
-                .reduce((a, b) -> a + "," + b)
-                .orElse("USER");
+            List<String> roles = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(a -> a != null && a.startsWith("ROLE_"))
+                    .toList();
 
-            if (rol.contains("RECEPCIONISTA") || (rol.contains("ADMIN") && !rol.contains("PROFESIONAL"))) {
+            if (!roles.isEmpty()) {
+                rol = String.join(",", roles);
+            } else {
+                rol = auth.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .filter(a -> a != null && !a.isBlank())
+                        .collect(Collectors.joining(","));
+                if (rol.isBlank()) {
+                    rol = "USER";
+                }
+            }
+
+            boolean esRecepcionista = roles.stream().anyMatch("ROLE_RECEPCIONISTA"::equalsIgnoreCase);
+            boolean esAdminSinRolClinico = roles.stream().anyMatch("ROLE_ADMIN"::equalsIgnoreCase)
+                    && roles.stream().noneMatch(r -> "ROLE_PROFESIONAL".equalsIgnoreCase(r) || "ROLE_MEDICO".equalsIgnoreCase(r));
+
+            if (esRecepcionista || esAdminSinRolClinico) {
                 throw new AccessDeniedException("403 Forbidden: Secreto profesional médico. El perfil actual no tiene autorización para acceder a evoluciones clínicas confidenciales.");
             }
         }
@@ -55,10 +76,12 @@ public class AuditoriaHistoriaClinicaAspect {
         if (attrs != null) {
             HttpServletRequest req = attrs.getRequest();
             String remoteAddr = req.getHeader("X-Forwarded-For");
-            if (remoteAddr == null || remoteAddr.isEmpty()) {
+            if (remoteAddr != null && !remoteAddr.isBlank()) {
+                remoteAddr = remoteAddr.split(",")[0].trim();
+            } else {
                 remoteAddr = req.getRemoteAddr();
             }
-            if (remoteAddr != null) {
+            if (remoteAddr != null && !remoteAddr.isBlank()) {
                 ipAddress = remoteAddr;
             }
         }
@@ -75,9 +98,9 @@ public class AuditoriaHistoriaClinicaAspect {
             LogAccesoHc log = new LogAccesoHc(
                 usuarioId,
                 pacienteId,
-                joinPoint.getSignature().getName(),
-                ipAddress,
-                rol
+                truncar(joinPoint.getSignature().getName(), MAX_ACCION_LEN),
+                truncar(ipAddress, MAX_IP_LEN),
+                truncar(rol, MAX_ROL_USUARIO_LEN)
             );
             logAccesoHcRepositorio.save(log);
         } catch (Exception ex) {
@@ -85,5 +108,12 @@ public class AuditoriaHistoriaClinicaAspect {
         }
 
         return resultado;
+    }
+
+    private String truncar(String valor, int maxLen) {
+        if (valor == null) {
+            return null;
+        }
+        return valor.length() > maxLen ? valor.substring(0, maxLen) : valor;
     }
 }

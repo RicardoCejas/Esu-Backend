@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -35,38 +36,43 @@ public class AuditoriaSeguridadServicio {
     private final LogAccesoHcRepositorio logAccesoHcRepositorio;
     private final UsuarioRepositorio usuarioRepositorio;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registrarLoginExitoso(String email) {
-        String ip = obtenerClientIp();
+        String ip = truncar(obtenerClientIp(), 50);
         String userAgent = obtenerUserAgent();
 
         LogAuditoriaSeguridad logEntry = new LogAuditoriaSeguridad();
-        logEntry.setEmail(email != null ? email.trim().toLowerCase() : "desconocido");
+        logEntry.setEmail(truncar(email != null ? email.trim().toLowerCase() : "desconocido", 150));
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(userAgent);
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.LOGIN_OK);
-        logEntry.setDetalle("Inicio de sesiÃ³n completado satisfactoriamente.");
+        logEntry.setDetalle("Inicio de sesión completado satisfactoriamente.");
         logEntry.setFecha(LocalDateTime.now());
 
         auditoriaRepositorio.save(logEntry);
         log.info("LOGIN_OK: Usuario '{}' desde IP '{}'", com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(email), ip);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registrarLoginFallido(String email, String motivo) {
-        String ip = obtenerClientIp();
+        String ip = truncar(obtenerClientIp(), 50);
         String userAgent = obtenerUserAgent();
 
         LogAuditoriaSeguridad logEntry = new LogAuditoriaSeguridad();
-        logEntry.setEmail(email != null ? email.trim().toLowerCase() : "desconocido");
+        logEntry.setEmail(truncar(email != null ? email.trim().toLowerCase() : "desconocido", 150));
         logEntry.setIpAddress(ip);
         logEntry.setUserAgent(userAgent);
         logEntry.setEvento(LogAuditoriaSeguridad.EventoSeguridad.LOGIN_FAIL);
-        logEntry.setDetalle(motivo != null ? motivo : "Credenciales invÃ¡lidas.");
+        logEntry.setDetalle(truncar(motivo != null ? motivo : "Credenciales inválidas.", 250));
         logEntry.setFecha(LocalDateTime.now());
 
         auditoriaRepositorio.save(logEntry);
         log.warn("LOGIN_FAIL: Intento fallido para '{}' desde IP '{}'. Motivo: {}", com.SaludUnificada.Esu.seguridad.MascaraDatosUtil.enmascararEmail(email), ip, motivo);
+    }
+
+    private String truncar(String valor, int maxLength) {
+        if (valor == null) return null;
+        return valor.length() > maxLength ? valor.substring(0, maxLength) : valor;
     }
 
     public boolean estaBloqueadoPorIntentosFallidos(String email) {
