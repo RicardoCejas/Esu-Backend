@@ -43,14 +43,36 @@ ON DUPLICATE KEY UPDATE
 -- -----------------------------------------------------------------------------
 -- 2. Catálogo Canónico Completo de 28 Especialidades
 -- -----------------------------------------------------------------------------
-UPDATE especialidad SET nombre = 'Clínica Médica', nombre_canonico = 'Clínica Médica', categoria = 'CONSULTA' WHERE id = 1;
-UPDATE especialidad SET nombre = 'Pediatría', nombre_canonico = 'Pediatría', categoria = 'CONSULTA' WHERE id = 2;
-UPDATE especialidad SET nombre = 'Cardiología', nombre_canonico = 'Cardiología', categoria = 'CONSULTA' WHERE id = 3;
-UPDATE especialidad SET nombre = 'Traumatología', nombre_canonico = 'Traumatología', categoria = 'CONSULTA' WHERE id = 4;
-UPDATE especialidad SET nombre = 'Ginecología y Obstetricia', nombre_canonico = 'Ginecología y Obstetricia', categoria = 'CONSULTA' WHERE id = 5;
-UPDATE especialidad SET nombre = 'Oftalmología', nombre_canonico = 'Oftalmología', categoria = 'CONSULTA' WHERE id = 6;
-UPDATE especialidad SET nombre = 'Odontología', nombre_canonico = 'Odontología', categoria = 'CONSULTA' WHERE id = 7;
-UPDATE especialidad SET nombre = 'Diagnóstico por Imágenes', nombre_canonico = 'Diagnóstico por Imágenes', categoria = 'SERVICIO' WHERE id = 8;
+UPDATE especialidad SET nombre = 'Clínica Médica', nombre_canonico = 'Clínica Médica', categoria = 'CONSULTA'
+WHERE id = 1 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Clínica Médica' AND id <> 1 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Pediatría', nombre_canonico = 'Pediatría', categoria = 'CONSULTA'
+WHERE id = 2 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Pediatría' AND id <> 2 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Cardiología', nombre_canonico = 'Cardiología', categoria = 'CONSULTA'
+WHERE id = 3 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Cardiología' AND id <> 3 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Traumatología', nombre_canonico = 'Traumatología', categoria = 'CONSULTA'
+WHERE id = 4 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Traumatología' AND id <> 4 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Ginecología y Obstetricia', nombre_canonico = 'Ginecología y Obstetricia', categoria = 'CONSULTA'
+WHERE id = 5 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Ginecología y Obstetricia' AND id <> 5 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Oftalmología', nombre_canonico = 'Oftalmología', categoria = 'CONSULTA'
+WHERE id = 6 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Oftalmología' AND id <> 6 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Odontología', nombre_canonico = 'Odontología', categoria = 'CONSULTA'
+WHERE id = 7 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Odontología' AND id <> 7 LIMIT 1) AS dup);
+
+UPDATE especialidad SET nombre = 'Diagnóstico por Imágenes', nombre_canonico = 'Diagnóstico por Imágenes', categoria = 'SERVICIO'
+WHERE id = 8 AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM especialidad WHERE nombre = 'Diagnóstico por Imágenes' AND id <> 8 LIMIT 1) AS dup);
+
+INSERT INTO especialidad (nombre, categoria, nombre_canonico, descripcion) VALUES
+('Diagnóstico por Imágenes', 'SERVICIO', 'Diagnóstico por Imágenes', 'Ecografías, radiología digital, doppler y estudios diagnósticos.')
+ON DUPLICATE KEY UPDATE
+    categoria = VALUES(categoria),
+    nombre_canonico = VALUES(nombre_canonico),
+    descripcion = VALUES(descripcion);
 
 INSERT INTO especialidad (nombre, categoria, nombre_canonico, descripcion) VALUES
 ('Pediatría', 'CONSULTA', 'Pediatría', 'Atención integral del niño y recién nacido.'),
