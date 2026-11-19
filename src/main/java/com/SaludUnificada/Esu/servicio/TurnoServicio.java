@@ -458,8 +458,16 @@ public class TurnoServicio implements ITurnoServicio {
             Optional<Paciente> pacienteAut = pacienteRepositorio.findByUsuarioEmail(emailAutenticado);
             if (pacienteAut.isPresent()) {
                 paciente = pacienteAut.get();
-                if (paciente.getDni() != null && !paciente.getDni().replaceAll("[^0-9]", "").equals(dniLimpio)) {
-                    paciente = null;
+                String dniExistente = paciente.getDni() != null ? paciente.getDni().replaceAll("[^0-9]", "") : "";
+                if (dniExistente.isEmpty() || paciente.getDni().startsWith("DNI-") || paciente.getDni().startsWith("G-") || !dniExistente.equals(dniLimpio)) {
+                    Optional<Paciente> otroConDni = pacienteRepositorio.findByDni(dniLimpio);
+                    if (otroConDni.isPresent() && !otroConDni.get().getId().equals(paciente.getId())) {
+                        throw new ReglaNegocioException("El DNI ingresado ya pertenece a otro paciente registrado.");
+                    }
+                    if (dniLimpio != null && !dniLimpio.isBlank()) {
+                        paciente.setDni(dniLimpio);
+                        paciente = pacienteRepositorio.save(paciente);
+                    }
                 }
             }
         }
