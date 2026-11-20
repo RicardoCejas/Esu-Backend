@@ -310,14 +310,7 @@ public class TurnoServicio implements ITurnoServicio {
             throw dive;
         }
 
-        if (recordatorioRepositorio != null) {
-            try {
-                recordatorioRepositorio.deleteByTurnoId(guardado.getId());
-                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
-            } catch (Exception ex) {
-                log.error("Fallo al persistir recordatorio para el turno ID={}: {}. El reconciliador programado lo recuperará.", guardado.getId(), ex.getMessage());
-            }
-        }
+        sincronizarRecordatorio(guardado);
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
@@ -555,13 +548,7 @@ public class TurnoServicio implements ITurnoServicio {
         Turno guardado = turnoRepositorio.save(turno);
         turnoRepositorio.flush();
 
-        if (recordatorioRepositorio != null) {
-            try {
-                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
-            } catch (Exception ex) {
-                log.warn("Recordatorio no generado inmediatamente: {}", ex.getMessage());
-            }
-        }
+        sincronizarRecordatorio(guardado);
 
         if (emailNotificacionServicio != null) {
             final String emailDestino = (request.getEmail() != null && !request.getEmail().isBlank()) ? request.getEmail().trim() : null;
@@ -716,14 +703,7 @@ public class TurnoServicio implements ITurnoServicio {
             throw dive;
         }
 
-        if (recordatorioRepositorio != null) {
-            try {
-                recordatorioRepositorio.deleteByTurnoId(guardado.getId());
-                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
-            } catch (Exception ex) {
-                log.error("Fallo al crear recordatorio para el sobreturno ID={}: {}", guardado.getId(), ex.getMessage());
-            }
-        }
+        sincronizarRecordatorio(guardado);
 
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
@@ -1266,7 +1246,9 @@ public class TurnoServicio implements ITurnoServicio {
             throw new IllegalStateException("El nuevo horario solicitado ya no está disponible.");
         }
 
-        if (turno.getPaciente() != null && turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(turno.getPaciente().getId(), nuevaFechaHora, CANCELADO)) {
+        if (turno.getPaciente() != null
+                && (turno.getFechaHora() == null || !turno.getFechaHora().isEqual(nuevaFechaHora))
+                && turnoRepositorio.existsByPacienteIdAndFechaHoraAndEstadoNot(turno.getPaciente().getId(), nuevaFechaHora, CANCELADO)) {
             throw new ReglaNegocioException("El paciente ya cuenta con otro turno registrado en el mismo día y horario.");
         }
 
@@ -1275,14 +1257,7 @@ public class TurnoServicio implements ITurnoServicio {
 
         Turno guardado = turnoRepositorio.save(turno);
 
-        if (recordatorioRepositorio != null) {
-            try {
-                recordatorioRepositorio.deleteByTurnoId(guardado.getId());
-                recordatorioRepositorio.save(new RecordatorioTurno(guardado));
-            } catch (Exception ex) {
-                log.error("Fallo al actualizar recordatorio para el turno reprogramado ID={}: {}", guardado.getId(), ex.getMessage());
-            }
-        }
+        sincronizarRecordatorio(guardado);
         if (notificacionUsuarioServicio != null && guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null) {
             notificacionUsuarioServicio.crearNotificacion(
                 guardado.getPaciente().getUsuario(),
@@ -1695,6 +1670,29 @@ public class TurnoServicio implements ITurnoServicio {
 
         if (!coincidePaciente || !coincideProfesional || !coincideFecha) {
             throw new IllegalStateException("Conflicto de idempotencia: La clave '" + MascaraDatosUtil.enmascararClave(key) + "' ya fue utilizada previamente con parámetros de reserva diferentes.");
+        }
+    }
+
+    /**
+     * Crea o actualiza en sitio el recordatorio asociado al turno para evitar colisiones
+     * de clave única provocadas por delete + insert en el mismo flush de Hibernate.
+     */
+    private void sincronizarRecordatorio(Turno guardado) {
+        if (recordatorioRepositorio == null || guardado == null || guardado.getId() == null) {
+            return;
+        }
+        try {
+            if (guardado.getFechaHora() == null) {
+                return;
+            }
+            RecordatorioTurno recordatorio = recordatorioRepositorio.findByTurnoId(guardado.getId())
+                    .orElseGet(() -> new RecordatorioTurno(guardado));
+            recordatorio.setTurno(guardado);
+            recordatorio.setDisponibleDesde(guardado.getFechaHora().minusHours(24));
+            recordatorio.setLeido(false);
+            recordatorioRepositorio.save(recordatorio);
+        } catch (Exception ex) {
+            log.warn("Recordatorio no sincronizado inmediatamente para turno ID={}: {}", guardado.getId(), ex.getMessage());
         }
     }
 }

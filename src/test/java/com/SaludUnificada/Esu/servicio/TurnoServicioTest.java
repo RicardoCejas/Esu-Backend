@@ -7,6 +7,7 @@ import com.SaludUnificada.Esu.dto.response.TurnoDtoResponse;
 import com.SaludUnificada.Esu.error.ReglaNegocioException;
 import com.SaludUnificada.Esu.entidad.Paciente;
 import com.SaludUnificada.Esu.entidad.Profesional;
+import com.SaludUnificada.Esu.entidad.RecordatorioTurno;
 import com.SaludUnificada.Esu.entidad.Turno;
 import com.SaludUnificada.Esu.entidad.Usuario;
 import com.SaludUnificada.Esu.mapper.TurnoMapper;
@@ -474,6 +475,42 @@ class TurnoServicioTest {
         var request = new TurnoDtoRequest(LocalDateTime.of(2026, 10, 15, 9, 30), 12L, "Consulta");
         request.setCentroSaludId(null);
         assertThrows(ReglaNegocioException.class, () -> servicio.crearTurno(request, "patient@example.test"));
+    }
+
+    @Test
+    void reprogramarTurnoActualizaRecordatorioExistenteEnSitioSinEliminar() {
+        var paciente = new Paciente();
+        paciente.setId(21L);
+        var profesional = new Profesional();
+        profesional.setId(12L);
+
+        LocalDateTime fechaOriginal = LocalDateTime.of(2026, 10, 15, 8, 30);
+        LocalDateTime nuevaFecha = LocalDateTime.of(2026, 10, 15, 10, 0);
+
+        Turno turno = new Turno();
+        turno.setId(6744L);
+        turno.setPaciente(paciente);
+        turno.setProfesional(profesional);
+        turno.setFechaHora(fechaOriginal);
+        turno.setEstado("CONFIRMADO");
+
+        RecordatorioTurno existente = new RecordatorioTurno(turno);
+        existente.setId(99L);
+        existente.setLeido(true);
+
+        when(turnos.findById(6744L)).thenReturn(Optional.of(turno));
+        when(turnos.save(any(Turno.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(recordatorios.findByTurnoId(6744L)).thenReturn(Optional.of(existente));
+        when(mapper.paraDto(any(Turno.class))).thenReturn(TurnoDtoResponse.builder().id(6744L).estado("PENDIENTE").build());
+
+        TurnoDtoResponse resp = servicio.reprogramarTurno(6744L, nuevaFecha, "medico@esu.gob.ar");
+
+        assertEquals(6744L, resp.getId());
+        assertEquals(nuevaFecha, turno.getFechaHora());
+        assertEquals(nuevaFecha.minusHours(24), existente.getDisponibleDesde());
+        assertFalse(existente.isLeido());
+        verify(recordatorios, never()).deleteByTurnoId(any());
+        verify(recordatorios).save(existente);
     }
 
 }
