@@ -513,4 +513,44 @@ class TurnoServicioTest {
         verify(recordatorios).save(existente);
     }
 
+    @Test
+    void obtenerTurnosKanbanCentro_filtraSoloTurnosDelMedicoAutenticado() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "carlos.gomez@esu.test", "pass",
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MEDICO"))
+                )
+        );
+
+        Profesional miProf = new Profesional();
+        miProf.setId(7L);
+        Profesional otroProf = new Profesional();
+        otroProf.setId(8L);
+
+        LocalDate fecha = LocalDate.of(2026, 10, 14);
+        Turno tMio = new Turno();
+        tMio.setId(201L);
+        tMio.setCentroSaludId(1L);
+        tMio.setProfesional(miProf);
+        tMio.setEstado("ATENDIENDO");
+        tMio.setFechaHora(fecha.atTime(9, 0));
+
+        Turno tOtro = new Turno();
+        tOtro.setId(202L);
+        tOtro.setCentroSaludId(1L);
+        tOtro.setProfesional(otroProf);
+        tOtro.setEstado("PENDIENTE");
+        tOtro.setFechaHora(fecha.atTime(10, 0));
+
+        when(profesionales.findByUsuarioEmail("carlos.gomez@esu.test")).thenReturn(Optional.of(miProf));
+        when(turnos.findTurnosCentroEntreYEstados(eq(1L), eq(fecha.atStartOfDay()), any(LocalDateTime.class), anyList()))
+                .thenReturn(List.of(tMio, tOtro));
+        when(mapper.paraDto(tMio)).thenReturn(TurnoDtoResponse.builder().id(201L).estado("ATENDIENDO").build());
+
+        List<TurnoDtoResponse> resultado = servicio.obtenerTurnosKanbanCentro(1L, fecha);
+
+        assertEquals(1, resultado.size());
+        assertEquals(201L, resultado.get(0).getId());
+    }
+
 }

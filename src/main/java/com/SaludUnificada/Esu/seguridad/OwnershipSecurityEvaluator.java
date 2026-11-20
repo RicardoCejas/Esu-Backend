@@ -244,6 +244,31 @@ public class OwnershipSecurityEvaluator {
         return usuario.getCentroSaludId() != null && usuario.getCentroSaludId().equals(centroSaludId);
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public boolean canViewCenterKanban(Long centroSaludId) {
+        if (centroSaludId == null) return false;
+        Authentication auth = getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        if (isAdmin(auth)) return true;
+        if (isReceptionist(auth)) {
+            return isReceptionistOfCenter(centroSaludId);
+        }
+        if (isDoctor(auth)) {
+            Optional<Usuario> usuarioOpt = getCurrentUser(auth);
+            if (usuarioOpt.isPresent() && centroSaludId.equals(usuarioOpt.get().getCentroSaludId())) {
+                return true;
+            }
+            if (auth.getName() != null && profesionalRepositorio != null) {
+                Optional<Profesional> profOpt = profesionalRepositorio.findByUsuarioEmail(auth.getName());
+                if (profOpt.isPresent() && profOpt.get().getCentrosSaludIds() != null
+                        && profOpt.get().getCentrosSaludIds().contains(centroSaludId)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean canManageTurnoMostrador(Long turnoId) {
         if (turnoId == null) return false;
         Authentication auth = getAuthentication();

@@ -1612,10 +1612,39 @@ public class TurnoServicio implements ITurnoServicio {
                 "COMPLETADO"
         );
 
+        Long profesionalFiltroId = resolverProfesionalKanbanSoloMedico();
+        if (profesionalFiltroId != null && profesionalFiltroId < 0L) {
+            return List.of();
+        }
+
         return turnoRepositorio.findTurnosCentroEntreYEstados(centroId, inicio, fin, estadosKanban)
                 .stream()
+                .filter(t -> profesionalFiltroId == null
+                        || (t.getProfesional() != null && profesionalFiltroId.equals(t.getProfesional().getId())))
                 .map(turnoMapper::paraDto)
                 .collect(Collectors.toList());
+    }
+
+    private Long resolverProfesionalKanbanSoloMedico() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null || "anonymousUser".equals(auth.getName())) {
+            return null;
+        }
+        boolean esAdminORecepcion = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority())
+                        || "ROLE_RECEPCIONISTA".equalsIgnoreCase(a.getAuthority()));
+        if (esAdminORecepcion) {
+            return null;
+        }
+        boolean esMedico = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_MEDICO".equalsIgnoreCase(a.getAuthority())
+                        || "ROLE_PROFESIONAL".equalsIgnoreCase(a.getAuthority()));
+        if (!esMedico) {
+            return null;
+        }
+        return profesionalRepositorio.findByUsuarioEmail(auth.getName())
+                .map(Profesional::getId)
+                .orElse(-1L);
     }
 
     @Override

@@ -150,7 +150,7 @@ public class TurnoControlador {
     }
 
     @GetMapping("/centro/{centroId}/kanban")
-    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.isReceptionistOfCenter(#centroId)")
+    @PreAuthorize("hasRole('ADMIN') or @securityPolicy.canViewCenterKanban(#centroId)")
     @Operation(summary = "Obtener turnos activos de sala de espera (Kanban) acotados por centro de salud")
     public ResponseEntity<List<TurnoDtoResponse>> obtenerTurnosKanbanCentro(
             @PathVariable Long centroId,

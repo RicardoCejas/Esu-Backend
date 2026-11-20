@@ -581,4 +581,23 @@ class OwnershipSecurityEvaluatorTest {
 
         assertTrue(evaluator.canAccessBloqueo(601L));
     }
+
+    @Test
+    void canViewCenterKanban_allowsDoctorOfCenterAndDeniesDoctorOfOtherCenter() {
+        Usuario docUser = new Usuario();
+        docUser.setId(401L);
+        docUser.setEmail("medico.crespo@esu.test");
+        docUser.setRol("MEDICO");
+
+        Profesional doctor = new Profesional();
+        doctor.setId(302L);
+        doctor.setCentrosSaludIds(new java.util.HashSet<>(java.util.Set.of(1L)));
+
+        authenticate("medico.crespo@esu.test", "MEDICO");
+        when(usuarioRepositorio.findByEmail("medico.crespo@esu.test")).thenReturn(Optional.of(docUser));
+        when(profesionalRepositorio.findByUsuarioEmail("medico.crespo@esu.test")).thenReturn(Optional.of(doctor));
+
+        assertTrue(evaluator.canViewCenterKanban(1L));
+        assertFalse(evaluator.canViewCenterKanban(2L));
+    }
 }
