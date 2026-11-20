@@ -132,6 +132,12 @@ public class AuthControlador {
     @Value("${spring.profiles.active:local}")
     private String activeProfile;
 
+    @Value("${app.mail.enabled:false}")
+    private boolean mailEnabled;
+
+    @Value("${app.demo.seed-accounts:false}")
+    private boolean demoSeedAccounts;
+
     private boolean esProduccion() {
         if (activeProfile == null || activeProfile.isBlank()) {
             return false;
@@ -214,8 +220,10 @@ public class AuthControlador {
 
         Usuario usuario = usuarioRepositorio.findByEmail(email).orElse(null);
 
-        // Habilitar acceso de desarrollo para pruebas locales con dev@esu.gob.ar
-        if (("dev@esu.gob.ar".equalsIgnoreCase(email) && "Dev12345!".equals(loginDto.getPassword())) || ("admin@esu.gob.ar".equalsIgnoreCase(email) && "Admin123!".equals(loginDto.getPassword()))) {
+        // Habilitar acceso de desarrollo únicamente fuera de producción y con cuentas demo habilitadas
+        if (!esProduccion() && demoSeedAccounts
+                && (("dev@esu.gob.ar".equalsIgnoreCase(email) && "Dev12345!".equals(loginDto.getPassword()))
+                || ("admin@esu.gob.ar".equalsIgnoreCase(email) && "Admin123!".equals(loginDto.getPassword())))) {
             if (usuario == null) {
                 usuario = new Usuario();
                 usuario.setEmail(email.toLowerCase());
@@ -241,10 +249,15 @@ public class AuthControlador {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta se encuentra deshabilitada.");
         }
 
-        // Auto-activar y auto-verificar si no lo estaba para acceso directo
+        // Si el envío de emails está deshabilitado (modo demo/local), auto-verificar; si está activo, exigir confirmación
         if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
-            usuario.setEmailVerificado(true);
-            usuario = usuarioRepositorio.save(usuario);
+            if (!mailEnabled) {
+                usuario.setEmailVerificado(true);
+                usuario = usuarioRepositorio.save(usuario);
+            } else {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Debe confirmar su correo electrónico antes de iniciar sesión. Revise su casilla o solicite un nuevo enlace de verificación.");
+            }
         }
 
         Authentication authentication;
@@ -814,10 +827,20 @@ public class AuthControlador {
         usuario.setPassword(passwordEncoder.encode(registroDto.getPassword()));
         usuario.setRol("PACIENTE");
         usuario.setEstadoActivo(true);
-        usuario.setEmailVerificado(true);
         usuario.setFechaDeAlta(LocalDate.now());
-        usuario.setTokenVerificacion(null);
-        usuario.setTokenVerificacionUsado(true);
+
+        String tokenVerificacionPlano = null;
+        if (mailEnabled) {
+            tokenVerificacionPlano = UUID.randomUUID().toString();
+            usuario.setEmailVerificado(false);
+            usuario.setTokenVerificacion(RefreshTokenServicio.hashToken(tokenVerificacionPlano));
+            usuario.setFechaExpiracionVerificacion(LocalDateTime.now().plusHours(24));
+            usuario.setTokenVerificacionUsado(false);
+        } else {
+            usuario.setEmailVerificado(true);
+            usuario.setTokenVerificacion(null);
+            usuario.setTokenVerificacionUsado(true);
+        }
 
         Usuario guardado = usuarioRepositorio.save(usuario);
 
@@ -831,8 +854,17 @@ public class AuthControlador {
         nuevoPaciente = pacienteRepositorio.save(nuevoPaciente);
         guardado.setPaciente(nuevoPaciente);
 
+        if (mailEnabled && tokenVerificacionPlano != null && emailNotificacionServicio != null) {
+            try {
+                emailNotificacionServicio.enviarEmailVerificacion(guardado.getEmail(), nuevoPaciente.getNombre(), tokenVerificacionPlano);
+            } catch (Exception ex) {
+                log.warn("No se pudo enviar el correo de verificación a {}: {}", guardado.getEmail(), ex.getMessage());
+            }
+        }
+
+        boolean accesoDirecto = !mailEnabled || Boolean.TRUE.equals(guardado.getEmailVerificado());
         String token = null;
-        if (jwtTokenProvider != null) {
+        if (jwtTokenProvider != null && accesoDirecto) {
             var authorities = java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + guardado.getRol().toUpperCase()));
             var userDetails = new org.springframework.security.core.userdetails.User(guardado.getEmail(), guardado.getPassword(), authorities);
             Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
@@ -840,7 +872,7 @@ public class AuthControlador {
             token = jwtTokenProvider.generarToken(authentication);
         }
 
-        if (refreshTokenServicio != null && servletResponse != null) {
+        if (refreshTokenServicio != null && servletResponse != null && accesoDirecto) {
             var rt = refreshTokenServicio.crearRefreshToken(guardado);
             fijarCookieRefreshToken(servletResponse, rt.getToken());
         }
@@ -856,7 +888,7 @@ public class AuthControlador {
                 .nombre(nuevoPaciente.getNombre())
                 .apellido(nuevoPaciente.getApellido())
                 .dni(nuevoPaciente.getDni())
-                .emailVerificado(true)
+                .emailVerificado(accesoDirecto)
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);
