@@ -621,8 +621,8 @@ public class EsuInitialDataSeeder implements CommandLineRunner {
             devProf.setTelefono("3549-420000");
             devProf.setEstadoActivo(true);
             devProf.setUsuario(devUser);
-            if (espGeneral != null) devProf.setEspecialidades(Set.of(espGeneral));
-            devProf.setCentrosSaludIds(Set.of(1L, 2L));
+            if (espGeneral != null) devProf.setEspecialidades(new HashSet<>(Set.of(espGeneral)));
+            devProf.setCentrosSaludIds(new HashSet<>(Set.of(1L, 2L)));
             profesionalRepositorio.save(devProf);
         }
     }

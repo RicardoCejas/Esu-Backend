@@ -326,8 +326,10 @@ public class EmailNotificacionServicio {
 
     @Async
     public void enviarEmailVerificacion(String email, String nombre, String token) {
-        log.info("Envío de verificación de email omitido para " + email + " (acceso directo habilitado).");
-        if (true) return;
+        if (!mailEnabled) {
+            log.info("Envío de verificación de email omitido para {} (app.mail.enabled=false).", email);
+            return;
+        }
         if (email == null || email.isBlank()) {
             return;
         }
